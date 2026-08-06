@@ -142,16 +142,112 @@ moment M2 adds it**, with no new test code.
 
 ## M2 — Decks
 
-- [ ] Drizzle schema for `decks`, `deck_versions`, `deck_version_cards`
-- [ ] `src/lib/legality.ts` — all rules from `API.md` §7, pure and unit-tested
-- [ ] Create flow: Legend → Champion → build
-- [ ] Deck editor: zone-grouped list, steppers, identity-filtered card rail
-- [ ] Live legality bar with specific failure reasons
-- [ ] Deck detail: Overview | List | Versions | Matches | Stats
-- [ ] Decks tab with accent-gradient deck cards
+- [x] Drizzle schema for `decks`, `deck_versions`, `deck_version_cards` (migration 3)
+- [x] `src/lib/legality.ts` — all rules from `API.md` §7, pure and unit-tested
+- [x] Create flow: Legend → Champion → build
+- [x] Deck editor: zone-grouped list, steppers, identity-filtered card rail
+- [x] Live legality bar with specific failure reasons
+- [x] Deck detail: Overview | List — Versions, Matches, and Stats deferred to M3–M5
+- [x] Decks tab with accent-gradient deck cards
 
 **Done when:** a legal 40 + 12 + 3 deck can be built end to end, illegal states report the precise
 reason, and illegal decks still save.
+
+### What shipped, and what did not
+
+Deck detail ships **Overview** and **List** only. A Versions tab against a single version, or a
+Matches tab before match logging exists, teaches the user the app is empty — they arrive with the
+milestones that give them something to show. Overview carries the version list and states the fork
+rule in place, so the model is visible before M3 implements it.
+
+`saveDeckList()` **throws** on a locked version rather than writing. Nothing can lock a version
+until M4, so the branch is unreachable today — which is why it is worth having now. M3 replaces the
+throw with fork-on-save; until then, silently rewriting a list that matches were played on is the
+one failure this model must never have.
+
+### Rule corrections found in the card data
+
+`docs/API.md` §7 has the detail, with the Core Rules citation for each. Two were measured against
+the full mirror; the rest came out of the post-M2 audit against the official rulebook:
+
+| Finding | Consequence if missed |
+| --- | --- |
+| The Signature limit means `supertype = 'Signature'` (61 cards), **not** the `signature` column (36 cards) — the sets are disjoint | Limit enforced against cards that cannot be in a deck, never against the ones it exists for |
+| The copy limit counts cards, not printings — 1,451 printings are 954 cards | Six copies of one card in a "legal" deck |
+| The copy limit is scoped to the **Main Deck** (103.2.b), not to non-Basic cards everywhere | Three copies of one Battlefield pass as legal |
+| The Main Deck is **at least** 40 (103.2), not exactly 40 | A legal 42-card deck reported as two cards over |
+| Battlefields must all have **different names** (103.4.c) | Three copies of Star Spring pass the 3/3 count check |
+
+### Post-M2 audit
+
+Traced end to end before starting M3. `src/features/decks/editor-flow.test.ts` now drives the exact
+user sequence — real create-flow queries, real editor store, all 1,451 real cards, real SQLite — and
+reads the database back.
+
+| # | Finding | Status |
+| --- | --- | --- |
+| 1 | The rune exemption was inferred, not verified. Checking the Core Rules found **three** wrong rules: Main Deck is a minimum, the copy limit is Main-Deck-scoped, Battlefields must be distinct | Fixed, each check now cites its rule number |
+| 2 | Cached `is_legal` written under the old rules would keep claiming the old verdict | Fixed — `RULES_VERSION` stamp (migration 4) + `refreshStaleVersions()` recomputes on read |
+| 3 | `is_legal` vs. the legality bar — could they disagree? | **No.** Both call `checkLegality` on the same list object; verified end to end, including a reload from disk |
+| 4 | A Champion Unit tapped in the rail lands in `main` beside the designated Champion | **Correct** per 103.2.b.1 — the Chosen Champion's copy counts toward its own 3-copy limit. The 4th copy is caught |
+| 5 | No way to change a mis-picked Legend or Champion — only deleting the deck | Fixed — `CardPickerSheet`, reachable by tapping either row |
+| 6 | `saveDeckList` nulled `legend_card_id` and `domains` when the list had no legend slot | Fixed — reachable whenever the Legend's printing leaves the mirror, and unrecoverable. Now preserved |
+| 7 | `writeSlots` deleted rows for cards the editor could not see, so a mirror resync silently dropped them from the deck | Fixed — only rows for cards present in the mirror are rewritten |
+
+Findings 6 and 7 are the same underlying mistake: the editor treating "what I can currently see" as
+"the whole deck". The card mirror is disposable by design, so anything it cannot resolve has to
+survive a save untouched rather than be written away.
+
+### Device bug: every pressable control rendered unstyled
+
+Reported as "there is no option to create a deck". The button was there, correctly
+positioned and fully tappable — just invisible.
+
+**NativeWind's JSX interop silently drops a function-valued `style`.** React Native allows
+`style={({ pressed }) => [...]}`; under the interop the function never runs and the element gets no
+style whatsoever. Object and array styles are unaffected, which is what makes it so easy to miss.
+
+It is close to undetectable by eye because of how it fails: a primary button loses its *background*
+but keeps its *foreground* colour, so `#0A0B0F` text lands on the `#0A0B0F` surface. Nothing is
+missing from the layout, nothing errors, and the control still responds to taps.
+
+Found by measuring rather than looking. An `onLayout` probe pushed to the device reported the
+actions container at **21.33 dp** — exactly one `bodyMedium` line box — against a declared
+`minHeight: 48`. The same log was its own control group: the sibling `<View>` with an object style
+laid out correctly at 304 dp wide in the same render.
+
+| | before | after |
+| --- | --- | --- |
+| measured height | 21.33 dp | 48 dp |
+
+Fixed in `src/components/ui/Pressable.tsx`, which tracks the pressed state and resolves the style
+before it reaches the native component. Drop-in, same signature, applied across all 26 call sites in
+15 files. An ESLint `no-restricted-imports` rule now fails the build on `Pressable` imported from
+`react-native`, so this cannot quietly come back — it caught one straggler immediately.
+
+### Environment: the project lives inside OneDrive
+
+Two failures in one session traced to `D:\OneDrive\` syncing the working tree:
+
+1. **A dev-server 500.** Metro could not resolve `react-is/cjs/react-is.development.js` — a file that
+   exists and Node reads fine. All 50,078 files under `node_modules` are Files On-Demand
+   placeholders; OneDrive's dehydrate/rehydrate churn fires watcher events and a file caught
+   mid-sync fails to resolve. Mitigated with `attrib +P -U /S` to pin them local.
+2. **Metro served a stale module.** An edit to `EmptyState.tsx` produced no rebuild at all — no
+   bundle event, no hot update — while an edit to `app/(tabs)/index.tsx` applied normally. Metro's
+   watcher missed the change silently, so the bundle was built from a file that no longer matched
+   disk. This actively corrupted debugging before it was spotted.
+
+Pinning addresses (1) but not (2), because `src/` and `app/` are still synced. **Moving the project
+out of OneDrive is the real fix** and is still outstanding.
+
+### Test seam added
+
+`src/db/connection.ts` resolves the database handle through `conn()`, which a test can point at the
+`node:sqlite` harness. `client.ts` opens the real database at module load, so without this seam any
+test touching a query pulls in `expo-sqlite` and its native module. The user-data queries are the
+part of the app most worth testing — the lock rule decides whether a player's match history stays
+attached to the list that played it, and that is not something to discover on a device.
 
 ---
 

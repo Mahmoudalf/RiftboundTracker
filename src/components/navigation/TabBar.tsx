@@ -1,10 +1,11 @@
 import * as Haptics from 'expo-haptics';
 import { router, type Tabs } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '@/components/ui/Icon';
+import { Pressable } from '@/components/ui/Pressable';
 import { color, elevation, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 

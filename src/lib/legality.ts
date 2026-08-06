@@ -1,0 +1,415 @@
+import type { CardRow } from '@/db/schema/cards';
+
+import {
+  baseName,
+  cardKey,
+  championMatchesLegend,
+  inDomainIdentity,
+  isChampionUnit,
+  isSignatureCard,
+} from './card-identity';
+
+/**
+ * Constructed deck legality.
+ *
+ * Every rule here is cited to the **official Riftbound Core Rules** (rule 101–
+ * 103, "Deck Construction", last updated 2026-07-16) rather than to a
+ * secondary summary. Three of them contradict what a reasonable reading of the
+ * summaries gives you, so the citations are load-bearing — see docs/API.md §7.
+ *
+ * Pure functions over a decklist — no database, no React — because this runs on
+ * every keystroke in the editor and every issue it reports has to name the exact
+ * thing that is wrong. "Deck is illegal" is useless; "Main deck 38/40 — 2 more
+ * cards" is an instruction.
+ *
+ * Illegal decks are always saveable. Deckbuilding is iterative and a builder
+ * that refuses to save a half-finished list is hostile, so nothing here blocks
+ * anything — it only reports.
+ */
+
+export const DECK_ZONES = ['legend', 'champion', 'main', 'rune', 'battlefield', 'sideboard'] as const;
+export type DeckZone = (typeof DECK_ZONES)[number];
+
+/**
+ * Revision of the rules encoded here.
+ *
+ * `deck_versions` caches this module's output (`is_legal`, the three counts).
+ * When the rules change, that cache is wrong — so every stored version carries
+ * the revision that wrote it, and the query layer recomputes anything older.
+ *
+ * Bump this whenever a change here could alter a verdict.
+ *
+ * - **1** — first version checked against the official Core Rules. Corrected
+ *   the Main Deck from an exact 40 to a minimum, scoped the copy limit to the
+ *   Main Deck instead of exempting Basic cards everywhere, and added the
+ *   distinct-Battlefields rule.
+ */
+export const RULES_VERSION = 1;
+
+/** Rule 103.2 — "A Main Deck of **at least** 40 cards". A minimum, not a target. */
+export const MAIN_DECK_SIZE = 40;
+/** Rule 103.3.a — exactly 12 Rune Cards. */
+export const RUNE_DECK_SIZE = 12;
+/** Rule 103.4.a — dictated by the Mode of Play; 3 for standard Constructed. */
+export const BATTLEFIELD_COUNT = 3;
+/** Rule 103.2.b — "Your **Main Deck** can include up to 3 copies of the same named card." */
+export const COPY_LIMIT = 3;
+/** Rule 103.2.d.1 — "a deck may only contain a sum total of 3 Signature cards". */
+export const SIGNATURE_LIMIT = 3;
+
+/**
+ * Zones the 3-copy limit applies to.
+ *
+ * Rule 103.2.b scopes it to the **Main Deck**, and 103.2.b.1 puts the Chosen
+ * Champion inside that scope ("This includes your Chosen Champion" — a deck may
+ * run Volibear as its Champion and 2 more in the Main Deck).
+ *
+ * The Rune Deck (103.3) states no copy limit at all, and Battlefields have
+ * their own distinct-names rule (103.4.c) instead. An earlier version of this
+ * file got the same answer for runes by exempting `supertype === 'Basic'`,
+ * reasoned from the fact that only 6 distinct rune cards exist so a capped
+ * 12-rune deck is impossible. That inference was right about runes and wrong
+ * about everything else: keyed on the card rather than the zone, it also let
+ * three copies of one Battlefield through.
+ */
+const COPY_LIMIT_ZONES: DeckZone[] = ['main', 'champion'];
+
+export interface DeckSlot {
+  card: CardRow;
+  quantity: number;
+  zone: DeckZone;
+}
+
+/**
+ * A decklist as the editor holds it.
+ *
+ * Deliberately a flat slot list rather than `{ legend, champion, main[] }`: it
+ * maps 1:1 onto `deck_version_cards`, so there is no second representation to
+ * keep in step with the database. The Legend and Champion are read back out
+ * with the helpers below.
+ */
+export interface DeckList {
+  slots: DeckSlot[];
+}
+
+export type LegalityCode =
+  | 'no-legend'
+  | 'no-champion'
+  | 'champion-not-unit'
+  | 'champion-name'
+  | 'champion-domain'
+  | 'main-count'
+  | 'rune-count'
+  | 'battlefield-count'
+  | 'battlefield-duplicate'
+  | 'copy-limit'
+  | 'signature-limit'
+  | 'signature-tag'
+  | 'domain-identity';
+
+export interface LegalityIssue {
+  code: LegalityCode;
+  /** Written to be shown verbatim in the legality bar. */
+  message: string;
+  /** Printing ids the editor should highlight. Empty for whole-deck issues. */
+  cardIds: string[];
+}
+
+export interface DeckCounts {
+  /** Includes the Champion — it occupies one of the 40 main-deck slots. */
+  main: number;
+  rune: number;
+  battlefield: number;
+  signature: number;
+}
+
+export interface LegalityResult {
+  legal: boolean;
+  issues: LegalityIssue[];
+  counts: DeckCounts;
+}
+
+export function legendOf(list: DeckList): CardRow | null {
+  return list.slots.find((s) => s.zone === 'legend')?.card ?? null;
+}
+
+export function championOf(list: DeckList): CardRow | null {
+  return list.slots.find((s) => s.zone === 'champion')?.card ?? null;
+}
+
+function total(list: DeckList, zone: DeckZone): number {
+  return list.slots
+    .filter((s) => s.zone === zone)
+    .reduce((sum, s) => sum + s.quantity, 0);
+}
+
+export function deckCounts(list: DeckList): DeckCounts {
+  const champion = championOf(list);
+  return {
+    main: total(list, 'main') + (champion ? 1 : 0),
+    rune: total(list, 'rune'),
+    battlefield: total(list, 'battlefield'),
+    signature: list.slots
+      .filter((s) => s.zone !== 'legend' && isSignatureCard(s.card))
+      .reduce((sum, s) => sum + s.quantity, 0),
+  };
+}
+
+/** Zones that hold actual deck cards, as opposed to the Legend. */
+const DECK_CARD_ZONES: DeckZone[] = ['champion', 'main', 'rune', 'battlefield'];
+
+const plural = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many);
+
+/**
+ * A zone whose size must be exact — the Rune Deck and the Battlefields.
+ */
+function exactCountIssue(
+  code: LegalityCode,
+  label: string,
+  actual: number,
+  required: number
+): LegalityIssue | null {
+  if (actual === required) return null;
+  const diff = Math.abs(actual - required);
+  const detail =
+    actual < required ? `${diff} more ${plural(diff, 'card')}` : `${diff} too many`;
+  return { code, message: `${label} ${actual}/${required} — ${detail}`, cardIds: [] };
+}
+
+/**
+ * The Main Deck, which rule 103.2 specifies as a **minimum** of 40 — "A Main
+ * Deck of at least 40 cards". A 42-card deck is legal, not two cards over.
+ */
+function minimumCountIssue(
+  code: LegalityCode,
+  label: string,
+  actual: number,
+  minimum: number
+): LegalityIssue | null {
+  if (actual >= minimum) return null;
+  const diff = minimum - actual;
+  return {
+    code,
+    message: `${label} ${actual}/${minimum} — ${diff} more ${plural(diff, 'card')}`,
+    cardIds: [],
+  };
+}
+
+export function checkLegality(list: DeckList): LegalityResult {
+  const issues: LegalityIssue[] = [];
+  const counts = deckCounts(list);
+  const legend = legendOf(list);
+  const champion = championOf(list);
+
+  if (!legend) {
+    issues.push({
+      code: 'no-legend',
+      message: 'Pick a Legend — it sets the deck’s domains',
+      cardIds: [],
+    });
+  }
+
+  if (!champion) {
+    issues.push({
+      code: 'no-champion',
+      message: 'Pick a Champion Unit',
+      cardIds: [],
+    });
+  } else if (!isChampionUnit(champion)) {
+    issues.push({
+      code: 'champion-not-unit',
+      message: `${baseName(champion.name)} is not a Champion Unit`,
+      cardIds: [champion.id],
+    });
+  } else if (legend) {
+    const { nameMatches, inIdentity } = championMatchesLegend(champion, legend);
+    if (!nameMatches) {
+      issues.push({
+        code: 'champion-name',
+        message: `${baseName(champion.name)} does not match ${baseName(legend.name)}`,
+        cardIds: [champion.id],
+      });
+    }
+    if (!inIdentity) {
+      issues.push({
+        code: 'champion-domain',
+        message: `${baseName(champion.name)} is outside ${legend.domains.join('/')}`,
+        cardIds: [champion.id],
+      });
+    }
+  }
+
+  const mainIssue = minimumCountIssue('main-count', 'Main deck', counts.main, MAIN_DECK_SIZE);
+  if (mainIssue) issues.push(mainIssue);
+
+  const runeIssue = exactCountIssue('rune-count', 'Runes', counts.rune, RUNE_DECK_SIZE);
+  if (runeIssue) issues.push(runeIssue);
+
+  const bfIssue = exactCountIssue(
+    'battlefield-count',
+    'Battlefields',
+    counts.battlefield,
+    BATTLEFIELD_COUNT
+  );
+  if (bfIssue) issues.push(bfIssue);
+
+  // Rule 103.4.c — "Cannot include more than one of a Battlefield of the same
+  // name when there are more than one required for the deck." Battlefields are
+  // outside the Main Deck's 3-copy limit and carry this instead: the three must
+  // be distinct. 64 distinct Battlefields exist, so this constrains nothing in
+  // practice — it just has to be checked.
+  if (BATTLEFIELD_COUNT > 1) {
+    const byBattlefield = new Map<string, { quantity: number; ids: string[]; name: string }>();
+    for (const slot of list.slots) {
+      if (slot.zone !== 'battlefield') continue;
+      const key = cardKey(slot.card);
+      const entry = byBattlefield.get(key) ?? {
+        quantity: 0,
+        ids: [],
+        name: baseName(slot.card.name),
+      };
+      entry.quantity += slot.quantity;
+      entry.ids.push(slot.card.id);
+      byBattlefield.set(key, entry);
+    }
+    for (const entry of byBattlefield.values()) {
+      if (entry.quantity > 1) {
+        issues.push({
+          code: 'battlefield-duplicate',
+          message: `${entry.quantity} copies of ${entry.name} — Battlefields must be different`,
+          cardIds: entry.ids,
+        });
+      }
+    }
+  }
+
+  // Rule 103.2.b — copy limit, counted per card rather than per printing.
+  // 103.2.b.2 makes names the unit ("cards have different names even if they
+  // represent the same character"), and a printing treatment is not part of the
+  // name, so three copies of an alternate art plus three of the original is six
+  // copies of one card.
+  const byKey = new Map<string, { quantity: number; ids: string[]; name: string }>();
+  for (const slot of list.slots) {
+    if (!COPY_LIMIT_ZONES.includes(slot.zone)) continue;
+    const key = cardKey(slot.card);
+    const entry = byKey.get(key) ?? { quantity: 0, ids: [], name: baseName(slot.card.name) };
+    entry.quantity += slot.quantity;
+    entry.ids.push(slot.card.id);
+    byKey.set(key, entry);
+  }
+  for (const entry of byKey.values()) {
+    if (entry.quantity > COPY_LIMIT) {
+      issues.push({
+        code: 'copy-limit',
+        message: `${entry.quantity} copies of ${entry.name} — the limit is ${COPY_LIMIT}`,
+        cardIds: entry.ids,
+      });
+    }
+  }
+
+  if (counts.signature > SIGNATURE_LIMIT) {
+    issues.push({
+      code: 'signature-limit',
+      message: `${counts.signature} Signature cards — the limit is ${SIGNATURE_LIMIT}`,
+      cardIds: list.slots
+        .filter((s) => s.zone !== 'legend' && isSignatureCard(s.card))
+        .map((s) => s.card.id),
+    });
+  }
+
+  if (legend) {
+    // Every Signature card must belong to this Legend's Champion.
+    const foreignSignatures = list.slots.filter(
+      (s) =>
+        s.zone !== 'legend' &&
+        isSignatureCard(s.card) &&
+        !s.card.tags.some((t) => legend.tags.includes(t))
+    );
+    if (foreignSignatures.length > 0) {
+      issues.push({
+        code: 'signature-tag',
+        message:
+          foreignSignatures.length === 1
+            ? `${baseName(foreignSignatures[0]!.card.name)} is another Champion’s Signature card`
+            : `${foreignSignatures.length} Signature cards belong to another Champion`,
+        cardIds: foreignSignatures.map((s) => s.card.id),
+      });
+    }
+
+    // Domain identity. Battlefields are Colorless, so they pass automatically
+    // and are checked here rather than exempted, which keeps the rule uniform.
+    const offIdentity = list.slots.filter(
+      (s) =>
+        DECK_CARD_ZONES.includes(s.zone) && !inDomainIdentity(s.card, legend.domains)
+    );
+    if (offIdentity.length > 0) {
+      const names = [...new Set(offIdentity.map((s) => baseName(s.card.name)))];
+      issues.push({
+        code: 'domain-identity',
+        message:
+          names.length === 1
+            ? `${names[0]} is outside ${legend.domains.join('/')}`
+            : `${names.length} cards are outside ${legend.domains.join('/')}`,
+        cardIds: offIdentity.map((s) => s.card.id),
+      });
+    }
+  }
+
+  return { legal: issues.length === 0, issues, counts };
+}
+
+/**
+ * Why a single card cannot go in a deck, or null if it can.
+ *
+ * Used by the builder's card rail to grey out illegal cards rather than hide
+ * them — you need to see that a card exists and is off-identity, otherwise the
+ * rail just looks like it is missing cards.
+ */
+export function slotBlockReason(
+  card: CardRow,
+  list: DeckList
+): 'off-identity' | 'copy-limit' | 'foreign-signature' | 'battlefield-duplicate' | null {
+  const legend = legendOf(list);
+  if (legend && !inDomainIdentity(card, legend.domains)) return 'off-identity';
+  if (legend && isSignatureCard(card) && !card.tags.some((t) => legend.tags.includes(t))) {
+    return 'foreign-signature';
+  }
+
+  const key = cardKey(card);
+  const copiesIn = (zones: DeckZone[]) =>
+    list.slots
+      .filter((s) => zones.includes(s.zone) && cardKey(s.card) === key)
+      .reduce((sum, s) => sum + s.quantity, 0);
+
+  // Battlefields answer to 103.4.c (all different), not to the Main Deck's
+  // 3-copy limit; runes answer to neither.
+  const zone = defaultZoneFor(card);
+  if (zone === 'battlefield') {
+    return copiesIn(['battlefield']) >= 1 ? 'battlefield-duplicate' : null;
+  }
+  if (COPY_LIMIT_ZONES.includes(zone) && copiesIn(COPY_LIMIT_ZONES) >= COPY_LIMIT) {
+    return 'copy-limit';
+  }
+
+  return null;
+}
+
+/** The zone a card belongs in when added from the card rail. */
+export function defaultZoneFor(card: Pick<CardRow, 'type'>): DeckZone {
+  if (card.type === 'Rune') return 'rune';
+  if (card.type === 'Battlefield') return 'battlefield';
+  if (card.type === 'Legend') return 'legend';
+  return 'main';
+}
+
+/**
+ * One-line summary for the legality bar.
+ *
+ * Leads with the counts because those are what change as you build, and appends
+ * the single most important failure rather than a list — the bar is one line,
+ * and the full issue list lives in the sheet behind it.
+ */
+export function legalitySummary(result: LegalityResult): string {
+  const { main, rune, battlefield } = result.counts;
+  return `Main ${main}/${MAIN_DECK_SIZE} · Runes ${rune}/${RUNE_DECK_SIZE} · Battlefields ${battlefield}/${BATTLEFIELD_COUNT}`;
+}

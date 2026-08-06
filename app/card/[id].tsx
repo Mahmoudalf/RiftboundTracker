@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DomainBadge } from '@/components/cards/DomainBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
+import { Pressable } from '@/components/ui/Pressable';
 import { getCard } from '@/db/queries/cards';
 import { cardImage, cardImageBlur } from '@/lib/cdn';
 import { CARD_ASPECT, color, radius, space, spring } from '@/theme/tokens';

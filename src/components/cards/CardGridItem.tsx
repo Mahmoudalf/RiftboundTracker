@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { Pressable } from '@/components/ui/Pressable';
 import type { CardRow } from '@/db/schema/cards';
 import { cardImage, cardImageBlur } from '@/lib/cdn';
 import { domainColor, sortDomains } from '@/theme/domains';
@@ -27,7 +28,9 @@ export const CardGridItem = memo(function CardGridItem({
   width,
   onPress,
 }: CardGridItemProps) {
-  const height = width / CARD_ASPECT;
+  // `width` is the full column slot; the frame sits inside this item's padding.
+  const frameWidth = width - space[1] * 2;
+  const frameHeight = frameWidth / CARD_ASPECT;
   const domains = sortDomains(card.domains);
   const isLandscape = card.orientation === 'landscape';
 
@@ -38,15 +41,15 @@ export const CardGridItem = memo(function CardGridItem({
       accessibilityLabel={card.accessibilityText ?? card.name}
       style={({ pressed }) => [styles.root, { width }, pressed && styles.pressed]}
     >
-      <View style={[styles.frame, { height }]}>
+      <View style={[styles.frame, { width: frameWidth, height: frameHeight }]}>
         <Image
           source={cardImage(card.imageUrl, 'thumb')}
           placeholder={cardImageBlur(card.imageUrl)}
           placeholderContentFit="cover"
-          contentFit={isLandscape ? 'contain' : 'cover'}
+          contentFit="cover"
           transition={140}
           cachePolicy="memory-disk"
-          style={styles.image}
+          style={isLandscape ? uprightArt(frameWidth, frameHeight) : styles.image}
           accessible={false}
         />
 
@@ -70,6 +73,35 @@ export const CardGridItem = memo(function CardGridItem({
     </Pressable>
   );
 });
+
+/**
+ * Stands a Battlefield upright so it fills a portrait tile.
+ *
+ * Battlefields are the only landscape cards (all 71 of them), and their art is
+ * 1039x744 — the exact inverse of a portrait card. Left alone they letterbox
+ * into a thin strip and the grid loses its rhythm, so they are turned to fill
+ * the tile, the same way they are actually played: sideways on the table.
+ *
+ * Because the aspect is exactly inverted, the rotation crops nothing and
+ * distorts nothing. And because a Battlefield prints its rules text twice, 180°
+ * apart, so it reads from both sides of the table, neither direction of
+ * rotation is upside down — the two are indistinguishable.
+ *
+ * A rotate transform paints but does not lay out, so the image gets its axes
+ * swapped and is centred by hand: `left`/`top` put its centre exactly on the
+ * frame's centre, which the rotation then holds fixed. Anything else leaves it
+ * hanging off one corner.
+ */
+function uprightArt(frameWidth: number, frameHeight: number) {
+  return {
+    position: 'absolute' as const,
+    left: (frameWidth - frameHeight) / 2,
+    top: (frameHeight - frameWidth) / 2,
+    width: frameHeight,
+    height: frameWidth,
+    transform: [{ rotate: '90deg' }],
+  };
+}
 
 const styles = StyleSheet.create({
   root: { padding: space[1] },

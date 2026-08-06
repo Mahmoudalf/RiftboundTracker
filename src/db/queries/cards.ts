@@ -1,4 +1,7 @@
-import { sqlite } from '../client';
+import { domainKey } from '@/api/riftcodex/mapper';
+import { baseName, championMatchesLegend, variantLabel } from '@/lib/card-identity';
+
+import { conn } from '../connection';
 import type { CardRow, SetRow } from '../schema/cards';
 
 import { hydrateCard, hydrateSet } from './hydrate';
@@ -25,6 +28,15 @@ export interface CardFilters {
   types?: string[];
   /** Matches cards containing ANY of these domains. */
   domains?: string[];
+  /**
+   * A Legend's domains. Matches only cards legal in that identity — every one
+   * of a card's domains must be inside it, so a dual-domain card needs both.
+   *
+   * Distinct from `domains`, which is the gallery's "show me anything red"
+   * filter. Getting these two confused would offer the builder cards it cannot
+   * legally hold.
+   */
+  identity?: string[];
   rarities?: string[];
   /** Energy cost. 7 means "7 or more". */
   energy?: number[];
@@ -34,6 +46,24 @@ export interface CardFilters {
 }
 
 const RARITY_ORDER = ['Common', 'Uncommon', 'Rare', 'Epic', 'Showcase', 'Promo'];
+
+/**
+ * Every `domain_key` a card may have and still sit inside `identity`.
+ *
+ * Built with the same `domainKey()` the mirror was written with, so the
+ * canonical ordering cannot drift between the two — a hand-sorted key here that
+ * disagreed by one position would silently return nothing.
+ */
+function identityKeys(identity: readonly string[]): string[] {
+  const keys = new Set<string>(['Colorless']);
+  for (const domain of identity) keys.add(domainKey([domain]));
+  for (let i = 0; i < identity.length; i++) {
+    for (let j = i + 1; j < identity.length; j++) {
+      keys.add(domainKey([identity[i]!, identity[j]!]));
+    }
+  }
+  return [...keys];
+}
 
 /**
  * Escape a user query for FTS5 and make it a prefix search, so results appear
@@ -106,6 +136,17 @@ function buildFilter(filters: CardFilters): {
     if (clauses.length) where.push(`(${clauses.join(' OR ')})`);
   }
 
+  if (filters.identity?.length) {
+    // `domain_key` is a canonically ordered CSV, so "every domain of this card
+    // is inside the identity" is just membership in the set of keys the
+    // identity can produce. A 2-domain identity yields four: each domain alone,
+    // both together, and Colorless — which is what makes every Battlefield
+    // legal everywhere. Enumerating beats a LIKE per domain and stays exact.
+    const keys = identityKeys(filters.identity);
+    where.push(`c.domain_key IN (${keys.map(() => '?').join(',')})`);
+    params.push(...keys);
+  }
+
   if (filters.hideAlternateArt) where.push(`c.alternate_art = 0`);
 
   return { where, params, ftsQuery };
@@ -146,13 +187,12 @@ export function queryCards(filters: CardFilters = {}): CardRow[] {
     ORDER BY ${orderBy}
   `;
 
-  return sqlite
-    .getAllSync<Record<string, unknown>>(statement, params)
+  return conn().getAllSync<Record<string, unknown>>(statement, params)
     .map(hydrateCard);
 }
 
 export function getCard(id: string): CardRow | null {
-  const row = sqlite.getFirstSync<Record<string, unknown>>(
+  const row = conn().getFirstSync<Record<string, unknown>>(
     'SELECT * FROM cards WHERE id = ?',
     [id]
   );
@@ -160,7 +200,7 @@ export function getCard(id: string): CardRow | null {
 }
 
 export function countCards(): number {
-  return sqlite.getFirstSync<{ n: number }>('SELECT COUNT(*) AS n FROM cards')?.n ?? 0;
+  return conn().getFirstSync<{ n: number }>('SELECT COUNT(*) AS n FROM cards')?.n ?? 0;
 }
 
 /** How many cards a filter set would match, without selecting or hydrating them. */
@@ -170,19 +210,103 @@ export function countMatchingCards(filters: CardFilters = {}): number {
     SELECT COUNT(*) AS n FROM cards c
     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
   `;
-  return sqlite.getFirstSync<{ n: number }>(statement, params)?.n ?? 0;
+  return conn().getFirstSync<{ n: number }>(statement, params)?.n ?? 0;
 }
 
 export function listSets(): SetRow[] {
-  return sqlite
-    .getAllSync<Record<string, unknown>>('SELECT * FROM sets ORDER BY published_on DESC')
+  return conn().getAllSync<Record<string, unknown>>('SELECT * FROM sets ORDER BY published_on DESC')
     .map(hydrateSet);
+}
+
+/**
+ * Every Legend printing, variants included.
+ *
+ * Printings rather than distinct cards, because choosing a Legend is also
+ * choosing its art — the standard, alternate-art, overnumbered and signature
+ * treatments are the same card to the rules and a different object to the
+ * player. Variants of one Legend sort adjacent so the choice reads as "which
+ * Vi" rather than as four unrelated entries.
+ */
+export function listLegends(): CardRow[] {
+  return conn()
+    .getAllSync<Record<string, unknown>>(
+      `SELECT c.* FROM cards c
+        WHERE c.type = 'Legend'
+        ORDER BY c.clean_name COLLATE NOCASE ASC,
+                 c.alternate_art ASC, c.overnumbered ASC, c.collector_number ASC`
+    )
+    .map(hydrateCard)
+    .sort(byCardThenVariant);
+}
+
+/**
+ * Champion Unit printings that may legally partner a Legend.
+ *
+ * Matching is on tags, which SQLite cannot index into, so the type filter runs
+ * in SQL and the tag intersection in JS — 376 Champion Units narrowed to a
+ * handful, once, when the picker opens.
+ */
+export function listChampionsForLegend(legend: CardRow): CardRow[] {
+  return conn()
+    .getAllSync<Record<string, unknown>>(
+      `SELECT c.* FROM cards c
+        WHERE c.type = 'Unit' AND c.supertype = 'Champion'
+        ORDER BY c.clean_name COLLATE NOCASE ASC, c.alternate_art ASC`
+    )
+    .map(hydrateCard)
+    .filter((c) => {
+      const { nameMatches, inIdentity } = championMatchesLegend(c, legend);
+      return nameMatches && inIdentity;
+    })
+    .sort(byCardThenVariant);
+}
+
+/**
+ * Rune printings legal in an identity.
+ *
+ * There is exactly one rune card per domain, in five art treatments, so a
+ * two-domain deck picks between 10 printings of 2 cards. Grouped by card so the
+ * art choice sits next to what it is art for.
+ */
+export function listRunesForIdentity(identity: readonly string[]): CardRow[] {
+  if (identity.length === 0) return [];
+  const keys = identityKeys(identity).filter((k) => k !== 'Colorless');
+  if (keys.length === 0) return [];
+
+  return conn()
+    .getAllSync<Record<string, unknown>>(
+      `SELECT c.* FROM cards c
+        WHERE c.type = 'Rune' AND c.domain_key IN (${keys.map(() => '?').join(',')})
+        ORDER BY c.clean_name COLLATE NOCASE ASC, c.collector_number ASC`,
+      keys
+    )
+    .map(hydrateCard)
+    .sort(byCardThenVariant);
+}
+
+/** Every Battlefield printing. All are Colorless, so all are legal everywhere. */
+export function listBattlefields(): CardRow[] {
+  return conn()
+    .getAllSync<Record<string, unknown>>(
+      `SELECT c.* FROM cards c
+        WHERE c.type = 'Battlefield'
+        ORDER BY c.clean_name COLLATE NOCASE ASC, c.collector_number ASC`
+    )
+    .map(hydrateCard)
+    .sort(byCardThenVariant);
+}
+
+/** Group printings of one card together, standard treatment first. */
+function byCardThenVariant(a: CardRow, b: CardRow): number {
+  const nameOrder = baseName(a.name).localeCompare(baseName(b.name));
+  if (nameOrder !== 0) return nameOrder;
+  const rank = (c: CardRow) => (variantLabel(c.name) === null ? 0 : 1);
+  return rank(a) - rank(b) || a.name.localeCompare(b.name);
 }
 
 /** Distinct values actually present in the mirror — drives the filter sheet. */
 export function facetValues(column: 'type' | 'rarity' | 'set_id'): string[] {
-  return sqlite
-    .getAllSync<{ v: string }>(
+  return conn().getAllSync<{ v: string }>(
       `SELECT DISTINCT ${column} AS v FROM cards WHERE ${column} IS NOT NULL ORDER BY v`
     )
     .map((r) => r.v);

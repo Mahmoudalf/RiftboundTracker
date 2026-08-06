@@ -1,21 +1,82 @@
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { DeckCard } from '@/components/decks/DeckCard';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
+import { listDecks, type DeckSummary } from '@/db/queries/decks';
+import { color, radius, space } from '@/theme/tokens';
+import { text } from '@/theme/typography';
 
 export default function DecksScreen() {
-  // M2 replaces this with the deck list; until then the empty state doubles as
-  // the app's onboarding surface (docs/DESIGN.md §7).
+  const [decks, setDecks] = useState<DeckSummary[]>([]);
+
+  // Re-read on focus rather than subscribing: the editor and the create flow
+  // both return here after writing, and a deck list is a handful of rows.
+  useFocusEffect(
+    useCallback(() => {
+      setDecks(listDecks());
+    }, [])
+  );
+
+  if (decks.length === 0) {
+    return (
+      <Screen title="Decks">
+        <EmptyState
+          title="Track a deck through every change"
+          body="Matches stay attached to the exact list that played them, so editing a deck never rewrites its history."
+          actions={[
+            { label: 'Build a deck', onPress: () => router.push('/deck/new'), primary: true },
+          ]}
+        />
+      </Screen>
+    );
+  }
+
   return (
-    <Screen title="Decks">
-      <EmptyState
-        title="Track a deck through every change"
-        body="Matches stay attached to the exact list that played them, so editing a deck never rewrites its history."
-        actions={[
-          { label: 'Build a deck', onPress: () => router.push('/deck/new'), primary: true },
-          { label: 'Paste a decklist', onPress: () => router.push('/deck/new?import=1') },
-        ]}
-      />
+    <Screen
+      title="Decks"
+      meta={`${decks.length} ${decks.length === 1 ? 'deck' : 'decks'}`}
+      action={
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Build a deck"
+          onPress={() => router.push('/deck/new')}
+          style={({ pressed }) => [styles.newButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.newLabel}>New</Text>
+        </Pressable>
+      }
+    >
+      <ScrollView
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+      >
+        {decks.map((summary) => (
+          <DeckCard
+            key={summary.deck.id}
+            summary={summary}
+            onPress={() => router.push(`/deck/${summary.deck.id}`)}
+          />
+        ))}
+        <View style={styles.footer} />
+      </ScrollView>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  list: { gap: space[2], paddingBottom: space[4] },
+  footer: { height: space[8] },
+  newButton: {
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: space[4],
+    borderRadius: radius.full,
+    backgroundColor: color.text,
+  },
+  newLabel: { ...text.smallMedium, color: color.bg },
+  pressed: { opacity: 0.8 },
+});

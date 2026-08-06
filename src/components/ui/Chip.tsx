@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
+
+import { Pressable } from './Pressable';
 
 interface ChipProps {
   label: string;

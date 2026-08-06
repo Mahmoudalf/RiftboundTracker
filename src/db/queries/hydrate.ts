@@ -2,6 +2,14 @@ import { getTableColumns } from 'drizzle-orm';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 
 import { cards, sets, type CardRow, type SetRow } from '../schema/cards';
+import {
+  deckVersionCards,
+  deckVersions,
+  decks,
+  type DeckRow,
+  type DeckVersionCardRow,
+  type DeckVersionRow,
+} from '../schema/decks';
 
 /**
  * Turn a raw `SELECT *` row into a typed row object.
@@ -115,5 +123,28 @@ export function hydrateCard(row: Record<string, unknown>): CardRow {
 
 export function hydrateSet(row: Record<string, unknown>): SetRow {
   return hydrate<SetRow>(row, SET_MAPPING);
+}
+
+/**
+ * The deck tables go through exactly the same derivation. They are even more
+ * exposed to the snake_case gap than cards are — `current_version_id`,
+ * `locked_at`, `version_number` and `deck_version_id` are all multi-word, and a
+ * silently-undefined `lockedAt` would read as "this version is editable" on a
+ * version that has matches attached to it.
+ */
+export const deckColumns: ColumnMapping[] = buildMapping(decks);
+export const deckVersionColumns: ColumnMapping[] = buildMapping(deckVersions);
+export const deckVersionCardColumns: ColumnMapping[] = buildMapping(deckVersionCards);
+
+export function hydrateDeck(row: Record<string, unknown>): DeckRow {
+  return hydrate<DeckRow>(row, deckColumns);
+}
+
+export function hydrateDeckVersion(row: Record<string, unknown>): DeckVersionRow {
+  return hydrate<DeckVersionRow>(row, deckVersionColumns);
+}
+
+export function hydrateDeckVersionCard(row: Record<string, unknown>): DeckVersionCardRow {
+  return hydrate<DeckVersionCardRow>(row, deckVersionCardColumns);
 }
 

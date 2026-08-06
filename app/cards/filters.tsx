@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DomainGlyph } from '@/components/cards/DomainGlyph';
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
+import { Pressable } from '@/components/ui/Pressable';
 import { countMatchingCards, facetValues, type CardSort } from '@/db/queries/cards';
 import { useCardFilters } from '@/features/cards/useCardFilters';
 import { domainColor, PLAYABLE_DOMAINS } from '@/theme/domains';

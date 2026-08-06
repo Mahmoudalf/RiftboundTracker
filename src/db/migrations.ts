@@ -127,6 +127,85 @@ export const MIGRATIONS: readonly Migration[] = [
       INSERT INTO cards_fts(cards_fts) VALUES ('rebuild');
     `,
   },
+  {
+    version: 3,
+    up: /* sql */ `
+      CREATE TABLE IF NOT EXISTS decks (
+        id                 TEXT PRIMARY KEY NOT NULL,
+        name               TEXT NOT NULL,
+        legend_card_id     TEXT,
+        champion_card_id   TEXT,
+        domains            TEXT NOT NULL,
+        format             TEXT NOT NULL DEFAULT 'constructed',
+        notes              TEXT,
+        current_version_id TEXT,
+        archived_at        TEXT,
+        created_at         TEXT NOT NULL,
+        updated_at         TEXT NOT NULL,
+        deleted_at         TEXT,
+        user_id            TEXT,
+        dirty              INTEGER NOT NULL DEFAULT 1,
+        updated_by_device  TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS decks_archived_idx ON decks(archived_at);
+      CREATE INDEX IF NOT EXISTS decks_deleted_idx  ON decks(deleted_at);
+
+      CREATE TABLE IF NOT EXISTS deck_versions (
+        id                 TEXT PRIMARY KEY NOT NULL,
+        deck_id            TEXT NOT NULL,
+        version_number     INTEGER NOT NULL,
+        label              TEXT,
+        notes              TEXT,
+        parent_version_id  TEXT,
+        locked_at          TEXT,
+        main_count         INTEGER NOT NULL DEFAULT 0,
+        rune_count         INTEGER NOT NULL DEFAULT 0,
+        battlefield_count  INTEGER NOT NULL DEFAULT 0,
+        is_legal           INTEGER NOT NULL DEFAULT 0,
+        created_at         TEXT NOT NULL,
+        updated_at         TEXT NOT NULL,
+        deleted_at         TEXT,
+        user_id            TEXT,
+        dirty              INTEGER NOT NULL DEFAULT 1,
+        updated_by_device  TEXT,
+        FOREIGN KEY (deck_id) REFERENCES decks(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS deck_versions_deck_idx ON deck_versions(deck_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS deck_versions_number_idx
+        ON deck_versions(deck_id, version_number);
+
+      CREATE TABLE IF NOT EXISTS deck_version_cards (
+        id              TEXT PRIMARY KEY NOT NULL,
+        deck_version_id TEXT NOT NULL,
+        card_id         TEXT NOT NULL,
+        riftbound_id    TEXT NOT NULL,
+        quantity        INTEGER NOT NULL,
+        zone            TEXT NOT NULL,
+        FOREIGN KEY (deck_version_id) REFERENCES deck_versions(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS dvc_version_idx ON deck_version_cards(deck_version_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS dvc_unique_idx
+        ON deck_version_cards(deck_version_id, card_id, zone);
+    `,
+  },
+  {
+    version: 4,
+    up: /* sql */ `
+      -- Which revision of the legality rules produced is_legal / the counts on
+      -- this row. Those columns are a cache of a pure function, so when the
+      -- function changes the cache is wrong -- and it changed once already,
+      -- when the rules were checked against the official Core Rules and three
+      -- of them turned out to be wrong.
+      --
+      -- Defaulting to 0 marks every existing row stale, and the query layer
+      -- recomputes stale rows the next time decks are listed. No data is lost
+      -- and no launch-time scan is needed.
+      ALTER TABLE deck_versions ADD COLUMN rules_version INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

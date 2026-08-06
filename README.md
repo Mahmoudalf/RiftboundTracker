@@ -16,8 +16,9 @@ individual version, alongside the concrete card diff that separates them.
 
 ## Status
 
-🚧 **Pre-alpha — M1 complete.** The card gallery works: all 1,451 cards, browsable, searchable, and
-filterable entirely offline. Decks, versioning, and match tracking are next (M2–M4).
+🚧 **Pre-alpha — M2 complete.** The card gallery works: all 1,451 cards, browsable, searchable, and
+filterable entirely offline. Decks can be built end to end — Legend → Champion → 40/12/3 — with live
+legality checking that names the exact problem. Versioning and match tracking are next (M3–M4).
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for milestones.
 

@@ -182,6 +182,56 @@ describe('migrate — every version upgrades a populated database', () => {
     });
   }
 
+  /**
+   * The parameterised case above only proves *card* data survives, and cards
+   * are disposable. Decks are not — they are the one thing in the database that
+   * cannot be regenerated, so the migration that alters `deck_versions` gets
+   * its own check with real deck rows in place.
+   */
+  it('preserves decks and stamps them stale when adding rules_version (v3 -> v4)', () => {
+    const db = createTestDatabase();
+    applyMigrationsUpTo(db, MIGRATIONS, 3);
+
+    const timestamp = '2026-08-01T10:00:00.000Z';
+    db.runSync(
+      `INSERT INTO decks (id, name, domains, created_at, updated_at, current_version_id)
+       VALUES ('d1', 'Vi Aggro', '["Fury","Order"]', ?, ?, 'v1')`,
+      [timestamp, timestamp]
+    );
+    db.runSync(
+      `INSERT INTO deck_versions
+         (id, deck_id, version_number, main_count, is_legal, created_at, updated_at)
+       VALUES ('v1', 'd1', 1, 40, 1, ?, ?)`,
+      [timestamp, timestamp]
+    );
+    db.runSync(
+      `INSERT INTO deck_version_cards
+         (id, deck_version_id, card_id, riftbound_id, quantity, zone)
+       VALUES ('c1', 'v1', 'card-x', 'ogn-001-100', 3, 'main')`
+    );
+
+    expect(() => migrate(db as never)).not.toThrow();
+    expect(db.userVersion()).toBe(LATEST_VERSION);
+
+    const deck = db.getFirstSync<{ name: string }>('SELECT name FROM decks WHERE id = ?', ['d1']);
+    expect(deck?.name).toBe('Vi Aggro');
+
+    const version = db.getFirstSync<{ main_count: number; rules_version: number }>(
+      'SELECT main_count, rules_version FROM deck_versions WHERE id = ?',
+      ['v1']
+    );
+    expect(version?.main_count).toBe(40);
+    // Stamped 0, so the query layer recomputes it under the corrected rules
+    // rather than trusting a verdict written by the old ones.
+    expect(version?.rules_version).toBe(0);
+
+    expect(
+      db.getAllSync('SELECT id FROM deck_version_cards WHERE deck_version_id = ?', ['v1'])
+    ).toHaveLength(1);
+
+    db.close();
+  });
+
   it('has contiguous, ascending version numbers starting at 1', () => {
     const versions = MIGRATIONS.map((m) => m.version);
     expect(versions).toEqual(versions.map((_, i) => i + 1));

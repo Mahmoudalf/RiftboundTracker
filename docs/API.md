@@ -257,22 +257,87 @@ than breaking.
 
 ## 7. Deck construction rules
 
-Not part of the API — sourced from the official rules. Implemented in `src/lib/legality.ts`.
+Not part of the API. Sourced from the **official Riftbound Core Rules**, rule 101–103 "Deck
+Construction" ([PDF](https://cmsassets.rgpub.io/sanity/files/dsfx7636/news_live/e9ac8e3d33e0f78cef296f5945aba7bc1313b086.pdf),
+last updated 2026-07-16, linked from the [Rules Hub](https://playriftbound.com/en-us/rules-hub/)).
+Implemented in `src/lib/legality.ts`, which cites the rule number for each check.
 
-A legal Constructed deck is **57 cards + 3 battlefields**:
-
-| Zone | Requirement |
-| --- | --- |
-| **Legend** | Exactly 1. Defines the deck's two domains |
-| **Champion** | Exactly 1 Champion Unit, matching the Legend's name **and** one of its domains |
-| **Main deck** | Exactly **40** cards, including the Champion |
-| **Rune deck** | Exactly **12** runes |
-| **Battlefields** | Exactly **3**. Colorless, so any battlefield is legal |
-| **Copy limit** | Max **3** copies of any single card |
-| **Signature limit** | Max **3** Signature cards total, all sharing the Legend's Champion tag |
-| **Domain identity** | Every main/rune card must fall within the Legend's two domains. A dual-symbol card needs **both** symbols inside the identity |
+| Zone | Requirement | Rule |
+| --- | --- | --- |
+| **Legend** | Exactly 1 Champion Legend. Dictates the deck's Domain Identity | 103.1 |
+| **Champion** | Exactly 1 Champion Unit whose champion **tag** matches a tag on the Legend. Subject to Domain Identity. Signature units are not Champion units and cannot fill this slot | 103.2.a |
+| **Main deck** | **At least 40** cards, the Chosen Champion included | 103.2 |
+| **Rune deck** | Exactly **12** runes, all within the Domain Identity | 103.3 |
+| **Battlefields** | Number set by the Mode of Play (3 for Constructed). All must have **different names** | 103.4 |
+| **Copy limit** | Max **3** copies of the same named card **in the Main Deck**, the Chosen Champion's copy included | 103.2.b |
+| **Signature limit** | Max **3** Signature cards total, all carrying the Legend's champion tag | 103.2.d |
+| **Domain identity** | A single-domain card is legal in an identity containing that domain; a multi-domain card only in an identity containing **all** of its domains | 103.1.b |
 
 **Domains** pair as opposites: Fury ↔ Calm, Mind ↔ Body, Chaos ↔ Order.
+
+### Rules that are easy to get wrong
+
+The first three were verified against the Core Rules during the M2 audit, after an initial pass had
+inferred them from secondary sources and the card data. Each inference was wrong in a way that
+changes verdicts.
+
+**1. The Main Deck is a minimum, not a fixed size.** 103.2 says "A Main Deck of *at least* 40 cards".
+A 42-card deck is legal. Treating 40 as exact reports it as two cards over.
+
+**2. The copy limit is scoped to the Main Deck.** 103.2.b: "Your **Main Deck** can include up to 3
+copies of the same named card." The Rune Deck (103.3) states no copy limit at all, and Battlefields
+have their own rule instead. This matters because there are only **6 distinct rune cards**, one per
+domain — a 2-domain identity gives 2 legal runes, and the rune deck needs 12, so any deck runs 6
+copies of each. Scoping by zone gets that right. Exempting `supertype = 'Basic'` gets the same
+answer for runes by accident and then lets three copies of one Battlefield through.
+
+**3. Battlefields must all be different.** 103.4.c: "Cannot include more than one of a **Battlefield**
+of the same name when there are more than one required for the deck." They are outside the Main
+Deck's 3-copy limit and carry this instead. 64 distinct Battlefields exist, so it constrains nothing
+in practice — but three copies of Star Spring is not a legal deck, and the count check alone reads
+3/3 and passes it.
+
+**4. The Chosen Champion counts toward its own copy limit.** 103.2.b.1, with the rulebook's own
+example: a deck may run Volibear, Furious as its Chosen Champion *and* 2 more copies in the Main
+Deck. So the champion zone is inside the copy-limit scope, not beside it.
+
+### Traps in the card data
+
+Measured against the full 1,451-card mirror.
+
+**`supertype === 'Signature'` and the `signature` column are disjoint sets.** They describe different
+things and share not one card:
+
+| | Count | Contents |
+| --- | --- | --- |
+| `supertype = 'Signature'` | 61 | 52 Spells, 5 Gear, 4 Units. All dual-domain, all champion-tagged. **These are what rule 103.2.d means** |
+| `signature = true` | 36 | Legends and alternate printings. An *art treatment* — the `(Signature)` name suffix |
+
+Reading the column — which the schema's naming invites — enforces the limit against cards that can
+never be in a Main Deck, and never against the cards the rule exists for. 103.2.d.3 confirms the
+reading: "Signature cards are not Champion units and cannot be placed in the Champion Zone."
+
+**The copy limit counts cards, not printings.** 1,451 printings collapse to **954 cards**. Three
+copies of an alternate art plus three of the original is six copies of one card. Keyed on the name
+with its trailing printing treatment stripped (`Signature`, `Alternate Art`, `Overnumbered`,
+`Metal`, `Ultimate`, `Launch Exclusive`, `GG EZ`, `Starter` — all eight observed treatments are
+trailing parentheticals, and nothing else uses one). 103.2.b.2 confirms names are the unit: "Cards
+have different names even if they represent the same character" — 3 Yasuo, Remorseful and 3 Yasuo,
+Windrider are both legal together.
+
+**Champion matching is on tags, not names.** 103.2.a.2 requires "a champion tag that matches the tag
+on your Champion Legend", and the data agrees: names use both `" - "` and `", "` as separators, and
+23 Legends carry only a title — "Master of Shadows" is Zed's. Tag intersection was verified against
+all 180 Legends: every one has at least one Champion Unit sharing a tag *and* sitting inside its
+identity, and none matches through a region tag by accident. It also handles the tribal case for
+free — Kennen's Legend is tagged `["Yordle", "Kennen"]`, so it legally partners any Yordle Champion.
+
+### Cached verdicts
+
+`deck_versions` stores `is_legal` and the three zone counts, which are a cache of `checkLegality()`.
+A change to these rules invalidates every stored row, so each carries the `RULES_VERSION` that wrote
+it and stale rows are recomputed on the next read. See `refreshStaleVersions()` in
+`src/db/queries/decks.ts`.
 
 ---
 
