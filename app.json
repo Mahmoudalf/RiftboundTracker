@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Riftbound Tracker",
+    "slug": "riftbound-tracker",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "riftbound",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0B0F",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.riftboundtracker.app"
+    },
+    "android": {
+      "package": "com.riftboundtracker.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0B0F"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A0B0F",
+          "resizeMode": "contain"
+        }
+      ],
+      "expo-image",
+      "expo-status-bar"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

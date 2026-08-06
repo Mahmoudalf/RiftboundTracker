@@ -16,7 +16,8 @@ individual version, alongside the concrete card diff that separates them.
 
 ## Status
 
-🚧 **Pre-alpha — M0 (Foundation).** Documentation and project setup. No app code yet.
+🚧 **Pre-alpha — M1 complete.** The card gallery works: all 1,451 cards, browsable, searchable, and
+filterable entirely offline. Decks, versioning, and match tracking are next (M2–M4).
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for milestones.
 
@@ -26,7 +27,7 @@ See [`docs/ROADMAP.md`](docs/ROADMAP.md) for milestones.
 
 | Layer | Choice |
 | --- | --- |
-| App | React Native via **Expo SDK 54+**, TypeScript (strict) |
+| App | React Native via **Expo SDK 57**, TypeScript (strict) |
 | Navigation | **expo-router** (file-based, typed routes) |
 | Local database | **expo-sqlite** + **Drizzle ORM** (+ FTS5 for card search) |
 | Server state | **TanStack Query v5** |
@@ -46,13 +47,33 @@ and only adds backup and multi-device sync.
 
 ## Quick start
 
-> Not yet applicable — the Expo project is scaffolded in M0. These are the intended commands.
-
 ```bash
 npm install
-npm run seed          # generate assets/seed/cards.json from the Riftcodex API
+npm run seed          # fetch the card database into assets/seed/cards.json (~1.6 MB, gitignored)
 npx expo start        # then scan the QR code with Expo Go
 ```
+
+`npm run seed` is optional — without it the app downloads the card database on first launch
+instead. With it, the first launch is instant and works with no connection at all.
+
+### Testing on a phone
+
+Expo Go supports SDK 57, so no native build is needed:
+
+1. Install **Expo Go** ([Android](https://play.google.com/store/apps/details?id=host.exp.exponent) ·
+   [iOS](https://apps.apple.com/app/expo-go/id982107779))
+2. `npx expo start` with the phone on the same Wi-Fi
+3. Scan the QR code — Android from inside Expo Go, iOS with the Camera app
+
+If the phone and PC are on different networks (or a corporate/guest Wi-Fi blocks peer traffic), use
+`npx expo start --tunnel`.
+
+### Keeping the toolchain aligned
+
+Run `npx expo-doctor` after any dependency change. `babel-preset-expo` in particular must match the
+installed SDK — a mismatched one targets a different Hermes and stops transpiling ES6 classes, and
+`expo export` then fails with "invalid statement encountered" at the bytecode step.
+`npx expo install --fix` realigns everything.
 
 | Script | Purpose |
 | --- | --- |

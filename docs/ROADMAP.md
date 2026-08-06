@@ -4,8 +4,8 @@
 
 | Milestone | Theme | Status |
 | --- | --- | --- |
-| [M0](#m0--foundation) | Foundation | 🟡 In progress |
-| [M1](#m1--card-data) | Card data & gallery | ⬜ Not started |
+| [M0](#m0--foundation) | Foundation | ✅ Done |
+| [M1](#m1--card-data) | Card data & gallery | ✅ Done |
 | [M2](#m2--decks) | Decks & builder | ⬜ Not started |
 | [M3](#m3--versioning) | Versioning | ⬜ Not started |
 | [M4](#m4--matches) | Match tracking | ⬜ Not started |
@@ -23,17 +23,32 @@ depends on the tokens and structure being right.
 
 - [x] `README.md`, `docs/PROJECT.md`, `docs/API.md`, `docs/DATA-MODEL.md`, `docs/DESIGN.md`, `docs/ROADMAP.md`
 - [x] `.gitignore`
-- [ ] `git init` + initial commit
-- [ ] Expo SDK 54 + TypeScript (strict) scaffold
-- [ ] expo-router with the 4-tab + center-action shell
-- [ ] Nativewind v4 + `src/theme/` tokens
-- [ ] **Sample exact domain hex values from the official card symbols** (see `DESIGN.md` §2)
-- [ ] Fonts loaded (Chakra Petch / Rajdhani + Inter)
-- [ ] ESLint + Prettier + Vitest configured
-- [ ] npm scripts: `typecheck`, `lint`, `test`, `seed`, `db:generate`
+- [x] `git init`
+- [x] Expo SDK 57 + TypeScript (strict, `noUncheckedIndexedAccess`) scaffold
+- [x] expo-router with the 4-tab + center-action shell (custom `TabBar`, hand-drawn SVG icons)
+- [x] Nativewind v4 + `src/theme/` tokens, single-sourced from `palette.js`
+- [x] **Domain hex values sampled from Riot's Basic Rune card art**, re-derived in OKLCH
+      (`scripts/sample-domain-colors.ts`)
+- [x] Fonts loaded (Space Grotesk + Inter — see `DESIGN.md` §3 for why not Rajdhani)
+- [x] ESLint + Prettier + Vitest configured
+- [x] npm scripts: `typecheck`, `lint`, `test`, `seed`, `db:generate`
 
 **Done when:** `npx expo start` boots to the tab skeleton on a physical device, and `npm run
-typecheck` + `npm run lint` pass clean.
+typecheck` + `npm run lint` pass clean. ✅ — plus `npx expo export --platform android` produces a
+6.41 MB Hermes bundle.
+
+> **Toolchain note.** `babel-preset-expo` must match the installed SDK. A mismatch targets a
+> different Hermes and stops transpiling ES6 classes, which the bundled `hermesc` may not parse —
+> `expo export` then fails with "invalid statement encountered" at the bytecode step. This bit once
+> during M0 when the preset resolved a version ahead of the SDK. `npx expo install --fix` realigns
+> it, and `npx expo-doctor` catches it before a build does.
+>
+> **Upgraded to SDK 57 (2026-08-06).** Originally scaffolded on 54, which was three releases behind
+> by the time M1 landed. The upgrade surfaced a latent bug: `TabBar.tsx` imported
+> `BottomTabBarProps` from `@react-navigation/bottom-tabs`, an *undeclared* dependency that resolved
+> only because npm hoisted it out of expo-router's tree. expo-router v7 vendors its own copy of
+> those types, so two incompatible definitions collided. The type is now derived from expo-router's
+> own `Tabs` component, and a sweep confirmed no other phantom dependencies exist.
 
 ---
 
@@ -41,18 +56,87 @@ typecheck` + `npm run lint` pass clean.
 
 The foundation everything else reads from. Ships the first genuinely useful screen.
 
-- [ ] Generate TS types from `openapi.json` → `src/api/riftcodex/types.ts`
-- [ ] Zod schemas validating every API response at the boundary
-- [ ] Riftcodex client with backoff and error handling
-- [ ] Drizzle schema for `cards`, `sets`, `sync_meta` + FTS5 virtual table and triggers
-- [ ] `scripts/generate-seed.ts` → `assets/seed/cards.json`
-- [ ] Sync engine: seed load → set-change detection → incremental paging → 24 h TTL guard
-- [ ] `src/lib/cdn.ts` image transform presets (`thumb` / `card` / `full`)
-- [ ] **Card gallery** — FlashList grid, sticky filter chips, filter sheet, FTS search
-- [ ] **Card detail** — shared-element transition, pinch-zoom, full text
+- [x] Zod schemas validating every API response at the boundary (`schemas.ts`)
+- [x] Riftcodex client with timeouts, capped retries, and backoff (`client.ts`)
+- [x] Drizzle schema for `cards`, `sets`, `sync_meta` + FTS5 virtual table and triggers
+      (`migrations.ts`, applied by `PRAGMA user_version`)
+- [x] `scripts/generate-seed.ts` → `assets/seed/cards.json` (1,451 cards, 1.64 MB)
+- [x] Sync engine: seed load → set-change detection → sequential paging → 24 h TTL guard
+- [x] `src/lib/cdn.ts` image transform presets (`thumb` / `card` / `full`)
+- [x] **Card gallery** — FlashList grid, domain rail, filter modal with live result count, FTS search
+- [x] **Card detail** — pinch and double-tap zoom, rules text, card-footer metadata line
+- [x] Unit tests for the API mapper (10 passing)
 
 **Done when:** all 1,451 cards browse and filter offline in airplane mode, search returns results as
 you type, and the grid scrolls at 60 fps on a mid-range Android device.
+
+### Post-M1 audit (2026-08-06)
+
+Traced end to end against a real SQLite database (Node 24's `node:sqlite` shimmed to the expo-sqlite
+interface, running the real `migrate()` and the real query SQL). Six defects found and fixed:
+
+| # | Defect | Impact |
+| --- | --- | --- |
+| 1 | `hydrate()` cast raw `SELECT *` rows straight to `CardRow`. SQLite returns snake_case; the type is camelCase | **12 of 29 fields were `undefined`, including `imageUrl` — every card rendered without art.** Also killed rules text, set code, collector number, and the screen-reader label |
+| 2 | `useCardSync()` held per-component state and a per-component "started" ref, but is called from two screens | Two concurrent 15-page walks of a small fan-run API on first launch; refreshing from Profile left the gallery's count stale |
+| 3 | Decks empty state linked to `/deck/new`, which did not exist | Both onboarding buttons dead-ended on the "unmatched route" screen |
+| 4 | Filter sheet computed its live count from the store's `search`, but the gallery kept search in local state | "Show N cards" ignored the active search term |
+| 5 | `relevance` sort mapped to the same expression as `name` | Searching "vi" ranked Vision Quest above Vi |
+| 6 | `listSets()` had the same cast bug as #1 | Latent — no UI consumed it yet |
+
+The fix for #1 removes the whole class rather than the instance: column metadata is now derived from
+the Drizzle schema (`src/db/queries/hydrate.ts`) and shared by **both** the read path and the write
+path, which had its own hand-written column list. `hydrate.test.ts` asserts no column resolves to
+`undefined`, so a future schema addition cannot silently reintroduce it.
+
+Verified working and unchanged by the audit: migrations and `PRAGMA user_version`, FTS5 including the
+update triggers dropping stale terms, the anchored `domain_key` filter, and the sync change-detection
+heuristic (`sum(set.card_count)` does equal the `/cards` total, so no needless re-downloads).
+
+### Pre-M2 hardening (2026-08-06)
+
+| Area | Finding |
+| --- | --- |
+| **Image pipeline** | CDN verified live: serves `image/webp` to Android (Coil) and iOS (SDWebImage) user agents, **no hotlink protection** (foreign `Referer` and absent UA both return 200), `Cache-Control: max-age=31536000`. 789 KB → 11.9 KB confirmed. Decoding by expo-image itself remains device-only |
+| **Typing latency** | Measured over the full 1,451-card library. Hydration is **0.79 ms**; SQL dominates at 4.18 ms. Typing gets *cheaper*: `"v"` → 401 rows/1.4 ms, `"vi"` → 58 rows/0.2 ms. Worst case is the unfiltered first render, once. (V8, not Hermes; JSI bridge cost unmeasured) |
+| | Fixed real waste: the filter sheet ran the whole query for a count. Now `countMatchingCards()` — a `COUNT(*)` |
+| **Domain glyphs** | Unicode placeholders removed entirely. `✷ ⬢ ❋` live in Noto Sans Symbols, not Roboto, so a thin-font device would have rendered tofu — silently dropping half of "color never carries meaning alone". Replaced with drawn SVG (`components/cards/DomainGlyph.tsx`) |
+| | Every remaining non-ASCII character (`•` `—` `…`) confirmed present in the bundled Space Grotesk and Inter by reading each font's cmap table |
+| **Migrations** | Real upgrade-path tests added (`migrations.test.ts`), running actual DDL against `node:sqlite` |
+
+**The migration test found a shipping bug immediately.** FTS5 triggers only fire on writes made after
+they exist, so a device upgrading v1 → v2 with a populated card mirror got an **empty search index** —
+and because sync skips entirely when the mirror is already complete, nothing would ever rebuild it.
+Search would return nothing, silently and permanently. Migration 2 now backfills the index itself
+rather than depending on a later call.
+
+The suite is parameterised over `MIGRATIONS`, so **v3 gets a populated-database upgrade test the
+moment M2 adds it**, with no new test code.
+
+> ### ⚠️ Not yet run on a device — no emulator available
+>
+> Every check so far is typecheck, unit tests, Node-level traces against real SQLite, and a Metro
+> bundle. **No pixel has been rendered.** This machine has the Android SDK but no JDK, no system
+> image, and no AVD, so booting one would mean installing a JDK and downloading ~1.5 GB first.
+>
+> To run it: `npm run seed && npx expo start`, then Expo Go. What to look at first:
+>
+> 1. **Do card images appear?** The CDN is proven, expo-image's webp decode is not. Blank tiles here
+>    would be a *different* cause than the hydration bug fixed in the audit — check the URL in a
+>    browser before assuming a regression.
+> 2. **Typing lag in the gallery.** Expected imperceptible; the risk is the first unfiltered render.
+> 3. **The six domain glyphs** in the filter rail — all should be solid shapes, no boxes.
+> 4. **The tab bar's `+` button** uses `marginTop: -22` to overhang the bar; Android sometimes clips
+>    children overflowing a parent with elevation.
+>
+> **Still unverified:** the 60 fps target and offline behaviour need a physical device — everything
+> above was checked by typecheck, unit tests, and a full Metro bundle only. First device run should
+> confirm scroll performance with all 1,451 cards and that airplane mode still browses.
+>
+> Two deferred items: TS types are hand-written from the OpenAPI spec rather than codegen'd (the
+> spec is small and stable enough that a generator earns nothing yet), and the filter panel is a
+> router modal rather than a gesture sheet — the log-match flow in M4 is the one that genuinely
+> needs a draggable sheet, and that is where `@gorhom/bottom-sheet` gets introduced.
 
 ---
 

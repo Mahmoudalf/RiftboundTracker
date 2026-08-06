@@ -145,18 +145,30 @@ Fetched live 2026-08-05. Hardcode as fallbacks, refresh from `/index/` on sync.
 (`Empower` / `Empowered`). **Do not** build a keyword filter UI directly from this list — curate it,
 and re-check after each set release.
 
-### Sets (as of 2026-08-05)
+### Sets (as of 2026-08-06)
 
-| `set_id` | Name | Cards | Published |
-| --- | --- | --- | --- |
-| `OGN` | Origins | 352 | 2025-10-31 |
-| `UNL` | Unleashed | — | — |
-| `VEN` | Vendetta | 358 | 2026-07-31 |
-| `OPP` | Organized Play Promotional | 133 | 2025-10-31 |
-| `PR` | Promotional | 13 | 2025-10-31 |
-| `JDG` | Judge Promotional | 3 | 2025-12-01 |
+| `set_id` | Cards |
+| --- | --- |
+| `VEN` Vendetta | 358 |
+| `OGN` Origins | 352 |
+| `SFD` | 288 |
+| `UNL` Unleashed | 280 |
+| `OPP` Organized Play Promotional | 133 |
+| `OGS` | 24 |
+| `PR` Promotional | 13 |
+| `JDG` Judge Promotional | 3 |
 
-**Total cards: 1,451**
+**8 sets, 1,451 cards total.**
+
+> Don't hardcode this list — it changes. An earlier revision of this document
+> recorded 6 sets because the query used `size=5` and read the truncated
+> `total`. Always page `/sets` properly.
+
+**`sum(card_count)` equals the `/cards` total exactly (1,451 both ways).** That
+equality is what the sync's change-detection leans on: if the local mirror holds
+at least `sum(card_count)` rows, nothing upstream has been added and the card
+pages are skipped. Verified 2026-08-06 — recheck it if sync starts re-downloading
+on every launch, because alternate printings could break the identity.
 
 ---
 

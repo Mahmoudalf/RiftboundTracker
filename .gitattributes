@@ -1,0 +1,18 @@
+# Normalise line endings so the repo stays consistent across Windows and macOS.
+* text=auto eol=lf
+
+# Binary assets must never be normalised.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ttf binary
+*.otf binary
+*.woff  binary
+*.woff2 binary
+*.hbc binary
+*.keystore binary
+
+# Generated — collapse in diffs and exclude from language stats.
+package-lock.json linguist-generated=true -diff
+assets/seed/*.json linguist-generated=true -diff

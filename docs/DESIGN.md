@@ -31,19 +31,35 @@ without curation, and stat screens that look like a generic dashboard template.
 The visual identity of the entire app derives from Riftbound's six domains. Defined once in
 `src/theme/domains.ts` and never hardcoded anywhere else.
 
-| Domain | Color | Opposite |
-| --- | --- | --- |
-| **Fury** | Red | Calm |
-| **Calm** | Green | Fury |
-| **Mind** | Blue | Body |
-| **Body** | Orange | Mind |
-| **Chaos** | Purple | Order |
-| **Order** | Yellow | Chaos |
-| *Colorless* | Slate | — |
+Sampled from Riot's own Basic Rune card art — those cards are a large domain
+symbol on a flat field of that domain's color, which makes them the most
+reliable published source. `scripts/sample-domain-colors.ts` re-derives the
+whole table; re-run it when a new set ships.
 
-> ⚠️ **M0 task:** sample the exact hex values from the official card domain symbols rather than
-> eyeballing them. Each domain needs a triplet — `base` (fills, text on dark), `muted` (chips,
-> borders), `glow` (accents, gradient stops) — with `base` verified at ≥4.5:1 against the surface.
+| Domain | Print (sampled) | `base` (UI) | Hue° | Opposite |
+| --- | --- | --- | --- | --- |
+| **Fury** | `#931D1B` | `#F17166` | 27 | Calm |
+| **Calm** | `#37672E` | `#61B652` | 141 | Fury |
+| **Mind** | `#104C72` | `#1EA7F8` | 242 | Body |
+| **Body** | `#C14C1C` | `#EF774B` | 40 | Mind |
+| **Chaos** | `#52327B` | `#B084F1` | 301 | Order |
+| **Order** | `#A67F21` | `#C89500` | 84 | Chaos |
+| *Colorless* | — | `#9AA1B0` | — | — |
+
+**Why print colors are not UI colors.** The sampled values are ink on card
+stock: five of the six fall below 3:1 on a dark surface (Chaos is 1.95:1). So
+the **hue is preserved exactly** and lightness/chroma are re-derived in OKLCH at
+a *constant* L per role — `base` at L=0.70, `bright` at 0.82, `dim` at 0.28.
+
+Constant lightness rather than constant contrast ratio is the load-bearing
+decision. Matching on contrast would leave gold and green looking muddy beside
+red, because yellow-ish hues reach any given ratio at much lower lightness.
+Holding L fixed is what makes the six read as one palette. Every `base` lands at
+6.4–7.3:1 on `surface` as a consequence, comfortably past AA.
+
+Live in `src/theme/palette.js`, which `tailwind.config.js` requires and
+`tokens.ts` imports — one file, so utility classes and imperative styles cannot
+drift apart.
 
 ### Deck accents
 
@@ -55,8 +71,14 @@ charts, and version timeline.
 ### Accessibility
 
 **Color never carries meaning alone.** Every domain indicator pairs the color with its glyph or
-label — required for colorblind users, and better for everyone at a glance. Win/loss uses shape and
-position as well as green/red. Contrast targets: 4.5:1 body text, 3:1 large text and UI boundaries.
+label — required for colorblind users, and the only thing that reliably separates Fury (27°) from
+Body (40°), which are genuinely close because the game's own palette makes them so.
+
+**Results vs domains.** Win/loss would collide with Calm and Fury if left to convention, so the
+semantic colors are pushed away in hue — win `#00C286` at 162° against Calm's 141°, loss `#FA7090`
+at 8° against Fury's 27° — and draw is neutral rather than blue, which would have collided with
+Mind. Form carries the rest: a result is always a filled pill with a glyph, a domain is always a
+dim-background badge. Contrast targets: 4.5:1 body text, 3:1 large text and UI boundaries.
 
 ---
 
@@ -64,9 +86,19 @@ position as well as green/red. Contrast targets: 4.5:1 body text, 3:1 large text
 
 | Role | Face | Notes |
 | --- | --- | --- |
-| Display / headers | **Chakra Petch** or **Rajdhani** | Condensed, geometric, technical — fits the game's aesthetic. Both free via Google Fonts |
-| Body / UI | **Inter** | Excellent at small sizes, wide weight range |
-| Numerals | Inter, **tabular figures** | Non-negotiable anywhere stats appear — proportional figures make win-rate columns jitter as they update |
+| Display / headers | **Space Grotesk** | Technical and slightly odd — the single-storey `g`, the flat terminals — without reading as a stock "gamer" face the way Rajdhani or Orbitron would |
+| Body / UI | **Inter** | Holds up at the 12–13px a dense card list needs |
+| Metadata | Space Grotesk, 10–11px, uppercase, wide tracking | The card-footer idiom below |
+| Numerals | **Tabular figures**, always | Non-negotiable anywhere stats appear — proportional figures make win-rate columns jitter as they update |
+
+**The signature device.** Every Riftbound card carries a metadata line along its
+foot: `OGN • 007/298 • Greg Ghielmetti & Leah Chen • ©2025RGI`. Small, uppercase,
+widely tracked, bullet-separated. The app adopts that exact idiom for its own
+metadata — `v3 • 40 matches • 63%`, `Legend • Rare • Fury/Order` — so the
+interface speaks in the artifact's own vernacular instead of generic caption
+styling. Implemented as `text.meta` plus the `metaLine()` helper in
+`src/theme/typography.ts`; it is the one styling rule that should show up on
+nearly every screen.
 
 Respect Dynamic Type / font scaling. Stat layouts must survive a 200% text size without clipping.
 
