@@ -206,6 +206,150 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE deck_versions ADD COLUMN rules_version INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 5,
+    up: /* sql */ `
+      -- The card's name, denormalized alongside riftbound_id.
+      --
+      -- A deck row for a card the mirror cannot resolve was previously opaque:
+      -- an id, a quantity, and nothing to identify it by. That had two costs.
+      -- The UI could only say "1 card is missing" rather than which one, and --
+      -- worse -- a save could not tell that a card being written was the same
+      -- card as a preserved row it could not read, so re-adding a card whose
+      -- printing had left the library stored it twice. The deck then held six
+      -- copies by name the moment the old printing came back.
+      --
+      -- Nullable: rows whose card was already gone when this ran cannot be
+      -- named retroactively, and inventing a name would be worse than a null.
+      ALTER TABLE deck_version_cards ADD COLUMN card_name TEXT;
+
+      UPDATE deck_version_cards
+         SET card_name = (SELECT c.name FROM cards c WHERE c.id = deck_version_cards.card_id)
+       WHERE card_name IS NULL;
+    `,
+  },
+  {
+    version: 6,
+    up: /* sql */ `
+      CREATE TABLE IF NOT EXISTS events (
+        id                TEXT PRIMARY KEY NOT NULL,
+        name              TEXT NOT NULL,
+        format            TEXT NOT NULL DEFAULT 'constructed',
+        event_type        TEXT NOT NULL DEFAULT 'tournament',
+        started_at        TEXT NOT NULL,
+        location          TEXT,
+        rounds            INTEGER,
+        final_placement   INTEGER,
+        notes             TEXT,
+        created_at        TEXT NOT NULL,
+        updated_at        TEXT NOT NULL,
+        deleted_at        TEXT,
+        user_id           TEXT,
+        dirty             INTEGER NOT NULL DEFAULT 1,
+        updated_by_device TEXT
+      );
+
+      -- deck_id sits alongside deck_version_id deliberately: deck-level
+      -- aggregates never need a join, and no version-level operation can orphan
+      -- a match.
+      --
+      -- Every optional column is genuinely optional. Someone who only ever taps
+      -- WIN or LOSS still gets a correct win rate; the on-play split just
+      -- reports a smaller sample. Analytics must never assume a field is there.
+      CREATE TABLE IF NOT EXISTS matches (
+        id                    TEXT PRIMARY KEY NOT NULL,
+        deck_id               TEXT NOT NULL,
+        deck_version_id       TEXT NOT NULL,
+        played_at             TEXT NOT NULL,
+        result                TEXT NOT NULL,
+        games_won             INTEGER,
+        games_lost            INTEGER,
+        on_play               INTEGER,
+        opp_legend_card_id    TEXT,
+        opp_champion_card_id  TEXT,
+        opp_domains           TEXT,
+        opp_label             TEXT,
+        event_id              TEXT,
+        event_type            TEXT NOT NULL DEFAULT 'casual',
+        mulligans             INTEGER,
+        duration_seconds      INTEGER,
+        notes                 TEXT,
+        tags                  TEXT,
+        created_at            TEXT NOT NULL,
+        updated_at            TEXT NOT NULL,
+        deleted_at            TEXT,
+        user_id               TEXT,
+        dirty                 INTEGER NOT NULL DEFAULT 1,
+        updated_by_device     TEXT,
+        FOREIGN KEY (deck_id) REFERENCES decks(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS matches_deck_idx    ON matches(deck_id);
+      CREATE INDEX IF NOT EXISTS matches_version_idx ON matches(deck_version_id);
+      CREATE INDEX IF NOT EXISTS matches_played_idx  ON matches(played_at);
+      CREATE INDEX IF NOT EXISTS matches_deleted_idx ON matches(deleted_at);
+      CREATE INDEX IF NOT EXISTS matches_opp_idx     ON matches(opp_legend_card_id);
+      CREATE INDEX IF NOT EXISTS matches_event_idx   ON matches(event_id);
+
+      -- Optional per-game detail for a best-of-three. A match is complete with
+      -- none of these rows; they are a refinement, never a requirement.
+      CREATE TABLE IF NOT EXISTS match_games (
+        id          TEXT PRIMARY KEY NOT NULL,
+        match_id    TEXT NOT NULL,
+        game_number INTEGER NOT NULL,
+        on_play     INTEGER,
+        result      TEXT NOT NULL,
+        notes       TEXT,
+        FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS match_games_match_idx ON match_games(match_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS match_games_number_idx
+        ON match_games(match_id, game_number);
+    `,
+  },
+  {
+    version: 7,
+    up: /* sql */ `
+      -- The opponent's name, denormalized beside the card id.
+      --
+      -- Exactly the gap migration 5 closed for deck_version_cards, repeated on
+      -- matches and caught before any device wrote a row. An opponent stored
+      -- only as a card id becomes unrenderable the moment that printing leaves
+      -- the card library: the recent-opponents rail inner-joins to cards so it
+      -- silently drops, and a match detail screen has an id and nothing to
+      -- print. opp_label does not cover it -- that field is free text for an
+      -- opponent typed by hand, and the two-tap path never sets it.
+      --
+      -- Nullable, because most matches have no opponent recorded at all.
+      ALTER TABLE matches ADD COLUMN opp_legend_name   TEXT;
+      ALTER TABLE matches ADD COLUMN opp_champion_name TEXT;
+
+      UPDATE matches
+         SET opp_legend_name = (
+               SELECT c.name FROM cards c WHERE c.id = matches.opp_legend_card_id)
+       WHERE opp_legend_name IS NULL AND opp_legend_card_id IS NOT NULL;
+
+      UPDATE matches
+         SET opp_champion_name = (
+               SELECT c.name FROM cards c WHERE c.id = matches.opp_champion_card_id)
+       WHERE opp_champion_name IS NULL AND opp_champion_card_id IS NOT NULL;
+    `,
+  },
+  {
+    version: 8,
+    up: /* sql */ `
+      -- The match format: 1, 3 or 5 games.
+      --
+      -- Distinct from games_won/games_lost, which record what actually
+      -- happened. "Best of three" is a property of how the match was played and
+      -- is known before a single game is; a deck's record in Bo1 and Bo3 are
+      -- different questions, and deriving the format from a 2-0 would guess.
+      --
+      -- Nullable: the two-tap path does not ask.
+      ALTER TABLE matches ADD COLUMN best_of INTEGER;
+    `,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

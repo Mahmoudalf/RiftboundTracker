@@ -119,10 +119,19 @@ dirty       updated_by_device
 | `deck_version_id` → `deck_versions.id` | |
 | `card_id` → `cards.id` | |
 | `riftbound_id` | Denormalized fallback if a card ever leaves the API |
+| `card_name` | Denormalized for the same reason. Nullable — see below |
 | `quantity` | 1–3 |
 | `zone` | `main` \| `rune` \| `battlefield` \| `legend` \| `champion` \| `sideboard` |
 
 `UNIQUE (deck_version_id, card_id, zone)`
+
+**Why `card_name` is stored** (migration 5): a row whose `card_id` the mirror cannot resolve was
+otherwise opaque. That cost two things. The UI could only say "1 card is missing" instead of naming
+it — and a save could not tell that the card it was writing was the *same card* as a row it was
+preserving, so re-adding a card whose printing had left the library stored both. The deck then held
+six copies by name the moment the old printing came back, with the user having done nothing wrong.
+Nullable, because a row whose card was already gone when the migration ran cannot be named
+retroactively, and a fabricated name would be worse than a null.
 
 **Why full snapshots rather than stored diffs:** a version is at most 57 rows. Storage is irrelevant
 at this scale, any version renders without replaying history, and a diff is far cheaper to compute
@@ -213,13 +222,43 @@ logMatch(match):
 
 These are worth asserting in tests and, where cheap, in the code:
 
-1. A version with matches is **never** mutated except via the explicit amend escape hatch.
+1. A version with matches is **never** mutated except via the explicit amend escape hatch. Not its
+   card set, not its printings, not its row ids.
 2. `matches.deck_version_id` always resolves to a live (possibly archived) version. Versions with
    matches can be **archived**, never deleted.
 3. `decks.current_version_id` always points at a version belonging to that deck.
-4. `version_number` is contiguous and 1-based within a deck.
+4. `version_number` is unique, ascending, and 1-based within a deck. **Not contiguous** — this was
+   relaxed during the M3 audit. Going back to an older version and editing it forks a *sibling*, and
+   deleting an unplayed sibling leaves a gap. Renumbering to close it would rename a version the user
+   already knows as v3, which is worse than a gap; and `matches` reference version *ids*, so nothing
+   downstream depends on the sequence being dense.
+   Forks therefore number from `MAX(version_number) + 1`, not from the parent.
 5. A no-op save creates nothing. *(This is the invariant that prevents version spam — the failure
    mode most likely to make the feature feel broken.)*
+
+### Printings, and a design decision that was reversed
+
+The builder chooses **printings** — picking a card is also picking its art — but the diff engine
+keys on `cardKey()`, the name with the printing treatment stripped. Swapping "Vi" for
+"Vi (Alternate Art)" therefore reports as a *reprint* (`DeckDiff.reprinted`, and
+`cardSetIdentical: true`) rather than as a card leaving and another arriving.
+
+M3 originally used that flag to skip the fork entirely and write the swap in place, **even on a
+locked version**. The reasoning: the two lists are identical to every rule and every statistic, so
+forking would produce versions no comparison could separate while splitting the match sample across
+both. The first half is true. The conclusion was wrong.
+
+`deck_version_cards` is not only the rules-level definition of a list — it is the record of what was
+physically in the sleeve. Three planned readers treat it that way: the match detail screen renders
+the played list (M4), the collection tracker checks ownership against `card_id` (M6), and deck export
+emits printings (M6). Rewriting `card_id` on a version that matches were played with makes all three
+describe cards the player did not own at the time. That is not ignoring a cosmetic change; it is
+falsifying a record, and unlike a lost version number it cannot be recovered.
+
+**The rule now: a locked version always forks.** The sample-splitting problem is real, and it belongs
+in the analytics layer — `compareVersions()` can pool two versions whose diff is `cardSetIdentical`,
+at read time, from data that is still true. Reprints are written in place only while a version has no
+matches.
 
 ### Amend escape hatch
 
@@ -232,16 +271,18 @@ list."* Rare by design, but its absence would make the app feel like it's fighti
 `src/lib/deck-diff.ts` — pure, no I/O, heavily unit-tested.
 
 ```ts
-diffVersions(a: VersionCards, b: VersionCards): DeckDiff
+diffLists(before: DeckList, after: DeckList): DeckDiff
 
 interface DeckDiff {
-  added:     { card: Card; qty: number }[]
-  removed:   { card: Card; qty: number }[]
-  changed:   { card: Card; from: number; to: number }[]
+  added:     { card: Card; zone: Zone; quantity: number }[]
+  removed:   { card: Card; zone: Zone; quantity: number }[]
+  changed:   { card: Card; zone: Zone; from: number; to: number }[]
+  reprinted: { zone: Zone; from: Card; to: Card; quantity: number }[]   // art swaps
   unchanged: number
   netCardsMoved: number      // total cards in + out — the headline "how big was this change"
   zonesTouched:  Zone[]
-  isEmpty:      boolean      // drives the no-op guard
+  isEmpty:           boolean // nothing differs at all — drives the no-op guard
+  cardSetIdentical:  boolean // no card added, removed, or re-counted; art may differ
 }
 ```
 

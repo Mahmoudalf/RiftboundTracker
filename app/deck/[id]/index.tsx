@@ -6,17 +6,28 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { DomainBadge } from '@/components/cards/DomainBadge';
 import { DeckSlotRow } from '@/components/decks/DeckSlotRow';
 import { LegalityBar } from '@/components/decks/LegalityBar';
+import { VersionCompareSheet } from '@/components/decks/VersionCompareSheet';
+import { VersionTimeline, type TimelineNode } from '@/components/decks/VersionTimeline';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import {
+  compareVersions,
   deleteDeck,
+  deleteVersion,
   getDeck,
   listVersions,
   loadDeckList,
-  missingCardCount,
+  lockVersion,
+  missingCards,
+  setCurrentVersion,
+  versionDiff,
+  versionMatchCounts,
+  VersionHasMatchesError,
+  type MissingCard,
 } from '@/db/queries/decks';
 import type { DeckRow, DeckVersionRow } from '@/db/schema/decks';
+import type { DeckDiff } from '@/lib/deck-diff';
 import { checkLegality, type DeckList, type DeckZone } from '@/lib/legality';
 import { deckGradient } from '@/theme/domains';
 import { color, radius, space } from '@/theme/tokens';
@@ -25,17 +36,17 @@ import { metaLine, text } from '@/theme/typography';
 /**
  * Deck detail.
  *
- * M2 ships Overview and List. Versions, Matches, and Stats arrive with the
- * milestones that give them something to show — a Versions tab against a single
- * version, or a Matches tab before matches exist, is a tab that teaches the user
- * the app is empty.
+ * Overview, List, and — since M3 — Versions. Matches and Stats arrive with the
+ * milestones that give them something to show; a Matches tab before matches
+ * exist is a tab that teaches the user the app is empty.
  */
 
-type Tab = 'overview' | 'list';
+type Tab = 'overview' | 'list' | 'versions';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'list', label: 'List' },
+  { key: 'versions', label: 'Versions' },
 ];
 
 const ZONE_ORDER: { zone: DeckZone; label: string; fixed?: boolean }[] = [
@@ -52,21 +63,159 @@ export default function DeckDetailScreen() {
   const [deck, setDeck] = useState<DeckRow | null>(null);
   const [versions, setVersions] = useState<DeckVersionRow[]>([]);
   const [list, setList] = useState<DeckList>({ slots: [] });
-  const [missing, setMissing] = useState(0);
+  const [missing, setMissing] = useState<MissingCard[]>([]);
+  const [nodes, setNodes] = useState<TimelineNode[]>([]);
+  const [compare, setCompare] = useState<string[]>([]);
 
-  useFocusEffect(
-    useCallback(() => {
-      const row = getDeck(id);
-      setDeck(row);
-      if (!row?.currentVersionId) return;
-      setVersions(listVersions(row.id));
-      setList(loadDeckList(row.currentVersionId));
-      setMissing(missingCardCount(row.currentVersionId));
-    }, [id])
-  );
+  const load = useCallback(() => {
+    const row = getDeck(id);
+    setDeck(row);
+    if (!row?.currentVersionId) return;
+
+    const rows = listVersions(row.id);
+    const counts = versionMatchCounts(row.id);
+    setVersions(rows);
+    setList(loadDeckList(row.currentVersionId));
+    setMissing(missingCards(row.currentVersionId));
+    const numberById = new Map(rows.map((v) => [v.id, v.versionNumber]));
+    setNodes(
+      rows.map((version) => ({
+        version,
+        // Computed here rather than in the timeline: it is a database read per
+        // node, and a component that reads during render re-reads on every
+        // scroll frame.
+        diff: versionDiff(version.id),
+        matchCount: counts.get(version.id) ?? 0,
+        isCurrent: version.id === row.currentVersionId,
+        parentNumber: version.parentVersionId
+          ? (numberById.get(version.parentVersionId) ?? null)
+          : null,
+      }))
+    );
+  }, [id]);
+
+  useFocusEffect(load);
 
   const legality = useMemo(() => checkLegality(list), [list]);
   const current = versions.find((v) => v.id === deck?.currentVersionId) ?? null;
+
+  const comparing = useMemo(() => {
+    if (compare.length !== 2) return null;
+    const [firstId, secondId] = compare as [string, string];
+    const first = versions.find((v) => v.id === firstId);
+    const second = versions.find((v) => v.id === secondId);
+    if (!first || !second) return null;
+    // Always oldest-first, so the diff reads as "what happened next" regardless
+    // of which node was long-pressed first.
+    const [older, newer] =
+      first.versionNumber <= second.versionNumber ? [first, second] : [second, first];
+    const diff = compareVersions(older.id, newer.id) as DeckDiff;
+
+    if (__DEV__) {
+      console.log(
+        `[compare] resolved v${older.versionNumber} → v${newer.versionNumber} · ` +
+          `+${diff.added.length} −${diff.removed.length} ~${diff.changed.length} ` +
+          `empty=${diff.isEmpty}`
+      );
+    }
+    return { a: older, b: newer, diff };
+  }, [compare, versions]);
+
+  const matchCounts = useMemo(
+    () => new Map(nodes.map((n) => [n.version.id, n.matchCount])),
+    [nodes]
+  );
+
+  /**
+   * Tapping a version that is not current offers to switch to it. Editing then
+   * forks from *that* node, which is how a player backs out of a change that
+   * did not work while keeping the record of having tried it.
+   */
+  const onVersionPress = (node: TimelineNode) => {
+    const options: Parameters<typeof Alert.alert>[2] = [{ text: 'Cancel', style: 'cancel' }];
+
+    if (!node.isCurrent) {
+      options.push({
+        text: `Make v${node.version.versionNumber} current`,
+        onPress: () => {
+          setCurrentVersion(id, node.version.id);
+          load();
+        },
+      });
+    }
+
+    /*
+     * TEMPORARY — remove when M4 lands.
+     *
+     * `lockVersion()` is called by match logging, which does not exist yet, so
+     * without this nothing in the app can put a version into the locked state
+     * and fork-on-save is unreachable outside the test suite. Dev builds only;
+     * `__DEV__` is false in any release bundle.
+     */
+    if (__DEV__ && !node.version.lockedAt) {
+      options.push({
+        text: 'Simulate a match (lock)',
+        onPress: () => {
+          lockVersion(node.version.id);
+          load();
+        },
+      });
+    }
+
+    if (!node.isCurrent && !node.version.lockedAt && versions.length > 1) {
+      options.push({
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          try {
+            deleteVersion(node.version.id);
+            load();
+          } catch (err) {
+            Alert.alert(
+              'This version cannot be deleted',
+              err instanceof VersionHasMatchesError
+                ? 'It has matches logged against it, and those results only mean anything attached to the list that played them.'
+                : 'A deck has to keep at least one version.'
+            );
+          }
+        },
+      });
+    }
+
+    // Only Cancel left — nothing to offer, so say nothing.
+    if (options.length === 1) return;
+
+    Alert.alert(
+      `v${node.version.versionNumber}`,
+      node.version.label ??
+        (node.isCurrent
+          ? 'The version this deck currently points at.'
+          : 'This version is not the one the deck currently points at.'),
+      options
+    );
+  };
+
+  /** Long-press picks versions to compare; a third pick starts a new pair. */
+  const onVersionLongPress = (node: TimelineNode) => {
+    setCompare((picked) => {
+      const next = picked.includes(node.version.id)
+        ? picked.filter((v) => v !== node.version.id)
+        : picked.length >= 2
+          ? [node.version.id]
+          : [...picked, node.version.id];
+
+      // TEMPORARY — the device pass reported compare as partly working, and the
+      // query layer is proven correct across branches, so the fault is in this
+      // selection path. Logged rather than reasoned about.
+      if (__DEV__) {
+        console.log(
+          `[compare] long-press v${node.version.versionNumber} · ` +
+            `selected ${picked.length} → ${next.length}`
+        );
+      }
+      return next;
+    });
+  };
 
   const onDelete = () => {
     Alert.alert('Delete this deck?', 'Its versions and match history go with it.', [
@@ -139,10 +288,14 @@ export default function DeckDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {missing > 0 ? (
+        {missing.length > 0 ? (
           <Text style={styles.warning}>
-            {missing} {missing === 1 ? 'card is' : 'cards are'} missing from the card library, so
-            the counts below are short. Refreshing the library in Settings usually fixes this.
+            {/* Named, not counted — the card is still in the deck, it is the
+                library that lost it, and only the name makes that actionable. */}
+            Not in the card library:{' '}
+            {missing.map((m) => m.name ?? 'an unknown card').join(', ')}. They are still part of
+            this deck, but the counts below are short. Refreshing the library in Settings usually
+            fixes it.
           </Text>
         ) : null}
 
@@ -165,20 +318,15 @@ export default function DeckDetailScreen() {
             ) : null}
 
             <View style={styles.versionBlock}>
-              <Text style={styles.sectionLabel}>Versions</Text>
-              {versions.map((v) => (
-                <View key={v.id} style={styles.versionRow}>
-                  <Text style={styles.versionNumber}>v{v.versionNumber}</Text>
-                  <Text style={styles.versionMeta}>
-                    {metaLine(
-                      v.label,
-                      `${v.mainCount}/40`,
-                      v.lockedAt ? 'Locked' : 'Editable',
-                      v.id === deck.currentVersionId ? 'Current' : null
-                    )}
-                  </Text>
-                </View>
-              ))}
+              <Text style={styles.sectionLabel}>Current version</Text>
+              <Text style={styles.versionMeta}>
+                {metaLine(
+                  current ? `v${current.versionNumber}` : null,
+                  current?.label,
+                  current?.lockedAt ? 'Locked — editing forks' : 'Editable in place',
+                  versions.length > 1 ? `${versions.length} versions` : null
+                )}
+              </Text>
               <Text style={styles.hint}>
                 Editing a version that has matches logged against it creates a new one, so past
                 results always stay attached to the list that played them.
@@ -192,6 +340,22 @@ export default function DeckDetailScreen() {
             >
               <Text style={styles.deleteLabel}>Delete deck</Text>
             </Pressable>
+          </View>
+        ) : tab === 'versions' ? (
+          <View style={styles.overview}>
+            <VersionTimeline
+              nodes={nodes}
+              selectedIds={compare}
+              onPress={onVersionPress}
+              onLongPress={onVersionLongPress}
+            />
+            <Text style={styles.hint}>
+              {compare.length === 1
+                ? 'Long-press another version to compare the two.'
+                : versions.length > 1
+                  ? 'Long-press two versions to compare them.'
+                  : 'Every edit after your first match creates a new version here, with the exact cards that changed.'}
+            </Text>
           </View>
         ) : (
           ZONE_ORDER.map(({ zone, label, fixed }) => {
@@ -221,6 +385,15 @@ export default function DeckDetailScreen() {
           })
         )}
       </ScrollView>
+
+      <VersionCompareSheet
+        visible={comparing !== null}
+        a={comparing?.a ?? null}
+        b={comparing?.b ?? null}
+        diff={comparing?.diff ?? null}
+        matchCounts={matchCounts}
+        onClose={() => setCompare([])}
+      />
     </Screen>
   );
 }
@@ -245,8 +418,6 @@ const styles = StyleSheet.create({
   warning: { ...text.small, color: color.warning },
   sectionLabel: { ...text.meta, color: color.textSecondary },
   versionBlock: { gap: space[2] },
-  versionRow: { flexDirection: 'row', alignItems: 'baseline', gap: space[3] },
-  versionNumber: { ...text.numeric, fontSize: 14, color: color.text, minWidth: 28 },
   versionMeta: { ...text.meta, color: color.textMuted, flex: 1 },
   hint: { ...text.small, color: color.textFaint, paddingTop: space[1] },
   zone: { gap: space[1] },

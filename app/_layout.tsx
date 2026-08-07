@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '../global.css';
 
+import { Toast } from '@/components/ui/Toast';
 import { color } from '@/theme/tokens';
 import { fonts } from '@/theme/typography';
 
@@ -62,6 +63,11 @@ export default function RootLayout() {
               options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
             />
           </Stack>
+
+          {/* Above the navigator, because the log-match sheet closes as part of
+              raising the toast — one owned by that screen would unmount in the
+              same frame it appeared, taking Undo with it. */}
+          <Toast />
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

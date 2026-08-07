@@ -17,7 +17,7 @@ import {
   getDeck,
   getVersion,
   loadDeckList,
-  saveDeckList,
+  saveDeckEdit,
 } from '@/db/queries/decks';
 import { cardColumns, toBindValue } from '@/db/queries/hydrate';
 import type { CardRow } from '@/db/schema/cards';
@@ -35,8 +35,8 @@ import { useDeckEditor } from './useDeckEditor';
 /**
  * The editor flow, end to end, against the real card library.
  *
- * Everything else tests a layer. This drives the exact sequence a user does —
- * pick a Legend, pick a Champion, tap cards in the rail, save — through the
+ * Everything else tests a layer. This drives the exact sequence a user does â€”
+ * pick a Legend, pick a Champion, tap cards in the rail, save â€” through the
  * real queries, the real store, and all 1,451 real cards, then reads the
  * database back to check it says what the legality bar said.
  */
@@ -143,7 +143,7 @@ describe.skipIf(!hasSeed)('editor flow against the real library', () => {
   /**
    * The audit's central question: the bar reads `checkLegality` on the editor's
    * in-memory slots, while the database column is written by `syncVersionCounts`
-   * from the list handed to `saveDeckList`. If those can ever differ, every
+   * from the list handed to `saveDeckEdit`. If those can ever differ, every
    * cached `is_legal` is suspect.
    */
   it('writes an is_legal that matches what the bar showed', () => {
@@ -174,7 +174,7 @@ describe.skipIf(!hasSeed)('editor flow against the real library', () => {
     const list: DeckList = { slots };
     const barSaw = checkLegality(list);
 
-    saveDeckList(versionId, list);
+    saveDeckEdit(versionId, list);
 
     const version = getVersion(versionId)!;
     expect(version.mainCount).toBe(barSaw.counts.main);
@@ -199,8 +199,8 @@ describe.skipIf(!hasSeed)('editor flow against the real library', () => {
   /**
    * Where does a Champion Unit go when tapped in the rail? `defaultZoneFor`
    * sends every Unit to `main`, so it stacks alongside the designated Champion
-   * rather than replacing it. Rule 103.2.b.1 says that is correct — the Chosen
-   * Champion's copy counts toward the 3-copy limit — so the question is whether
+   * rather than replacing it. Rule 103.2.b.1 says that is correct â€” the Chosen
+   * Champion's copy counts toward the 3-copy limit â€” so the question is whether
    * the fourth copy is caught.
    */
   it('counts extra copies of the Chosen Champion against the 3-copy limit', () => {
@@ -225,24 +225,24 @@ describe.skipIf(!hasSeed)('editor flow against the real library', () => {
   });
 
   /**
-   * `saveDeckList` rewrites `decks.legend_card_id` from the slot list, and
+   * `saveDeckEdit` rewrites `decks.legend_card_id` from the slot list, and
    * `loadDeckList` drops cards missing from the mirror. If the Legend's
    * printing ever leaves the library, opening the editor loads a list with no
-   * legend slot — and saving then wipes the deck's Legend and domains.
+   * legend slot â€” and saving then wipes the deck's Legend and domains.
    */
   it('survives its Legend printing leaving the mirror', () => {
     const legend = listLegends().find((l) => l.name.startsWith('Vi - Piltover'))!;
     const champion = listChampionsForLegend(legend)[0]!;
     const { deckId, versionId } = createDeck({ name: 'Vi', legend, champion });
 
-    // A resync drops this printing — the mirror is disposable by design.
+    // A resync drops this printing â€” the mirror is disposable by design.
     db.runSync('DELETE FROM cards WHERE id = ?', [legend.id]);
 
     const list = loadDeckList(versionId);
     expect(list.slots.filter((s) => s.zone === 'legend')).toEqual([]);
 
     openEditor(deckId);
-    saveDeckList(versionId, { slots: useDeckEditor.getState().slots });
+    saveDeckEdit(versionId, { slots: useDeckEditor.getState().slots });
 
     // The deck keeps its identity even though the editor could not see it.
     const deck = getDeck(deckId)!;
@@ -262,7 +262,7 @@ describe.skipIf(!hasSeed)('editor flow against the real library', () => {
   /**
    * The build flow seeds the rune deck with an even split across the identity.
    * Only one rune card exists per domain, so this is the shape nearly every
-   * legal deck has — and it is only possible because the copy limit is scoped
+   * legal deck has â€” and it is only possible because the copy limit is scoped
    * to the Main Deck (rule 103.2.b).
    */
   it('can seed a complete rune deck from an even domain split', () => {
@@ -301,7 +301,7 @@ describe.skipIf(!hasSeed)('editor flow against the real library', () => {
     expect(distinct.size).toBeGreaterThanOrEqual(BATTLEFIELD_COUNT);
   });
 
-  it('keeps Legends out of the rail — they are changed through the picker', () => {
+  it('keeps Legends out of the rail â€” they are changed through the picker', () => {
     const legend = listLegends().find((l) => l.name.startsWith('Vi - Piltover'))!;
     expect(railFor(legend).filter((c) => c.type === 'Legend')).toEqual([]);
   });
@@ -335,7 +335,7 @@ describe.skipIf(!hasSeed)('editor flow against the real library', () => {
 
     const after = checkLegality({ slots: useDeckEditor.getState().slots });
     expect(after.issues.map((i) => i.code)).toContain('domain-identity');
-    // Flagged, never deleted — the cards are still in the list.
+    // Flagged, never deleted â€” the cards are still in the list.
     expect(
       useDeckEditor.getState().slots.some((s) => s.card.id === furyCard.id)
     ).toBe(true);
@@ -345,7 +345,7 @@ describe.skipIf(!hasSeed)('editor flow against the real library', () => {
     expect(legendSlots).toHaveLength(1);
     expect(legendSlots[0]!.card.id).toBe(otherLegend.id);
 
-    saveDeckList(versionId, { slots: useDeckEditor.getState().slots });
+    saveDeckEdit(versionId, { slots: useDeckEditor.getState().slots });
     expect(getDeck(deckId)!.legendCardId).toBe(otherLegend.id);
     expect(getDeck(deckId)!.domains).toEqual(otherLegend.domains);
   });
@@ -365,7 +365,7 @@ describe.skipIf(!hasSeed)('editor flow against the real library', () => {
     expect(championSlots).toHaveLength(1);
     expect(championSlots[0]!.card.id).toBe(alternative.id);
 
-    saveDeckList(versionId, { slots: useDeckEditor.getState().slots });
+    saveDeckEdit(versionId, { slots: useDeckEditor.getState().slots });
     expect(getDeck(deckId)!.championCardId).toBe(alternative.id);
   });
 });

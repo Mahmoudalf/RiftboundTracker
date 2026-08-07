@@ -1,12 +1,13 @@
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { CardGrid } from '@/components/decks/CardGrid';
 import { CardPickerSheet } from '@/components/decks/CardPickerSheet';
 import { DeckSlotRow } from '@/components/decks/DeckSlotRow';
 import { LegalityBar } from '@/components/decks/LegalityBar';
+import { SaveVersionSheet } from '@/components/decks/SaveVersionSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
@@ -17,10 +18,18 @@ import {
   listRunesForIdentity,
   queryCards,
 } from '@/db/queries/cards';
-import { getDeck, loadDeckList, saveDeckList, VersionLockedError } from '@/db/queries/decks';
+import {
+  getDeck,
+  getVersion,
+  loadDeckList,
+  saveDeckEdit,
+  versionMatchCounts,
+  type SaveOptions,
+} from '@/db/queries/decks';
 import type { CardRow } from '@/db/schema/cards';
-import { useDeckEditor } from '@/features/decks/useDeckEditor';
+import { reconcileWithStored, useDeckEditor } from '@/features/decks/useDeckEditor';
 import { baseName, cardKey } from '@/lib/card-identity';
+import { diffLists, type DeckDiff } from '@/lib/deck-diff';
 import {
   BATTLEFIELD_COUNT,
   checkLegality,
@@ -68,14 +77,35 @@ export default function DeckEditorScreen() {
   const [pool, setPool] = useState<Pool>('main');
   const [search, setSearch] = useState('');
   const [picker, setPicker] = useState<'legend' | 'champion' | null>(null);
+  const [pending, setPending] = useState<DeckDiff | null>(null);
+  /** Latched on the first commit, so a double tap cannot save twice. */
+  const committing = useRef(false);
 
   // Derived rather than held in state: the read is synchronous, so putting it
   // in an effect would render an empty editor first and then correct itself.
   const deck = useMemo(() => getDeck(id), [id]);
   const notFound = !deck?.currentVersionId;
 
+  /**
+   * The version being edited, and how much history is riding on it.
+   *
+   * Read once on open rather than on every render: nothing in this screen can
+   * lock a version, and re-reading on each keystroke would put a database round
+   * trip inside the typing path.
+   */
+  const editing = useMemo(() => {
+    if (!deck?.currentVersionId) return null;
+    const version = getVersion(deck.currentVersionId);
+    if (!version) return null;
+    return {
+      version,
+      matchCount: versionMatchCounts(deck.id).get(version.id) ?? 0,
+    };
+  }, [deck]);
+
   const slots = useDeckEditor((s) => s.slots);
   const versionId = useDeckEditor((s) => s.versionId);
+  const loadedKeys = useDeckEditor((s) => s.loadedKeys);
   const deckName = useDeckEditor((s) => s.name);
   const load = useDeckEditor((s) => s.load);
   const reset = useDeckEditor((s) => s.reset);
@@ -91,9 +121,18 @@ export default function DeckEditorScreen() {
       name: deck.name,
       list: loadDeckList(deck.currentVersionId),
     });
+    committing.current = false;
+
+    if (__DEV__) {
+      console.log(`[editor] mount · store versionId ${useDeckEditor.getState().versionId}`);
+    }
+
     // Clearing on unmount is what makes backing out leave no trace — under the
     // version model a stale draft is not a lost keystroke, it is a wrong deck.
-    return reset;
+    return () => {
+      if (__DEV__) console.log('[editor] unmount · clearing draft');
+      reset();
+    };
   }, [deck, load, reset]);
 
   const list = useMemo(() => ({ slots }), [slots]);
@@ -151,24 +190,105 @@ export default function DeckEditorScreen() {
     adjust(card, zone, 1);
   };
 
+  /**
+   * The list to save: the draft, plus anything that appeared in the stored
+   * version while the editor was open.
+   *
+   * Without this a card sync completing mid-session reads as the user deleting
+   * a card they never saw — which forks a version nobody asked for and drops
+   * the card from it.
+   */
+  const buildSaveList = () => {
+    if (!versionId) return list;
+    return reconcileWithStored(list, loadDeckList(versionId), loadedKeys);
+  };
+
+  /**
+   * Saving is two steps, always: work out the change, then show it.
+   *
+   * The diff is computed against what is on disk rather than against the draft's
+   * own baseline, so a save that turns out to change nothing writes nothing and
+   * says so — the guard that keeps a deck's history from filling with versions
+   * nobody made.
+   */
   const onSave = () => {
     if (!versionId) return;
-    try {
-      saveDeckList(versionId, list);
-      if (Platform.OS !== 'web') {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+    const diff = diffLists(loadDeckList(versionId), buildSaveList());
+
+    if (diff.isEmpty) {
       router.replace(`/deck/${id}`);
-    } catch (err) {
-      // Unreachable until match logging exists — see `saveDeckList`. Surfaced
-      // rather than swallowed so it cannot fail silently when M3 lands.
-      Alert.alert(
-        'This version is locked',
-        err instanceof VersionLockedError
-          ? 'Matches have been logged on this version, so it can no longer be edited in place.'
-          : 'The deck could not be saved.'
+      return;
+    }
+    setPending(diff);
+  };
+
+  /**
+   * Commit, exactly once.
+   *
+   * `router.replace` does unmount this screen — expo-router queues a React
+   * Navigation `REPLACE`, the stack router swaps the top route, and the effect
+   * cleanup below clears the draft. But that happens a render later, not inside
+   * this function, so a second tap on the sheet's button before the queue
+   * flushes would call `saveDeckEdit` again with the **pre-fork** versionId
+   * still in the store. That writes the same edit into the locked version a
+   * second time and forks twice — measured: v2 and v3, identical, from one
+   * double-tap.
+   *
+   * Two guards, because they fail differently: the ref stops the re-entry, and
+   * moving the store onto the new version means anything that did slip through
+   * would at worst re-save the fork rather than reach back into a locked list.
+   */
+  const commit = (options: SaveOptions) => {
+    if (!versionId || committing.current) return;
+    committing.current = true;
+
+    const result = saveDeckEdit(versionId, buildSaveList(), options);
+    useDeckEditor.setState({ versionId: result.versionId });
+
+    if (__DEV__) {
+      console.log(
+        `[editor] save → ${result.outcome} v${result.versionNumber} · store versionId ` +
+          `${versionId} → ${useDeckEditor.getState().versionId}`
       );
     }
+
+    setPending(null);
+
+    if (Platform.OS !== 'web') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    router.replace(`/deck/${id}`);
+    if (result.outcome === 'forked') {
+      // Confirms the fork happened *after* the fact rather than asking for
+      // permission again — the sheet already said what the button would do.
+      setTimeout(
+        () => Alert.alert(`Saved as v${result.versionNumber}`, 'Your earlier version is untouched.'),
+        400
+      );
+    }
+  };
+
+  /**
+   * The escape hatch. Rewriting a locked version is the one operation in the
+   * app that can make an existing number wrong, so it states the consequence in
+   * terms of the matches it affects and defaults to Cancel.
+   */
+  const onAmendLocked = () => {
+    const count = editing?.matchCount ?? 0;
+    Alert.alert(
+      `Overwrite v${editing?.version.versionNumber}?`,
+      count > 0
+        ? `The ${count === 1 ? 'match' : `${count} matches`} already logged on this version will be attributed to the edited list. This cannot be undone.`
+        : 'This version will be rewritten in place.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Overwrite',
+          style: 'destructive',
+          onPress: () => commit({ amendLocked: true }),
+        },
+      ]
+    );
   };
 
   if (notFound) {
@@ -198,6 +318,18 @@ export default function DeckEditorScreen() {
         </Pressable>
       }
     >
+      {/* Stated before the first edit, not at save time. Learning that a change
+          forks a version while confirming the change is learning it too late. */}
+      {editing?.version.lockedAt ? (
+        <Text style={styles.lockBanner}>
+          v{editing.version.versionNumber} ·{' '}
+          {editing.matchCount > 0
+            ? `${editing.matchCount === 1 ? '1 match' : `${editing.matchCount} matches`} tracked`
+            : 'locked'}{' '}
+          — saving will create v{editing.version.versionNumber + 1}
+        </Text>
+      ) : null}
+
       <View style={styles.modes}>
         {(['deck', 'add'] as const).map((m) => (
           <Pressable
@@ -357,6 +489,18 @@ export default function DeckEditorScreen() {
         onClose={() => setPicker(null)}
       />
 
+      {pending ? (
+        <SaveVersionSheet
+          visible
+          diff={pending}
+          versionNumber={editing?.version.versionNumber ?? 1}
+          matchCount={editing?.matchCount ?? 0}
+          locked={!!editing?.version.lockedAt}
+          onCancel={() => setPending(null)}
+          onSave={(options) => (options.amendLocked ? onAmendLocked() : commit(options))}
+        />
+      ) : null}
+
       <LegalityBar result={legality} />
     </Screen>
   );
@@ -365,6 +509,11 @@ export default function DeckEditorScreen() {
 const styles = StyleSheet.create({
   body: { flex: 1 },
   listContent: { paddingBottom: space[4], gap: space[5] },
+  lockBanner: {
+    ...text.microMeta,
+    color: color.warning,
+    paddingBottom: space[3],
+  },
   modes: { flexDirection: 'row', gap: space[1], paddingBottom: space[3] },
   mode: {
     paddingHorizontal: space[4],

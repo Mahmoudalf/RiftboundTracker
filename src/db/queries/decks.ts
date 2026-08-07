@@ -1,3 +1,5 @@
+import { cardKey } from '@/lib/card-identity';
+import { diffLists, suggestLabelFromDiff, type DeckDiff } from '@/lib/deck-diff';
 import { newId } from '@/lib/id';
 import {
   checkLegality,
@@ -123,6 +125,42 @@ export function loadDeckList(versionId: string): DeckList {
   return { slots };
 }
 
+export interface MissingCard {
+  cardId: string;
+  /** Null only for rows written before migration 5 whose card was already gone. */
+  name: string | null;
+  quantity: number;
+  zone: DeckZone;
+}
+
+/**
+ * Cards in a version the mirror can no longer resolve.
+ *
+ * Named rather than merely counted: "1 card is missing" tells the user nothing
+ * they can act on, and the card is still in the deck — it is the *library* that
+ * lost it. With the name they can see whether it matters and re-add it.
+ */
+export function missingCards(versionId: string): MissingCard[] {
+  return conn()
+    .getAllSync<{
+      card_id: string;
+      card_name: string | null;
+      quantity: number;
+      zone: string;
+    }>(
+      `SELECT card_id, card_name, quantity, zone FROM deck_version_cards dvc
+        WHERE dvc.deck_version_id = ?
+          AND NOT EXISTS (SELECT 1 FROM cards c WHERE c.id = dvc.card_id)`,
+      [versionId]
+    )
+    .map((row) => ({
+      cardId: row.card_id,
+      name: row.card_name,
+      quantity: Number(row.quantity),
+      zone: row.zone as DeckZone,
+    }));
+}
+
 /** Cards in a version that are no longer in the mirror, for an honest warning. */
 export function missingCardCount(versionId: string): number {
   return (
@@ -190,12 +228,24 @@ export function createDeck(input: CreateDeckInput): { deckId: string; versionId:
 /**
  * Replace a version's cards. Rewrites rather than diffs — at most 57 rows.
  *
- * Only rows for cards **currently in the mirror** are deleted. `loadDeckList`
- * drops any card the mirror no longer has, so those never reach the editor and
- * cannot be in `slots`; deleting them here would erase a card from the deck
- * because of a card-library resync, which is not something the user did. The
- * surviving row still carries `card_id` and `riftbound_id`, so the card returns
- * intact once the mirror does.
+ * Two kinds of row survive a rewrite, for different reasons.
+ *
+ * Rows whose card is **currently in the mirror** are always replaced: the
+ * editor could see them, so `slots` is the complete truth about them.
+ *
+ * Rows whose card the mirror cannot resolve are kept. `loadDeckList` drops
+ * those, so they never reach the editor and cannot be in `slots`; deleting them
+ * here would erase a card from the deck because of a card-library resync, which
+ * is not something the user did.
+ *
+ * The exception is the case that made this subtle. If the user writes a card
+ * that a preserved row already holds — re-adding Statikk Shock after the
+ * alternate-art printing they had left the library — the preserved row is
+ * dropped, because the user has just restated what that card's presence should
+ * be. Without this the version stores both, and the deck silently holds six
+ * copies by name the moment the old printing comes back. Matching is by name,
+ * which is why `card_name` exists; rows predating migration 5 have none and
+ * fall back to being preserved unconditionally.
  */
 function writeSlots(versionId: string, slots: readonly DeckSlot[]): void {
   conn().runSync(
@@ -205,13 +255,49 @@ function writeSlots(versionId: string, slots: readonly DeckSlot[]): void {
     [versionId]
   );
 
+  const written = new Set(slots.filter((s) => s.quantity > 0).map((s) => `${s.zone} ${cardKey(s.card)}`));
+
+  const preserved = conn().getAllSync<{ id: string; card_name: string | null; zone: string }>(
+    'SELECT id, card_name, zone FROM deck_version_cards WHERE deck_version_id = ?',
+    [versionId]
+  );
+  for (const row of preserved) {
+    if (!row.card_name) continue;
+    if (written.has(`${row.zone} ${cardKey({ name: row.card_name })}`)) {
+      conn().runSync('DELETE FROM deck_version_cards WHERE id = ?', [row.id]);
+    }
+  }
+
   for (const slot of slots) {
     if (slot.quantity <= 0) continue;
+    /*
+     * Upsert rather than insert, so `UNIQUE(deck_version_id, card_id, zone)`
+     * cannot be violated by construction.
+     *
+     * The collision is reachable: a card the editor is holding in its draft can
+     * leave the mirror mid-session, and the delete above spares rows whose card
+     * the mirror cannot resolve — so the old row survives and the new one lands
+     * on the same key. The name-matched cleanup above happens to catch that
+     * today, but only because both mechanisms exist; relying on one to cover
+     * the other is an argument, and this is a guarantee.
+     */
     conn().runSync(
       `INSERT INTO deck_version_cards
-         (id, deck_version_id, card_id, riftbound_id, quantity, zone)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [newId(), versionId, slot.card.id, slot.card.riftboundId, slot.quantity, slot.zone]
+         (id, deck_version_id, card_id, riftbound_id, card_name, quantity, zone)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(deck_version_id, card_id, zone) DO UPDATE SET
+         riftbound_id = excluded.riftbound_id,
+         card_name    = excluded.card_name,
+         quantity     = excluded.quantity`,
+      [
+        newId(),
+        versionId,
+        slot.card.id,
+        slot.card.riftboundId,
+        slot.card.name,
+        slot.quantity,
+        slot.zone,
+      ]
     );
   }
 }
@@ -285,61 +371,393 @@ function refreshStaleVersions(): void {
   });
 }
 
-export class VersionLockedError extends Error {
-  constructor(readonly versionId: string) {
-    super('This version has matches attached and cannot be edited in place.');
-    this.name = 'VersionLockedError';
+/**
+ * Sync the deck row's denormalized Legend, Champion, and domains.
+ *
+ * Both fields have the same hazard, and it took two passes to cover both. A
+ * `DeckList` is what the mirror could *resolve*, not what the version holds, so
+ * an absent slot means one of two very different things — the card is not in
+ * the deck, or the card library cannot currently see it. Writing null on the
+ * second reading loses data because of a resync the user did not ask for.
+ *
+ * For the Legend that is fatal: `domains` goes with it, the deck turns grey in
+ * the list, and there is nothing left to reconstruct it from. For the Champion
+ * it is milder but the same mistake, so both are settled the same way — by
+ * asking `deck_version_cards`, which knows what the version holds regardless of
+ * what the mirror can resolve.
+ */
+function syncDeckIdentity(deckId: string, versionId: string, list: DeckList): void {
+  const legend = list.slots.find((s) => s.zone === 'legend')?.card ?? null;
+  const champion = list.slots.find((s) => s.zone === 'champion')?.card ?? null;
+
+  if (!legend) {
+    conn().runSync(`UPDATE decks SET updated_at = ?, dirty = 1 WHERE id = ?`, [now(), deckId]);
+    return;
+  }
+
+  // No resolved Champion. Is there one at all?
+  const hasChampionRow =
+    champion !== null ||
+    (conn().getFirstSync<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM deck_version_cards
+        WHERE deck_version_id = ? AND zone = 'champion'`,
+      [versionId]
+    )?.n ?? 0) > 0;
+
+  if (champion || !hasChampionRow) {
+    conn().runSync(
+      `UPDATE decks
+          SET legend_card_id = ?, champion_card_id = ?, domains = ?,
+              updated_at = ?, dirty = 1
+        WHERE id = ?`,
+      [legend.id, champion?.id ?? null, JSON.stringify(legend.domains), now(), deckId]
+    );
+  } else {
+    // A Champion is in the version but its printing is not in the mirror.
+    // Leave the denormalized id alone; it returns intact when the mirror does.
+    conn().runSync(
+      `UPDATE decks
+          SET legend_card_id = ?, domains = ?, updated_at = ?, dirty = 1
+        WHERE id = ?`,
+      [legend.id, JSON.stringify(legend.domains), now(), deckId]
+    );
   }
 }
 
 /**
- * Save a decklist into an existing version, in place.
+ * What a save actually did.
  *
- * Throws on a locked version rather than writing. Nothing can lock a version
- * until match logging exists (M4), so today this is unreachable — which is
- * exactly why it is worth having now. Fork-on-save (M3) replaces the throw with
- * a new version; until then, silently rewriting a list that matches were played
- * on is the one failure this model must never have.
+ * - `no-op` — the list is byte-identical. Nothing was written.
+ * - `reprinted` — same cards, different art, on a version with no matches.
+ * - `amended` — the version had no matches, so it was edited directly.
+ * - `forked` — the version was locked, so a new one now carries the change.
+ * - `amended-locked` — the escape hatch. A locked version was rewritten at the
+ *   user's explicit instruction, and its matches now describe the edited list.
  */
-export function saveDeckList(versionId: string, list: DeckList): void {
+export type SaveOutcome = 'no-op' | 'reprinted' | 'amended' | 'forked' | 'amended-locked';
+
+export interface SaveResult {
+  outcome: SaveOutcome;
+  /** The version the deck points at afterwards — a new id only when forked. */
+  versionId: string;
+  versionNumber: number;
+  diff: DeckDiff;
+}
+
+export interface SaveOptions {
+  /** Overrides the label suggested from the diff. Forks only. */
+  label?: string;
+  /**
+   * Rewrite a locked version in place instead of forking.
+   *
+   * The escape hatch from `DATA-MODEL.md` §3, for a genuinely mis-entered list.
+   * The UI must state the consequence before setting this: the matches already
+   * logged against the version will describe the edited list.
+   */
+  amendLocked?: boolean;
+}
+
+/**
+ * Save a decklist. The one entry point for every edit to a deck's cards.
+ *
+ * Implements the version rule from `DATA-MODEL.md` §3 — *a deck version becomes
+ * immutable the moment its first match is logged* — so a match can never end up
+ * attributed to a list it was not played with.
+ *
+ * Three things decide the outcome, in order:
+ *
+ * 1. **Nothing changed** → write nothing. Opening the editor and backing out
+ *    must never appear in the deck's history. This is the guard that keeps the
+ *    timeline readable, and the one most likely to make the feature feel broken
+ *    if it fails.
+ * 2. **Unlocked** → edit in place. No matches exist, so there is no history to
+ *    protect and no reason to spend a version number.
+ * 3. **Locked** → fork. The old version keeps its matches, exactly as played.
+ *
+ * An art swap is not special-cased. An earlier revision wrote printing changes
+ * in place even on a locked version, reasoning that the two lists are the same
+ * list to the rules and that forking would split the sample for no analytical
+ * gain. The first half is true; the conclusion was wrong. `deck_version_cards`
+ * is not only the rules-level definition of a list — it is the record of what
+ * was physically in the sleeve, which is what a match detail screen renders,
+ * what collection tracking checks ownership against, and what a deck export
+ * emits. Rewriting `card_id` on a version matches were played with makes all
+ * three describe cards the player did not have at the time.
+ *
+ * The sample-splitting problem is real but belongs in the analytics layer,
+ * where two versions with `diff.cardSetIdentical` can be pooled at read time.
+ * That is recoverable. A falsified record is not.
+ */
+export function saveDeckEdit(
+  versionId: string,
+  list: DeckList,
+  options: SaveOptions = {}
+): SaveResult {
   const version = getVersion(versionId);
   if (!version) throw new Error(`No such deck version: ${versionId}`);
-  if (version.lockedAt) throw new VersionLockedError(versionId);
+
+  const diff = diffLists(loadDeckList(versionId), list);
+
+  if (diff.isEmpty) {
+    return {
+      outcome: 'no-op',
+      versionId,
+      versionNumber: version.versionNumber,
+      diff,
+    };
+  }
+
+  const inPlace = !version.lockedAt || options.amendLocked === true;
+
+  if (inPlace) {
+    conn().withTransactionSync(() => {
+      writeSlots(versionId, list.slots);
+      syncVersionCounts(versionId, list);
+      syncDeckIdentity(version.deckId, versionId, list);
+    });
+
+    const outcome: SaveOutcome = version.lockedAt
+      ? 'amended-locked'
+      : diff.cardSetIdentical
+        ? 'reprinted'
+        : 'amended';
+
+    return { outcome, versionId, versionNumber: version.versionNumber, diff };
+  }
+
+  const forked = forkVersion(version.deckId, versionId, list, {
+    label: options.label ?? suggestLabelFromDiff(diff) ?? undefined,
+  });
+
+  return {
+    outcome: 'forked',
+    versionId: forked.versionId,
+    versionNumber: forked.versionNumber,
+    diff,
+  };
+}
+
+/**
+ * Create the next version of a deck from an edited list and point the deck at
+ * it. The parent is left completely untouched.
+ *
+ * `version_number` comes from the current maximum rather than from the parent,
+ * so the numbers stay contiguous and unique per deck (invariant 4) even if a
+ * version was archived or the fork came from an older node.
+ */
+function forkVersion(
+  deckId: string,
+  parentVersionId: string,
+  list: DeckList,
+  meta: { label?: string }
+): { versionId: string; versionNumber: number } {
+  const versionId = newId();
+  const timestamp = now();
+
+  let versionNumber = 1;
 
   conn().withTransactionSync(() => {
+    versionNumber =
+      (conn().getFirstSync<{ n: number | null }>(
+        'SELECT MAX(version_number) AS n FROM deck_versions WHERE deck_id = ?',
+        [deckId]
+      )?.n ?? 0) + 1;
+
+    conn().runSync(
+      `INSERT INTO deck_versions
+         (id, deck_id, version_number, label, parent_version_id,
+          created_at, updated_at, dirty)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+      [versionId, deckId, versionNumber, meta.label ?? null, parentVersionId, timestamp, timestamp]
+    );
+
+    // Cards the mirror cannot currently resolve are invisible to the editor and
+    // so are absent from `list`. Carrying their rows across keeps a fork from
+    // quietly deleting cards because of a card-library resync — the same reason
+    // `writeSlots` will not delete them either.
+    const unresolved = conn().getAllSync<{
+      card_id: string;
+      riftbound_id: string;
+      card_name: string | null;
+      quantity: number;
+      zone: string;
+    }>(
+      `SELECT card_id, riftbound_id, card_name, quantity, zone FROM deck_version_cards
+        WHERE deck_version_id = ?
+          AND card_id NOT IN (SELECT id FROM cards)`,
+      [parentVersionId]
+    );
+    for (const row of unresolved) {
+      conn().runSync(
+        `INSERT INTO deck_version_cards
+           (id, deck_version_id, card_id, riftbound_id, card_name, quantity, zone)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newId(),
+          versionId,
+          row.card_id,
+          row.riftbound_id,
+          row.card_name,
+          row.quantity,
+          row.zone,
+        ]
+      );
+    }
+
     writeSlots(versionId, list.slots);
     syncVersionCounts(versionId, list);
 
-    // The Legend and Champion live on the deck too, denormalized for the list
-    // screen; a build session can change either, so keep them in step.
-    //
-    // A list with **no** legend slot leaves the deck's Legend alone rather than
-    // nulling it. The editor offers no way to remove a Legend, so an absent one
-    // means `loadDeckList` could not find its printing in the mirror — and
-    // writing null there would take the deck's domains with it, turning the
-    // deck grey in the list with nothing left to reconstruct it from.
-    const legend = list.slots.find((s) => s.zone === 'legend')?.card ?? null;
-    const champion = list.slots.find((s) => s.zone === 'champion')?.card ?? null;
+    conn().runSync(
+      'UPDATE decks SET current_version_id = ?, updated_at = ?, dirty = 1 WHERE id = ?',
+      [versionId, timestamp, deckId]
+    );
+    syncDeckIdentity(deckId, versionId, list);
+  });
 
-    if (legend) {
-      conn().runSync(
-        `UPDATE decks
-            SET legend_card_id = ?, champion_card_id = ?, domains = ?,
-                updated_at = ?, dirty = 1
-          WHERE id = ?`,
-        [
-          legend.id,
-          champion?.id ?? null,
-          JSON.stringify(legend.domains),
-          now(),
-          version.deckId,
-        ]
+  return { versionId, versionNumber };
+}
+
+/**
+ * Mark a version immutable. Called by match logging (M4) on the first match.
+ *
+ * Idempotent, and deliberately never unset: the lock records that real results
+ * exist for this exact list, which does not stop being true if the matches are
+ * later deleted.
+ */
+export function lockVersion(versionId: string): void {
+  conn().runSync(
+    `UPDATE deck_versions SET locked_at = ?, updated_at = ?, dirty = 1
+      WHERE id = ? AND locked_at IS NULL`,
+    [now(), now(), versionId]
+  );
+}
+
+export function setVersionLabel(versionId: string, label: string): void {
+  conn().runSync(
+    'UPDATE deck_versions SET label = ?, updated_at = ?, dirty = 1 WHERE id = ?',
+    [label.trim() || null, now(), versionId]
+  );
+}
+
+export function setVersionNotes(versionId: string, notes: string): void {
+  conn().runSync(
+    'UPDATE deck_versions SET notes = ?, updated_at = ?, dirty = 1 WHERE id = ?',
+    [notes.trim() || null, now(), versionId]
+  );
+}
+
+/**
+ * Matches logged per version, keyed by version id.
+ *
+ * Through M3 this guarded on the `matches` table existing and returned an empty
+ * map if it did not, so the version timeline could ship before match logging
+ * did. The guard is gone with migration 6: `migrate()` runs to `LATEST_VERSION`
+ * at module load, before any query can execute, so the table is always there by
+ * the time this runs. A branch that can never be taken is one nobody can reason
+ * about, and it would have quietly returned "no matches" if it ever did fire.
+ */
+export function versionMatchCounts(deckId: string): Map<string, number> {
+
+  const rows = conn().getAllSync<{ deck_version_id: string; n: number }>(
+    `SELECT deck_version_id, COUNT(*) AS n FROM matches
+      WHERE deck_id = ? AND deleted_at IS NULL
+      GROUP BY deck_version_id`,
+    [deckId]
+  );
+  return new Map(rows.map((r) => [r.deck_version_id, r.n]));
+}
+
+/**
+ * The diff between a version and the one it was forked from.
+ *
+ * Null for the first version, which has nothing to be compared against.
+ */
+export function versionDiff(versionId: string): DeckDiff | null {
+  const version = getVersion(versionId);
+  if (!version?.parentVersionId) return null;
+  if (!getVersion(version.parentVersionId)) return null;
+  return diffLists(loadDeckList(version.parentVersionId), loadDeckList(versionId));
+}
+
+/** The diff between any two versions, newest-second. */
+export function compareVersions(aVersionId: string, bVersionId: string): DeckDiff {
+  return diffLists(loadDeckList(aVersionId), loadDeckList(bVersionId));
+}
+
+/**
+ * Make an older version current again, without deleting anything.
+ *
+ * Editing from here forks off that node rather than off the newest one, which
+ * is how a player backs out of a change that turned out to be wrong while
+ * keeping the record of having tried it.
+ */
+export function setCurrentVersion(deckId: string, versionId: string): void {
+  const version = getVersion(versionId);
+  if (!version || version.deckId !== deckId) {
+    throw new Error(`Version ${versionId} does not belong to deck ${deckId}`);
+  }
+  conn().runSync(
+    'UPDATE decks SET current_version_id = ?, updated_at = ?, dirty = 1 WHERE id = ?',
+    [versionId, now(), deckId]
+  );
+  syncDeckIdentity(deckId, versionId, loadDeckList(versionId));
+}
+
+export class VersionHasMatchesError extends Error {
+  constructor(readonly versionId: string) {
+    super('This version has matches logged against it, so it cannot be deleted.');
+    this.name = 'VersionHasMatchesError';
+  }
+}
+
+/**
+ * Delete a version that never played a game.
+ *
+ * A version with matches is never deletable (invariant 2) — deleting it would
+ * orphan every match that references it, and those matches are the only record
+ * of results that actually happened.
+ */
+export function deleteVersion(versionId: string): void {
+  const version = getVersion(versionId);
+  if (!version) return;
+  if (version.lockedAt) throw new VersionHasMatchesError(versionId);
+
+  const siblings = listVersions(version.deckId).filter((v) => v.id !== versionId);
+  if (siblings.length === 0) throw new Error('A deck must keep at least one version.');
+
+  const timestamp = now();
+  conn().withTransactionSync(() => {
+    conn().runSync(
+      'UPDATE deck_versions SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE id = ?',
+      [timestamp, timestamp, versionId]
+    );
+    // Anything forked from it re-parents to its parent, so the timeline stays
+    // connected rather than growing an orphan branch.
+    conn().runSync(
+      'UPDATE deck_versions SET parent_version_id = ?, dirty = 1 WHERE parent_version_id = ?',
+      [version.parentVersionId, versionId]
+    );
+
+    const deck = getDeck(version.deckId);
+    if (deck?.currentVersionId === versionId) {
+      /*
+       * Fall back to the highest-numbered version that remains.
+       *
+       * Chosen explicitly rather than taken from `listVersions`' ordering,
+       * which happens to be `version_number DESC` today — a fallback that
+       * silently depends on another function's ORDER BY is a fallback nobody
+       * decided on. The parent is the other candidate and is worse: after a
+       * sibling fork the parent may be v1 while v2 still exists, and dropping
+       * the user two versions back is not what deleting v3 meant.
+       */
+      const next = siblings.reduce((best, v) =>
+        v.versionNumber > best.versionNumber ? v : best
       );
-    } else {
-      conn().runSync(`UPDATE decks SET updated_at = ?, dirty = 1 WHERE id = ?`, [
-        now(),
-        version.deckId,
-      ]);
+      conn().runSync(
+        'UPDATE decks SET current_version_id = ?, updated_at = ?, dirty = 1 WHERE id = ?',
+        [next.id, timestamp, version.deckId]
+      );
+      syncDeckIdentity(version.deckId, next.id, loadDeckList(next.id));
     }
   });
 }

@@ -1,13 +1,16 @@
+import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
+import { runVersionSelfCheck, type CheckResult } from '@/features/decks/version-selfcheck';
 import { useCardSync } from '@/features/sync/useCardSync';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
 export default function ProfileScreen() {
   const { cardCount, isSyncing, progress, refresh } = useCardSync();
+  const [checks, setChecks] = useState<CheckResult[] | null>(null);
 
   return (
     <Screen title="You" meta={metaLine('Local only', 'Sync arrives in M7')}>
@@ -37,6 +40,38 @@ export default function ProfileScreen() {
             </Text>
           </Pressable>
         </View>
+
+        {/* TEMPORARY — remove with M4. Everything the version model does has
+            only ever run against Node's SQLite in tests; this runs it against
+            the driver that ships, on a throwaway deck it deletes afterwards. */}
+        {__DEV__ ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Developer</Text>
+            <Text style={styles.cardBody}>
+              Runs the fork, branch, and no-op checks against this device&apos;s real database.
+              Creates a temporary deck and removes it again.
+            </Text>
+
+            {checks?.map((result) => (
+              <Text
+                key={result.name}
+                style={[styles.checkLine, result.passed ? styles.checkPass : styles.checkFail]}
+              >
+                {result.passed ? '✓' : '✗'} {result.name} — {result.detail}
+              </Text>
+            ))}
+
+            <Pressable
+              onPress={() => setChecks(runVersionSelfCheck())}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+            >
+              <Text style={styles.buttonLabel}>
+                {checks ? 'Run version self-check again' : 'Run version self-check'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>About</Text>
@@ -69,6 +104,9 @@ const styles = StyleSheet.create({
   cardTitle: { ...text.meta, color: color.textMuted },
   cardBody: { ...text.small, color: color.textSecondary },
   error: { ...text.caption, color: color.danger },
+  checkLine: { ...text.microMeta },
+  checkPass: { color: color.win },
+  checkFail: { color: color.danger },
   button: {
     marginTop: space[2],
     height: 44,

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
+import { markLogStart } from '@/features/matches/timing';
 import { color, elevation, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -46,6 +47,10 @@ export function TabBar({ state, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
 
   const onLogMatch = () => {
+    // Before anything else — this is t=0 for the under-ten-second budget, and
+    // starting the clock after navigation would hide the part most likely to
+    // be slow.
+    markLogStart();
     if (Platform.OS !== 'web') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }

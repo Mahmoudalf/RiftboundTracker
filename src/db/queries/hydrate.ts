@@ -10,6 +10,14 @@ import {
   type DeckVersionCardRow,
   type DeckVersionRow,
 } from '../schema/decks';
+import {
+  events,
+  matchGames,
+  matches,
+  type EventRow,
+  type MatchGameRow,
+  type MatchRow,
+} from '../schema/matches';
 
 /**
  * Turn a raw `SELECT *` row into a typed row object.
@@ -77,7 +85,16 @@ const SET_MAPPING = setColumns;
  * inserting null and tripping the constraint.
  */
 export function toBindValue(value: unknown, column: ColumnMapping): string | number | null {
-  if (column.dataType === 'json') return JSON.stringify(value ?? []);
+  if (column.dataType === 'json') {
+    // Mirrors `coerce()` exactly. This used to be `JSON.stringify(value ?? [])`,
+    // which wrote "[]" for a null — harmless for cards, whose JSON columns are
+    // all NOT NULL, and silently destructive for the nullable ones on matches,
+    // where null and [] are different answers. Nothing writes matches through
+    // this path today; the asymmetry is removed so that staying true is not a
+    // condition the next generic insert helper has to know about.
+    if (value === null || value === undefined) return column.notNull ? '[]' : null;
+    return JSON.stringify(value);
+  }
   if (column.dataType === 'boolean') return value ? 1 : 0;
   if (value === null || value === undefined) {
     if (column.notNull && column.defaultValue !== undefined) {
@@ -88,7 +105,7 @@ export function toBindValue(value: unknown, column: ColumnMapping): string | num
   return value as string | number;
 }
 
-/** JSON columns in this schema are always `string[]` and always non-null. */
+/** JSON columns in this schema hold `string[]` whenever they hold anything. */
 function parseJsonArray(value: unknown): string[] {
   if (Array.isArray(value)) return value as string[];
   if (typeof value !== 'string') return [];
@@ -100,8 +117,21 @@ function parseJsonArray(value: unknown): string[] {
   }
 }
 
-function coerce(value: unknown, dataType: string): unknown {
-  if (dataType === 'json') return parseJsonArray(value);
+function coerce(value: unknown, dataType: string, notNull: boolean): unknown {
+  if (dataType === 'json') {
+    /*
+     * A **nullable** JSON column keeps its null.
+     *
+     * Cards are unaffected — every JSON column there is NOT NULL, so an absent
+     * value really does mean an empty list. Matches are the opposite:
+     * `opp_domains` and `tags` are nullable because "I did not record this" and
+     * "I recorded that there were none" are different answers, and flattening
+     * the first into `[]` would turn a missing observation into a real one.
+     * That is the same mistake as storing an unknown on-the-play as `false`.
+     */
+    if (value === null || value === undefined) return notNull ? [] : null;
+    return parseJsonArray(value);
+  }
   if (value === null || value === undefined) return null;
   // SQLite has no boolean type — these round-trip as 0/1 integers.
   if (dataType === 'boolean') return Boolean(value);
@@ -111,8 +141,8 @@ function coerce(value: unknown, dataType: string): unknown {
 
 function hydrate<T>(row: Record<string, unknown>, mapping: ColumnMapping[]): T {
   const out: Record<string, unknown> = {};
-  for (const { sqlName, key, dataType } of mapping) {
-    out[key] = coerce(row[sqlName], dataType);
+  for (const { sqlName, key, dataType, notNull } of mapping) {
+    out[key] = coerce(row[sqlName], dataType, notNull);
   }
   return out as T;
 }
@@ -146,5 +176,28 @@ export function hydrateDeckVersion(row: Record<string, unknown>): DeckVersionRow
 
 export function hydrateDeckVersionCard(row: Record<string, unknown>): DeckVersionCardRow {
   return hydrate<DeckVersionCardRow>(row, deckVersionCardColumns);
+}
+
+/**
+ * Matches, through the same derivation, and the most exposed of the three.
+ * `deck_version_id`, `opp_legend_card_id`, `played_at` and `on_play` are every
+ * one of them multi-word — a silently-undefined `deckVersionId` would attach a
+ * result to no list at all, which is the failure the whole version model exists
+ * to prevent.
+ */
+export const eventColumns: ColumnMapping[] = buildMapping(events);
+export const matchColumns: ColumnMapping[] = buildMapping(matches);
+export const matchGameColumns: ColumnMapping[] = buildMapping(matchGames);
+
+export function hydrateMatch(row: Record<string, unknown>): MatchRow {
+  return hydrate<MatchRow>(row, matchColumns);
+}
+
+export function hydrateMatchGame(row: Record<string, unknown>): MatchGameRow {
+  return hydrate<MatchGameRow>(row, matchGameColumns);
+}
+
+export function hydrateEvent(row: Record<string, unknown>): EventRow {
+  return hydrate<EventRow>(row, eventColumns);
 }
 

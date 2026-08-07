@@ -103,6 +103,16 @@ export const deckVersionCards = sqliteTable(
     cardId: text('card_id').notNull(),
     /** Denormalized fallback if a printing ever leaves the API. */
     riftboundId: text('riftbound_id').notNull(),
+    /**
+     * The card's name, denormalized for the same reason.
+     *
+     * Without it a row whose card has left the mirror is unidentifiable — it
+     * cannot be shown to the user, and a save cannot tell that the card being
+     * written is the same card, so it stores a second row and the deck quietly
+     * gains copies. Null only for rows whose card was already missing when
+     * migration 5 ran.
+     */
+    cardName: text('card_name'),
     quantity: integer('quantity').notNull(),
     /** `legend` | `champion` | `main` | `rune` | `battlefield` | `sideboard` */
     zone: text('zone').notNull(),

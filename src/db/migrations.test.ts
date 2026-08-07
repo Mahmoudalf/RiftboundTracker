@@ -232,6 +232,55 @@ describe('migrate — every version upgrades a populated database', () => {
     db.close();
   });
 
+  /**
+   * `card_name` is a repair as much as an addition: it exists so a save can
+   * tell that a card it is writing is the same card as a row it cannot resolve.
+   * That only works if existing decks get named too, so the backfill is the
+   * part worth testing — including the row it deliberately cannot name.
+   */
+  it('backfills card names onto existing deck rows (v4 -> v5)', () => {
+    const db = createTestDatabase();
+    applyMigrationsUpTo(db, MIGRATIONS, 4);
+
+    const timestamp = '2026-08-01T10:00:00.000Z';
+    db.runSync(
+      `INSERT INTO cards
+         (id, riftbound_id, name, clean_name, type, rarity, domains, domain_key,
+          tags, set_id, set_label)
+       VALUES ('card-x', 'ogn-001-100', 'Statikk Shock', 'Statikk Shock', 'Spell',
+               'Common', '["Fury"]', 'Fury', '[]', 'OGN', 'Origins')`
+    );
+    db.runSync(
+      `INSERT INTO decks (id, name, domains, created_at, updated_at, current_version_id)
+       VALUES ('d1', 'Vi Aggro', '["Fury"]', ?, ?, 'v1')`,
+      [timestamp, timestamp]
+    );
+    db.runSync(
+      `INSERT INTO deck_versions (id, deck_id, version_number, created_at, updated_at)
+       VALUES ('v1', 'd1', 1, ?, ?)`,
+      [timestamp, timestamp]
+    );
+    db.runSync(
+      `INSERT INTO deck_version_cards (id, deck_version_id, card_id, riftbound_id, quantity, zone)
+       VALUES ('c1', 'v1', 'card-x', 'ogn-001-100', 3, 'main'),
+              ('c2', 'v1', 'card-gone', 'ogn-999-999', 1, 'main')`
+    );
+
+    migrate(db as never);
+
+    const rows = db.getAllSync<{ id: string; card_name: string | null }>(
+      'SELECT id, card_name FROM deck_version_cards ORDER BY id'
+    );
+    expect(rows).toEqual([
+      { id: 'c1', card_name: 'Statikk Shock' },
+      // Already unresolvable when the migration ran. Null rather than a
+      // fabricated name — the fallback is to preserve the row untouched.
+      { id: 'c2', card_name: null },
+    ]);
+
+    db.close();
+  });
+
   it('has contiguous, ascending version numbers starting at 1', () => {
     const versions = MIGRATIONS.map((m) => m.version);
     expect(versions).toEqual(versions.map((_, i) => i + 1));
