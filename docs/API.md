@@ -269,7 +269,8 @@ Implemented in `src/lib/legality.ts`, which cites the rule number for each check
 | **Main deck** | **At least 40** cards, the Chosen Champion included | 103.2 |
 | **Rune deck** | Exactly **12** runes, all within the Domain Identity | 103.3 |
 | **Battlefields** | Number set by the Mode of Play (3 for Constructed). All must have **different names** | 103.4 |
-| **Copy limit** | Max **3** copies of the same named card **in the Main Deck**, the Chosen Champion's copy included | 103.2.b |
+| **Copy limit** | Max **3** copies of the same named card across the **Main Deck and sideboard together**, the Chosen Champion's copy included | 103.2.b (sideboard: owner-confirmed) |
+| **Sideboard** | Optional. Empty is not "incomplete", and it counts toward no zone total | — |
 | **Signature limit** | Max **3** Signature cards total, all carrying the Legend's champion tag | 103.2.d |
 | **Domain identity** | A single-domain card is legal in an identity containing that domain; a multi-domain card only in an identity containing **all** of its domains | 103.1.b |
 
@@ -284,12 +285,25 @@ changes verdicts.
 **1. The Main Deck is a minimum, not a fixed size.** 103.2 says "A Main Deck of *at least* 40 cards".
 A 42-card deck is legal. Treating 40 as exact reports it as two cards over.
 
-**2. The copy limit is scoped to the Main Deck.** 103.2.b: "Your **Main Deck** can include up to 3
-copies of the same named card." The Rune Deck (103.3) states no copy limit at all, and Battlefields
-have their own rule instead. This matters because there are only **6 distinct rune cards**, one per
-domain — a 2-domain identity gives 2 legal runes, and the rune deck needs 12, so any deck runs 6
-copies of each. Scoping by zone gets that right. Exempting `supertype = 'Basic'` gets the same
-answer for runes by accident and then lets three copies of one Battlefield through.
+**2. The copy limit is scoped to the Main Deck — and the sideboard shares its pool.** 103.2.b: "Your
+**Main Deck** can include up to 3 copies of the same named card." The Rune Deck (103.3) states no
+copy limit at all, and Battlefields have their own rule instead. This matters because there are only
+**6 distinct rune cards**, one per domain — a 2-domain identity gives 2 legal runes, and the rune
+deck needs 12, so any deck runs 6 copies of each. Scoping by zone gets that right. Exempting
+`supertype = 'Basic'` gets the same answer for runes by accident and then lets three copies of one
+Battlefield through.
+
+The **sideboard counts against the same three**: 3 + 0, 2 + 1 and 1 + 2 are all legal ways to hold
+three copies, and 3 + 1 is four. The sideboard is an extension of the deck rather than a second one —
+running 2 in the Main Deck and 1 on the side is how a player swaps the third copy in between games of
+a Bo3 or Bo5, taking something else out to stay at 40. Two independent limits would make that
+impossible.
+
+> **Provenance.** This one is *not* a rule citation. 103.2.b names only the Main Deck, and the Core
+> Rules text checked here says nothing about sideboards at all. It was implemented first as an
+> inference (chosen because erring strict flags a deck rather than passing an illegal one) and then
+> confirmed by the project owner. Recorded this way so a later reader does not mistake it for 103.2.b.
+> `RULES_VERSION` 2 covers it.
 
 **3. Battlefields must all be different.** 103.4.c: "Cannot include more than one of a **Battlefield**
 of the same name when there are more than one required for the deck." They are outside the Main

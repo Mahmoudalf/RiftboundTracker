@@ -54,8 +54,11 @@ export type DeckZone =
  *   the Main Deck from an exact 40 to a minimum, scoped the copy limit to the
  *   Main Deck instead of exempting Basic cards everywhere, and added the
  *   distinct-Battlefields rule.
+ * - **2** — the sideboard became reachable from the builder, and its copies now
+ *   count towards the 3-copy limit. That can turn a previously "legal" imported
+ *   deck illegal, so every cached verdict written under revision 1 is stale.
  */
-export const RULES_VERSION = 1;
+export const RULES_VERSION = 2;
 
 /** Rule 103.2 — "A Main Deck of **at least** 40 cards". A minimum, not a target. */
 export const MAIN_DECK_SIZE = 40;
@@ -82,8 +85,22 @@ export const SIGNATURE_LIMIT = 3;
  * 12-rune deck is impossible. That inference was right about runes and wrong
  * about everything else: keyed on the card rather than the zone, it also let
  * three copies of one Battlefield through.
+ *
+ * **`sideboard` shares the same pool of 3.** The limit is 3 copies of a card
+ * *in total* across the Main Deck and the sideboard together — 3 + 0, 2 + 1 and
+ * 1 + 2 are all legal holdings of three, and 3 + 1 is four copies.
+ *
+ * That is the whole point of the sideboard: it is an extension of the deck, not
+ * a second deck. Running 2 in the Main Deck and 1 on the side lets a player swap
+ * the third copy in between games of a Bo3 or Bo5 — taking something else out to
+ * stay at 40 — which is impossible if the two zones each get their own limit.
+ *
+ * Confirmed by the project owner rather than by a rule number: 103.2.b names
+ * only the Main Deck, and the Core Rules text checked here says nothing about
+ * sideboards. Recorded that way so the provenance is not mistaken for a
+ * citation.
  */
-const COPY_LIMIT_ZONES: DeckZone[] = ['main', 'champion'];
+const COPY_LIMIT_ZONES: DeckZone[] = ['main', 'champion', 'sideboard'];
 
 export interface DeckSlot {
   card: CardRow;

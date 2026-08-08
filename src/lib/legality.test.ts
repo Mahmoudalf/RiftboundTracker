@@ -369,6 +369,95 @@ describe('checkLegality', () => {
   });
 });
 
+describe('the sideboard', () => {
+  /**
+   * A sideboard is optional. An empty one must not read as an unfinished deck —
+   * unlike the Main Deck, where 0/40 genuinely is incomplete.
+   */
+  it('does not make a deck incomplete by being empty', () => {
+    const list = legalList();
+    const withEmpty = { slots: [...list.slots] };
+
+    expect(checkLegality(withEmpty).legal).toBe(checkLegality(list).legal);
+    expect(checkLegality(withEmpty).issues.map((i) => i.code)).toEqual(
+      checkLegality(list).issues.map((i) => i.code)
+    );
+  });
+
+  it('does not count towards any zone total', () => {
+    const list = legalList();
+    const spare = card({ name: 'Spare Part', type: 'Spell', domains: ['Fury'] });
+    const withSide = {
+      slots: [...list.slots, { card: spare, quantity: 3, zone: 'sideboard' as const }],
+    };
+
+    // A sideboard is not part of the 40 / 12 / 3.
+    expect(checkLegality(withSide).counts).toEqual(checkLegality(list).counts);
+    expect(checkLegality(withSide).legal).toBe(true);
+  });
+
+  /**
+   * The sideboard shares the Main Deck's pool of three. Running 2 in the deck
+   * and 1 on the side is how a player holds a third copy they can swap in
+   * between games of a Bo3 — so this is the direction that matters most: get it
+   * wrong and a perfectly legal deck is flagged.
+   */
+  it('allows three copies split across the deck and the sideboard', () => {
+    const list = legalList();
+    const spell = list.slots.find((s) => s.zone === 'main')!.card;
+
+    for (const [inMain, onSide] of [
+      [3, 0],
+      [2, 1],
+      [1, 2],
+    ]) {
+      const split = {
+        slots: [
+          ...list.slots.map((s) =>
+            s.zone === 'main' && s.card.id === spell.id ? { ...s, quantity: inMain! } : s
+          ),
+          ...(onSide! > 0
+            ? [{ card: spell, quantity: onSide!, zone: 'sideboard' as const }]
+            : []),
+        ],
+      };
+      expect(checkLegality(split).issues.map((i) => i.code)).not.toContain('copy-limit');
+    }
+  });
+
+  /** Rules revision 2 — four copies is four copies, wherever they sit. */
+  it('counts its copies towards the 3-copy limit', () => {
+    const list = legalList();
+    const spell = list.slots.find((s) => s.zone === 'main')!.card;
+
+    const overflowing = {
+      slots: [
+        ...list.slots.map((s) =>
+          s.zone === 'main' && s.card.id === spell.id ? { ...s, quantity: 3 } : s
+        ),
+        { card: spell, quantity: 1, zone: 'sideboard' as const },
+      ],
+    };
+
+    const result = checkLegality(overflowing);
+    expect(result.issues.map((i) => i.code)).toContain('copy-limit');
+  });
+
+  it('blocks a fourth copy in the rail once the sideboard holds one', () => {
+    const list = legalList();
+    const spell = list.slots.find((s) => s.zone === 'main')!.card;
+    const nearLimit = {
+      slots: [
+        ...list.slots.map((s) =>
+          s.zone === 'main' && s.card.id === spell.id ? { ...s, quantity: 2 } : s
+        ),
+        { card: spell, quantity: 1, zone: 'sideboard' as const },
+      ],
+    };
+    expect(slotBlockReason(spell, nearLimit)).toBe('copy-limit');
+  });
+});
+
 describe('slotBlockReason', () => {
   it('blocks off-identity cards', () => {
     const list = legalList();

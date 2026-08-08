@@ -54,7 +54,16 @@ import { text } from '@/theme/typography';
  */
 
 type Mode = 'deck' | 'add';
-type Pool = 'main' | 'rune' | 'battlefield';
+
+/**
+ * Which zone the Add-cards grid puts a card into.
+ *
+ * The pool *is* the destination — that is why `main`, `rune` and `battlefield`
+ * agree with `defaultZoneFor()`. `sideboard` is the one that does not: it draws
+ * from the same pool as the main deck and sends cards somewhere else, which is
+ * exactly what a sideboard is.
+ */
+type Pool = 'main' | 'rune' | 'battlefield' | 'sideboard';
 
 const ZONE_ORDER: { zone: DeckZone; label: string; fixed?: boolean }[] = [
   { zone: 'legend', label: 'Legend', fixed: true },
@@ -62,13 +71,22 @@ const ZONE_ORDER: { zone: DeckZone; label: string; fixed?: boolean }[] = [
   { zone: 'main', label: 'Main deck' },
   { zone: 'rune', label: 'Runes' },
   { zone: 'battlefield', label: 'Battlefields' },
+  // Only rendered when non-empty. Nothing in the builder creates a sideboard —
+  // they arrive by import — but a zone that is stored, forked and re-exported
+  // while being invisible is worse than either having it or not.
+  { zone: 'sideboard', label: 'Sideboard' },
 ];
 
 const POOLS: { key: Pool; label: string }[] = [
   { key: 'main', label: 'Main' },
   { key: 'rune', label: 'Runes' },
   { key: 'battlefield', label: 'Fields' },
+  { key: 'sideboard', label: 'Side' },
 ];
+
+/** The pool decides the zone; only `sideboard` differs from the card's type. */
+const zoneForPool = (pool: Pool, card: CardRow): DeckZone =>
+  pool === 'sideboard' ? 'sideboard' : defaultZoneFor(card);
 
 const MAIN_DECK_TYPES = ['Unit', 'Spell', 'Gear'];
 
@@ -191,7 +209,7 @@ export default function DeckEditorScreen() {
   }, [picker, legend]);
 
   const onAdd = (card: CardRow) => {
-    const zone = defaultZoneFor(card);
+    const zone = zoneForPool(pool, card);
     if (zone === 'battlefield' && copiesOf(card, ['battlefield']) > 0) return;
     if (Platform.OS !== 'web') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -441,7 +459,9 @@ export default function DeckEditorScreen() {
                 placeholder={
                   pool === 'battlefield'
                     ? 'Search Battlefields'
-                    : `Search ${legend?.domains.join(' / ') ?? ''} cards`
+                    : pool === 'sideboard'
+                      ? 'Search cards for the sideboard'
+                      : `Search ${legend?.domains.join(' / ') ?? ''} cards`
                 }
                 placeholderTextColor={color.textFaint}
                 style={styles.search}
@@ -456,7 +476,7 @@ export default function DeckEditorScreen() {
               mode="quantity"
               columns={pool === 'battlefield' ? 2 : 3}
               tileAspect={pool === 'battlefield' ? 1 / CARD_ASPECT : CARD_ASPECT}
-              quantityOf={quantityIn(pool === 'main' ? 'main' : pool)}
+              quantityOf={quantityIn(pool)}
               blockedReason={(card) => {
                 /*
                  * The rules come from `slotBlockReason`, which is the tested
@@ -480,7 +500,7 @@ export default function DeckEditorScreen() {
                 return null;
               }}
               onAdd={onAdd}
-              onRemove={(card) => adjust(card, defaultZoneFor(card), -1)}
+              onRemove={(card) => adjust(card, zoneForPool(pool, card), -1)}
               emptyMessage={legend ? 'No cards match.' : 'Pick a Legend first.'}
             />
           </>

@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { DomainBadge } from '@/components/cards/DomainBadge';
+import { DeckCodeSheet } from '@/components/decks/DeckCodeSheet';
 import { DeckSlotRow } from '@/components/decks/DeckSlotRow';
 import { LegalityBar } from '@/components/decks/LegalityBar';
 import { VersionCompareSheet } from '@/components/decks/VersionCompareSheet';
@@ -13,6 +14,7 @@ import { WinRateBar } from '@/components/stats/WinRateBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
+import { queryCards } from '@/db/queries/cards';
 import {
   compareVersions,
   deleteDeck,
@@ -36,6 +38,7 @@ import {
 import type { DeckRow, DeckVersionRow } from '@/db/schema/decks';
 import type { MatchRow as MatchRowType } from '@/db/schema/matches';
 import { rateOf } from '@/lib/analytics/summary';
+import { DeckCodeError, encodeDeckList, type EncodeResult } from '@/lib/deck-code';
 import type { DeckDiff } from '@/lib/deck-diff';
 import { recordLine } from '@/lib/format';
 import { checkLegality, type DeckList, type DeckZone } from '@/lib/legality';
@@ -67,6 +70,10 @@ const ZONE_ORDER: { zone: DeckZone; label: string; fixed?: boolean }[] = [
   { zone: 'main', label: 'Main deck' },
   { zone: 'rune', label: 'Runes' },
   { zone: 'battlefield', label: 'Battlefields' },
+  // Only rendered when non-empty. Nothing in the builder creates a sideboard —
+  // they arrive by import — but a zone that is stored, forked and re-exported
+  // while being invisible is worse than either having it or not.
+  { zone: 'sideboard', label: 'Sideboard' },
 ];
 
 export default function DeckDetailScreen() {
@@ -84,6 +91,7 @@ export default function DeckDetailScreen() {
   const [matchesByVersion, setMatchesByVersion] = useState<Map<string, MatchRowType[]>>(
     new Map()
   );
+  const [export_, setExport_] = useState<EncodeResult | null>(null);
 
   const load = useCallback(() => {
     const row = getDeck(id);
@@ -230,6 +238,32 @@ export default function DeckDetailScreen() {
     });
   };
 
+  /**
+   * The catalogue is read here rather than inside the wrapper so the encoding
+   * stays a pure function over cards — testable against the real seed without a
+   * database.
+   */
+  const onExport = () => {
+    try {
+      // `missing` is passed in because `loadDeckList` already dropped those
+      // cards from `list` — without it the code would be quietly short.
+      setExport_(
+        encodeDeckList(
+          list,
+          queryCards({}),
+          missing.map((m) => ({ name: m.name, quantity: m.quantity }))
+        )
+      );
+    } catch (err) {
+      Alert.alert(
+        'Could not build a code',
+        err instanceof DeckCodeError
+          ? err.message
+          : 'Something went wrong building the deck code.'
+      );
+    }
+  };
+
   const onDelete = () => {
     Alert.alert('Delete this deck?', 'Its versions and match history go with it.', [
       { text: 'Cancel', style: 'cancel' },
@@ -348,6 +382,15 @@ export default function DeckDetailScreen() {
 
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="Share this deck as a code"
+              onPress={onExport}
+              style={({ pressed }) => [styles.export, pressed && styles.pressed]}
+            >
+              <Text style={styles.exportLabel}>Share deck code</Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
               onPress={onDelete}
               style={({ pressed }) => [styles.delete, pressed && styles.pressed]}
             >
@@ -460,6 +503,13 @@ export default function DeckDetailScreen() {
         matchesByVersion={matchesByVersion}
         onClose={() => setCompare([])}
       />
+
+      <DeckCodeSheet
+        visible={export_ !== null}
+        deckName={deck.name}
+        result={export_}
+        onClose={() => setExport_(null)}
+      />
     </Screen>
   );
 }
@@ -505,6 +555,15 @@ const styles = StyleSheet.create({
     backgroundColor: color.text,
   },
   editLabel: { ...text.smallMedium, color: color.bg },
+  export: {
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: color.border,
+  },
+  exportLabel: { ...text.smallMedium, color: color.text },
   delete: { minHeight: 44, justifyContent: 'center' },
   deleteLabel: { ...text.bodyMedium, color: color.danger },
   pressed: { opacity: 0.8 },

@@ -573,6 +573,10 @@ Deliberately deferred — revisit after launch with real usage data.
 
 - Meta aggregation across users (needs a user base; privacy design required first)
 - Price tracking via the TCGPlayer / Cardmarket IDs the API exposes
+- **Import a public decklist from a piltoverarchive.com URL**, using their API key. Layered *on top
+  of* the offline deck-code path, never replacing it: the app works in airplane mode by design, and
+  import/export is exactly the feature you would reach for at a venue with bad signal. Deferred
+  because the deck code already covers sharing, and this only adds "paste a link" convenience
 - Web export of the Expo codebase
 - Deck sharing between users
 - Sideboard / tech-card tracking as a first-class concept

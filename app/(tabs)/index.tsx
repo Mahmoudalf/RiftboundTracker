@@ -29,6 +29,7 @@ export default function DecksScreen() {
           body="Matches stay attached to the exact list that played them, so editing a deck never rewrites its history."
           actions={[
             { label: 'Build a deck', onPress: () => router.push('/deck/new'), primary: true },
+            { label: 'Import a deck code', onPress: () => router.push('/deck/import') },
           ]}
         />
       </Screen>
@@ -40,14 +41,24 @@ export default function DecksScreen() {
       title="Decks"
       meta={`${decks.length} ${decks.length === 1 ? 'deck' : 'decks'}`}
       action={
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Build a deck"
-          onPress={() => router.push('/deck/new')}
-          style={({ pressed }) => [styles.newButton, pressed && styles.pressed]}
-        >
-          <Text style={styles.newLabel}>New</Text>
-        </Pressable>
+        <View style={styles.actions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Import a deck code"
+            onPress={() => router.push('/deck/import')}
+            style={({ pressed }) => [styles.importButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.importLabel}>Import</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Build a deck"
+            onPress={() => router.push('/deck/new')}
+            style={({ pressed }) => [styles.newButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.newLabel}>New</Text>
+          </Pressable>
+        </View>
       }
     >
       <ScrollView
@@ -78,5 +89,15 @@ const styles = StyleSheet.create({
     backgroundColor: color.text,
   },
   newLabel: { ...text.smallMedium, color: color.bg },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  importButton: {
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: space[3],
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: color.border,
+  },
+  importLabel: { ...text.smallMedium, color: color.text },
   pressed: { opacity: 0.8 },
 });
