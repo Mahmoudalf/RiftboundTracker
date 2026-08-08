@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
 import type { CardRow } from '@/db/schema/cards';
+import { isLandscapeCard, uprightArt } from '@/lib/card-art';
 import { cardImage, cardImageBlur } from '@/lib/cdn';
 import { domainColor, sortDomains } from '@/theme/domains';
 import { CARD_ASPECT, color, radius, space } from '@/theme/tokens';
@@ -32,7 +33,7 @@ export const CardGridItem = memo(function CardGridItem({
   const frameWidth = width - space[1] * 2;
   const frameHeight = frameWidth / CARD_ASPECT;
   const domains = sortDomains(card.domains);
-  const isLandscape = card.orientation === 'landscape';
+  const isLandscape = isLandscapeCard(card);
 
   return (
     <Pressable
@@ -92,17 +93,6 @@ export const CardGridItem = memo(function CardGridItem({
  * frame's centre, which the rotation then holds fixed. Anything else leaves it
  * hanging off one corner.
  */
-function uprightArt(frameWidth: number, frameHeight: number) {
-  return {
-    position: 'absolute' as const,
-    left: (frameWidth - frameHeight) / 2,
-    top: (frameHeight - frameWidth) / 2,
-    width: frameHeight,
-    height: frameWidth,
-    transform: [{ rotate: '90deg' }],
-  };
-}
-
 const styles = StyleSheet.create({
   root: { padding: space[1] },
   frame: {

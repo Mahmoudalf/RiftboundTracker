@@ -1,10 +1,11 @@
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 
 import { DomainBadge } from '@/components/cards/DomainBadge';
-import { DeckCodeSheet } from '@/components/decks/DeckCodeSheet';
 import { DeckSlotRow } from '@/components/decks/DeckSlotRow';
 import { LegalityBar } from '@/components/decks/LegalityBar';
 import { VersionCompareSheet } from '@/components/decks/VersionCompareSheet';
@@ -37,8 +38,13 @@ import {
 } from '@/db/queries/version-stats';
 import type { DeckRow, DeckVersionRow } from '@/db/schema/decks';
 import type { MatchRow as MatchRowType } from '@/db/schema/matches';
+import {
+  TOAST_CONFIRM_MS,
+  TOAST_UNDOABLE_MS,
+  useToast,
+} from '@/features/matches/useToast';
 import { rateOf } from '@/lib/analytics/summary';
-import { DeckCodeError, encodeDeckList, type EncodeResult } from '@/lib/deck-code';
+import { DeckCodeError, encodeDeckList } from '@/lib/deck-code';
 import type { DeckDiff } from '@/lib/deck-diff';
 import { recordLine } from '@/lib/format';
 import { checkLegality, type DeckList, type DeckZone } from '@/lib/legality';
@@ -56,6 +62,15 @@ import { metaLine, text } from '@/theme/typography';
  */
 
 type Tab = 'overview' | 'list' | 'versions' | 'matches';
+
+/**
+ * Versions drawn before the tail is folded behind a tap.
+ *
+ * Measured: the timeline mounts every node it is given, and each carries a
+ * diff view of up to six chips. 30 is well past what a normal deck reaches and
+ * well short of where an un-virtualised column starts costing frames.
+ */
+const VERSIONS_SHOWN = 30;
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -83,15 +98,17 @@ export default function DeckDetailScreen() {
   const [versions, setVersions] = useState<DeckVersionRow[]>([]);
   const [list, setList] = useState<DeckList>({ slots: [] });
   const [missing, setMissing] = useState<MissingCard[]>([]);
-  const [nodes, setNodes] = useState<TimelineNode[]>([]);
+  const [matchCounts, setMatchCounts] = useState<Map<string, number>>(new Map());
+  const [showAllVersions, setShowAllVersions] = useState(false);
   const [compare, setCompare] = useState<string[]>([]);
+  const [compareMode, setCompareMode] = useState(false);
   const [matches, setMatches] = useState<MatchRowType[]>([]);
   const [record, setRecord] = useState<DeckRecord>({ wins: 0, losses: 0, draws: 0, total: 0 });
   const [versionPerformance, setVersionPerformance] = useState<VersionStat[]>([]);
   const [matchesByVersion, setMatchesByVersion] = useState<Map<string, MatchRowType[]>>(
     new Map()
   );
-  const [export_, setExport_] = useState<EncodeResult | null>(null);
+  const showToast = useToast((s) => s.show);
 
   const load = useCallback(() => {
     const row = getDeck(id);
@@ -116,24 +133,35 @@ export default function DeckDetailScreen() {
     }
     setMatchesByVersion(byVersion);
 
-    const numberById = new Map(rows.map((v) => [v.id, v.versionNumber]));
-    setNodes(
-      rows.map((version) => ({
-        version,
-        // Computed here rather than in the timeline: it is a database read per
-        // node, and a component that reads during render re-reads on every
-        // scroll frame.
-        diff: versionDiff(version.id),
-        matchCount: counts.get(version.id) ?? 0,
-        isCurrent: version.id === row.currentVersionId,
-        parentNumber: version.parentVersionId
-          ? (numberById.get(version.parentVersionId) ?? null)
-          : null,
-      }))
-    );
+    setMatchCounts(counts);
   }, [id]);
 
   useFocusEffect(load);
+
+  /**
+   * Timeline nodes are built only while the Versions tab is open.
+   *
+   * `versionDiff` loads two decklists per node, so this is ~2N database reads
+   * for N versions — measured at two thirds of the whole screen's load cost, and
+   * it was being paid on every focus regardless of which tab you were looking
+   * at. Returning from logging a match re-focuses deck detail, so a deck with a
+   * long history made the *match* flow feel slow for a screen nobody opened.
+   */
+  const nodes = useMemo<TimelineNode[]>(() => {
+    if (tab !== 'versions') return [];
+    const numberById = new Map(versions.map((v) => [v.id, v.versionNumber]));
+    return versions.map((version) => ({
+      version,
+      // Read here rather than in the timeline: a component that queries during
+      // render re-queries on every scroll frame.
+      diff: versionDiff(version.id),
+      matchCount: matchCounts.get(version.id) ?? 0,
+      isCurrent: version.id === deck?.currentVersionId,
+      parentNumber: version.parentVersionId
+        ? (numberById.get(version.parentVersionId) ?? null)
+        : null,
+    }));
+  }, [tab, versions, matchCounts, deck?.currentVersionId]);
 
   const legality = useMemo(() => checkLegality(list), [list]);
   const current = versions.find((v) => v.id === deck?.currentVersionId) ?? null;
@@ -145,24 +173,21 @@ export default function DeckDetailScreen() {
     const second = versions.find((v) => v.id === secondId);
     if (!first || !second) return null;
     // Always oldest-first, so the diff reads as "what happened next" regardless
-    // of which node was long-pressed first.
+    // of which node was picked first.
     const [older, newer] =
       first.versionNumber <= second.versionNumber ? [first, second] : [second, first];
-    const diff = compareVersions(older.id, newer.id) as DeckDiff;
-
-    if (__DEV__) {
-      console.log(
-        `[compare] resolved v${older.versionNumber} → v${newer.versionNumber} · ` +
-          `+${diff.added.length} −${diff.removed.length} ~${diff.changed.length} ` +
-          `empty=${diff.isEmpty}`
-      );
-    }
-    return { a: older, b: newer, diff };
+    return { a: older, b: newer, diff: compareVersions(older.id, newer.id) as DeckDiff };
   }, [compare, versions]);
 
-  const matchCounts = useMemo(
-    () => new Map(nodes.map((n) => [n.version.id, n.matchCount])),
-    [nodes]
+  /*
+   * The timeline mounts every node at once — it is a plain column, not a
+   * virtualised list, because it lives inside the screen's scroll view along
+   * with the other tabs' content. That is fine for the histories decks actually
+   * have and not fine without a limit, so the tail is behind a tap.
+   */
+  const visibleNodes = useMemo(
+    () => (showAllVersions ? nodes : nodes.slice(0, VERSIONS_SHOWN)),
+    [nodes, showAllVersions]
   );
 
   /**
@@ -171,6 +196,21 @@ export default function DeckDetailScreen() {
    * did not work while keeping the record of having tried it.
    */
   const onVersionPress = (node: TimelineNode) => {
+    // In compare mode a tap means "pick this one" and nothing else. The old
+    // behaviour — tap opens an action sheet, long-press selects — meant that
+    // after picking one version the obvious next gesture did the wrong thing
+    // while the first pick sat there looking selected.
+    if (compareMode) {
+      setCompare((picked) =>
+        picked.includes(node.version.id)
+          ? picked.filter((v) => v !== node.version.id)
+          : picked.length >= 2
+            ? [node.version.id]
+            : [...picked, node.version.id]
+      );
+      return;
+    }
+
     const options: Parameters<typeof Alert.alert>[2] = [{ text: 'Cancel', style: 'cancel' }];
 
     if (!node.isCurrent) {
@@ -216,26 +256,16 @@ export default function DeckDetailScreen() {
     );
   };
 
-  /** Long-press picks versions to compare; a third pick starts a new pair. */
+  /** Long-press is a shortcut into compare mode with this node already picked. */
   const onVersionLongPress = (node: TimelineNode) => {
-    setCompare((picked) => {
-      const next = picked.includes(node.version.id)
-        ? picked.filter((v) => v !== node.version.id)
-        : picked.length >= 2
-          ? [node.version.id]
-          : [...picked, node.version.id];
+    if (versions.length < 2) return;
+    setCompareMode(true);
+    setCompare([node.version.id]);
+  };
 
-      // TEMPORARY — the device pass reported compare as partly working, and the
-      // query layer is proven correct across branches, so the fault is in this
-      // selection path. Logged rather than reasoned about.
-      if (__DEV__) {
-        console.log(
-          `[compare] long-press v${node.version.versionNumber} · ` +
-            `selected ${picked.length} → ${next.length}`
-        );
-      }
-      return next;
-    });
+  const exitCompare = () => {
+    setCompareMode(false);
+    setCompare([]);
   };
 
   /**
@@ -243,16 +273,29 @@ export default function DeckDetailScreen() {
    * stays a pure function over cards — testable against the real seed without a
    * database.
    */
+  /**
+   * Export in one tap: build the code, put it on the clipboard, confirm.
+   *
+   * There used to be a sheet in the middle showing the code and offering Copy
+   * and Share. It was a step between wanting the code and having it, for a
+   * string nobody reads — the clipboard is the destination in almost every
+   * case.
+   *
+   * What the sheet did carry, and what a bare "Copied" would lose, is the
+   * disclosure: cards a code cannot hold, and promo printings that come back as
+   * their standard version. Those move into the message rather than
+   * disappearing — the whole point of naming them was that the person pasting
+   * the code should not be the one to discover it.
+   */
   const onExport = () => {
+    let result;
     try {
       // `missing` is passed in because `loadDeckList` already dropped those
       // cards from `list` — without it the code would be quietly short.
-      setExport_(
-        encodeDeckList(
-          list,
-          queryCards({}),
-          missing.map((m) => ({ name: m.name, quantity: m.quantity }))
-        )
+      result = encodeDeckList(
+        list,
+        queryCards({}),
+        missing.map((m) => ({ name: m.name, quantity: m.quantity }))
       );
     } catch (err) {
       Alert.alert(
@@ -261,7 +304,42 @@ export default function DeckDetailScreen() {
           ? err.message
           : 'Something went wrong building the deck code.'
       );
+      return;
     }
+
+    void Clipboard.setStringAsync(result.code);
+    if (Platform.OS !== 'web') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+
+    const caveats: string[] = [];
+    if (result.omitted.length > 0) {
+      caveats.push(
+        `${result.omitted.length} ${result.omitted.length === 1 ? 'card' : 'cards'} left out`
+      );
+    }
+    if (result.reprinted.length > 0) {
+      caveats.push(
+        `${result.reprinted.length} promo ${result.reprinted.length === 1 ? 'printing' : 'printings'} sent as standard`
+      );
+    }
+
+    showToast(
+      caveats.length > 0
+        ? `Copied to clipboard · ${caveats.join(' · ')}`
+        : 'Copied to clipboard',
+      {
+        // Sharing is a second intent, not a second step. Offered here so it
+        // costs one more tap rather than making everyone take it.
+        action: {
+          label: 'Share',
+          onPress: () => {
+            void Share.share({ message: `${deck?.name ?? 'Deck'}\n\n${result.code}` });
+          },
+        },
+        durationMs: caveats.length > 0 ? TOAST_UNDOABLE_MS : TOAST_CONFIRM_MS,
+      }
+    );
   };
 
   const onDelete = () => {
@@ -382,11 +460,13 @@ export default function DeckDetailScreen() {
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Share this deck as a code"
+              accessibilityLabel="Copy this deck's code to the clipboard"
               onPress={onExport}
               style={({ pressed }) => [styles.export, pressed && styles.pressed]}
             >
-              <Text style={styles.exportLabel}>Share deck code</Text>
+              {/* Named for what one tap does. Sharing is offered in the toast
+                  that follows, so the label is not promising the wrong thing. */}
+              <Text style={styles.exportLabel}>Copy deck code</Text>
             </Pressable>
 
             <Pressable
@@ -428,7 +508,7 @@ export default function DeckDetailScreen() {
                       />
                     ))}
                     <Text style={styles.hint}>
-                      Long-press two versions in the Versions tab to compare them properly.
+                      Use Compare in the Versions tab to see the cards behind the difference.
                     </Text>
                   </View>
                 ) : null}
@@ -451,19 +531,71 @@ export default function DeckDetailScreen() {
           </View>
         ) : tab === 'versions' ? (
           <View style={styles.overview}>
+            {/*
+              Comparing is the thing this app exists for, so it gets a control
+              that says so. It used to be long-press only: no affordance, no way
+              to cancel a pick, and a tap on the second version opened an action
+              sheet instead of comparing.
+            */}
+            {versions.length > 1 ? (
+              <View style={styles.compareBar}>
+                <Text style={styles.compareStatus}>
+                  {compareMode
+                    ? compare.length === 0
+                      ? 'Tap two versions to compare'
+                      : `Tap one more · v${
+                          versions.find((v) => v.id === compare[0])?.versionNumber ?? ''
+                        } selected`
+                    : 'Compare two versions'}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => (compareMode ? exitCompare() : setCompareMode(true))}
+                  style={({ pressed }) => [
+                    styles.compareButton,
+                    compareMode && styles.compareButtonActive,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.compareButtonLabel,
+                      compareMode && styles.compareButtonLabelActive,
+                    ]}
+                  >
+                    {compareMode ? 'Cancel' : 'Compare'}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             <VersionTimeline
-              nodes={nodes}
+              nodes={visibleNodes}
               selectedIds={compare}
+              selecting={compareMode}
               onPress={onVersionPress}
               onLongPress={onVersionLongPress}
             />
-            <Text style={styles.hint}>
-              {compare.length === 1
-                ? 'Long-press another version to compare the two.'
-                : versions.length > 1
-                  ? 'Long-press two versions to compare them.'
-                  : 'Every edit after your first match creates a new version here, with the exact cards that changed.'}
-            </Text>
+
+            {nodes.length > visibleNodes.length ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setShowAllVersions(true)}
+                style={({ pressed }) => [styles.showAll, pressed && styles.pressed]}
+              >
+                <Text style={styles.showAllLabel}>
+                  Show {nodes.length - visibleNodes.length} older{' '}
+                  {nodes.length - visibleNodes.length === 1 ? 'version' : 'versions'}
+                </Text>
+              </Pressable>
+            ) : null}
+
+            {versions.length > 1 ? null : (
+              <Text style={styles.hint}>
+                Every edit after your first match creates a new version here, with the exact
+                cards that changed.
+              </Text>
+            )}
           </View>
         ) : (
           ZONE_ORDER.map(({ zone, label, fixed }) => {
@@ -501,15 +633,9 @@ export default function DeckDetailScreen() {
         diff={comparing?.diff ?? null}
         matchCounts={matchCounts}
         matchesByVersion={matchesByVersion}
-        onClose={() => setCompare([])}
+        onClose={exitCompare}
       />
 
-      <DeckCodeSheet
-        visible={export_ !== null}
-        deckName={deck.name}
-        result={export_}
-        onClose={() => setExport_(null)}
-      />
     </Screen>
   );
 }
@@ -528,6 +654,33 @@ const styles = StyleSheet.create({
   tabLabelActive: { color: color.text },
   content: { paddingBottom: space[16], gap: space[5] },
   overview: { gap: space[5] },
+  compareBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space[3],
+  },
+  compareStatus: { ...text.small, color: color.textMuted, flexShrink: 1 },
+  compareButton: {
+    minHeight: 34,
+    justifyContent: 'center',
+    paddingHorizontal: space[4],
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: color.border,
+  },
+  compareButtonActive: { backgroundColor: color.text, borderColor: color.text },
+  compareButtonLabel: { ...text.smallMedium, color: color.text },
+  compareButtonLabelActive: { color: color.bg },
+  showAll: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: color.border,
+  },
+  showAllLabel: { ...text.smallMedium, color: color.text },
   identity: { flexDirection: 'row' },
   issues: { gap: space[1] },
   issue: { ...text.small, color: color.warning },

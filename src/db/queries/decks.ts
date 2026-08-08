@@ -790,13 +790,20 @@ export function deleteDeck(deckId: string): void {
         WHERE deck_id = ? AND deleted_at IS NULL`,
       [timestamp, timestamp, deckId]
     );
+    /*
+     * Matches go too.
+     *
+     * They did not before, and the deck's results outlived the deck: `listDecks`
+     * hid the deck while `listMatches()` kept returning its matches, so a
+     * deleted deck's games stayed in the cross-deck Stats totals with no deck
+     * to attribute them to. Soft, like everything else here, so the deletion
+     * propagates rather than reappearing on the next sync.
+     */
+    conn().runSync(
+      `UPDATE matches SET deleted_at = ?, updated_at = ?, dirty = 1
+        WHERE deck_id = ? AND deleted_at IS NULL`,
+      [timestamp, timestamp, deckId]
+    );
   });
 }
 
-export function countDecks(): number {
-  return (
-    conn().getFirstSync<{ n: number }>(
-      'SELECT COUNT(*) AS n FROM decks WHERE deleted_at IS NULL AND archived_at IS NULL'
-    )?.n ?? 0
-  );
-}

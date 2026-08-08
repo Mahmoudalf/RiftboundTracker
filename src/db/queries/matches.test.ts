@@ -18,7 +18,9 @@ import {
   deleteMatch,
   getMatch,
   listMatches,
+  battlefieldFields,
   logMatch,
+  opponentBattlefieldFields,
   opponentChampionFields,
   opponentFields,
   recentOpponents,
@@ -244,6 +246,39 @@ describe('logMatch', () => {
     const match = getMatch(id)!;
     expect(match.oppLegendName).toBe('Yasuo - Windrunner');
     expect(match.oppChampionName).toBe('Yasuo - Unforgiven');
+  });
+
+  it('records the Battlefield each side played, by name as well as id', () => {
+    const { deckId, versionId } = makeDeck();
+    const ours = seedCard({ id: 'bf-1', name: 'Star Spring', type: 'Battlefield' });
+    const theirs = seedCard({ id: 'bf-2', name: 'Black Flame Altar', type: 'Battlefield' });
+
+    const id = logMatch({
+      deckId, deckVersionId: versionId, result: 'win',
+      ...battlefieldFields(ours),
+      ...opponentBattlefieldFields(theirs),
+    });
+
+    // Third time this pattern has been needed — deck cards, opponents, and now
+    // Battlefields — so the name has to survive the card leaving the library.
+    db.runSync("DELETE FROM cards WHERE id IN ('bf-1', 'bf-2')");
+
+    const match = getMatch(id)!;
+    expect(match.battlefieldName).toBe('Star Spring');
+    expect(match.oppBattlefieldName).toBe('Black Flame Altar');
+    expect(match.battlefieldCardId).toBe('bf-1');
+    expect(match.oppBattlefieldCardId).toBe('bf-2');
+  });
+
+  it('leaves both Battlefields null when neither was recorded', () => {
+    const { deckId, versionId } = makeDeck();
+    const id = logMatch({ deckId, deckVersionId: versionId, result: 'win' });
+
+    const match = getMatch(id)!;
+    expect(match.battlefieldCardId).toBeNull();
+    expect(match.battlefieldName).toBeNull();
+    expect(match.oppBattlefieldCardId).toBeNull();
+    expect(match.oppBattlefieldName).toBeNull();
   });
 
   it('distinguishes on-the-draw from unknown', () => {

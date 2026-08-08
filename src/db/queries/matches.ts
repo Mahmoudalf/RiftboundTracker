@@ -35,6 +35,10 @@ export interface LogMatchInput {
   /** Always write these alongside the ids — see `opponentFields()`. */
   oppLegendName?: string | null;
   oppChampionName?: string | null;
+  battlefieldCardId?: string | null;
+  battlefieldName?: string | null;
+  oppBattlefieldCardId?: string | null;
+  oppBattlefieldName?: string | null;
   oppDomains?: string[] | null;
   oppLabel?: string | null;
   eventId?: string | null;
@@ -80,6 +84,25 @@ export function opponentChampionFields(
   return { oppChampionCardId: champion.id, oppChampionName: champion.name };
 }
 
+/** Your Battlefield, id and name together. */
+export function battlefieldFields(
+  battlefield: Pick<CardRow, 'id' | 'name'> | null
+): Pick<LogMatchInput, 'battlefieldCardId' | 'battlefieldName'> {
+  if (!battlefield) return { battlefieldCardId: null, battlefieldName: null };
+  return { battlefieldCardId: battlefield.id, battlefieldName: battlefield.name };
+}
+
+/** Theirs. */
+export function opponentBattlefieldFields(
+  battlefield: Pick<CardRow, 'id' | 'name'> | null
+): Pick<LogMatchInput, 'oppBattlefieldCardId' | 'oppBattlefieldName'> {
+  if (!battlefield) return { oppBattlefieldCardId: null, oppBattlefieldName: null };
+  return {
+    oppBattlefieldCardId: battlefield.id,
+    oppBattlefieldName: battlefield.name,
+  };
+}
+
 /**
  * Record a match and lock the version it was played with.
  *
@@ -99,9 +122,11 @@ export function logMatch(input: LogMatchInput): string {
           best_of, games_won, games_lost, on_play,
           opp_legend_card_id, opp_champion_card_id,
           opp_legend_name, opp_champion_name, opp_domains, opp_label,
+          battlefield_card_id, battlefield_name,
+          opp_battlefield_card_id, opp_battlefield_name,
           event_id, event_type, mulligans, duration_seconds, notes, tags,
           created_at, updated_at, dirty)
-       VALUES (?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?, ?,?,?,?,?,?, ?,?,1)`,
+       VALUES (?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?,?, ?,?,1)`,
       [
         id,
         input.deckId,
@@ -118,6 +143,10 @@ export function logMatch(input: LogMatchInput): string {
         input.oppChampionName ?? null,
         input.oppDomains ? JSON.stringify(input.oppDomains) : null,
         input.oppLabel ?? null,
+        input.battlefieldCardId ?? null,
+        input.battlefieldName ?? null,
+        input.oppBattlefieldCardId ?? null,
+        input.oppBattlefieldName ?? null,
         input.eventId ?? null,
         input.eventType ?? 'casual',
         input.mulligans ?? null,

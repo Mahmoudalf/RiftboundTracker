@@ -1,11 +1,12 @@
 import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
-import { Modal, StyleSheet, Text, View } from 'react-native';
+import { Modal, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DomainBadge } from '@/components/cards/DomainBadge';
 import { Pressable } from '@/components/ui/Pressable';
 import type { CardRow } from '@/db/schema/cards';
+import { isLandscapeCard, uprightArt } from '@/lib/card-art';
 import { baseName } from '@/lib/card-identity';
 import { cardImage } from '@/lib/cdn';
 import { CARD_ASPECT, color, radius, space } from '@/theme/tokens';
@@ -25,11 +26,15 @@ interface CardPickerSheetProps {
 const COLUMNS = 3;
 
 /**
- * Full-screen picker for the one-of-a-kind slots — the Legend and the Champion.
+ * Full-screen picker for the one-of-a-kind slots.
  *
- * Those two are not stepper cards, so the rail cannot set them, and without
- * this a Legend chosen by mistake could only be undone by deleting the deck and
- * starting again.
+ * Originally the Legend and the Champion — neither is a stepper card, so the
+ * rail cannot set them, and without this a Legend chosen by mistake could only
+ * be undone by deleting the deck and starting again. Match logging now uses it
+ * for the opponent's Legend, Champion and Battlefield too.
+ *
+ * Landscape cards are rotated upright rather than cropped, so a Battlefield
+ * reads as a card here and not as a strip of one.
  */
 export function CardPickerSheet({
   visible,
@@ -42,6 +47,18 @@ export function CardPickerSheet({
   onClose,
 }: CardPickerSheetProps) {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+
+  /*
+   * The frame's real pixel size, needed because rotating art means swapping
+   * width and height — which `aspectRatio` alone cannot express.
+   *
+   * Derived from the screen rather than measured with `onLayout`: this grid is
+   * a fixed three columns inside known padding, so the arithmetic is exact and
+   * costs no extra layout pass.
+   */
+  const frameWidth = (screenWidth - space[4] * 2) / COLUMNS - space[2];
+  const frameHeight = frameWidth / CARD_ASPECT;
 
   return (
     <Modal
@@ -87,11 +104,27 @@ export function CardPickerSheet({
                 }}
                 style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
               >
-                <View style={[styles.art, item.id === selectedId && styles.artSelected]}>
+                <View
+                  style={[
+                    styles.art,
+                    { width: frameWidth, height: frameHeight },
+                    item.id === selectedId && styles.artSelected,
+                  ]}
+                >
                   <Image
                     source={cardImage(item.imageUrl, 'thumb')}
                     contentFit="cover"
-                    style={StyleSheet.absoluteFill}
+                    /*
+                     * Battlefields print landscape. Cropped into a portrait
+                     * frame they become a strip through the middle — the
+                     * "trimmed" look. Rotated, they fill it exactly, because
+                     * the two ratios are inverses.
+                     */
+                    style={
+                      isLandscapeCard(item)
+                        ? uprightArt(frameWidth, frameHeight)
+                        : StyleSheet.absoluteFill
+                    }
                     cachePolicy="memory-disk"
                     accessible={false}
                   />
@@ -132,8 +165,9 @@ const styles = StyleSheet.create({
   grid: { paddingBottom: space[12] },
   tile: { flex: 1, gap: space[1.5], paddingRight: space[2], paddingBottom: space[3] },
   art: {
-    width: '100%',
-    aspectRatio: CARD_ASPECT,
+    // Width and height are set inline — rotation needs real pixels, and an
+    // `aspectRatio` here as well would be a second source of truth for the
+    // same box.
     borderRadius: radius.card,
     overflow: 'hidden',
     backgroundColor: color.surface,

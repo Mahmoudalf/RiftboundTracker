@@ -59,21 +59,18 @@ export function CardGrid({
   header,
   emptyMessage = 'No cards match.',
 }: CardGridProps) {
-  if (cards.length === 0) {
-    return (
-      <View style={styles.empty}>
-        {header}
-        <Text style={styles.emptyText}>{emptyMessage}</Text>
-      </View>
-    );
-  }
-
   return (
     <FlashList
       data={cards}
       numColumns={columns}
       keyExtractor={(card) => card.id}
       ListHeaderComponent={header}
+      /*
+       * Empty renders inside the same list rather than as a separate branch, so
+       * filtering down to nothing does not unmount the header — which would
+       * shut an open filter menu the moment it emptied the grid.
+       */
+      ListEmptyComponent={<Text style={styles.emptyText}>{emptyMessage}</Text>}
       contentContainerStyle={styles.list}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
@@ -150,7 +147,6 @@ export function CardGrid({
 
 const styles = StyleSheet.create({
   list: { paddingBottom: space[12] },
-  empty: { flex: 1 },
   emptyText: { ...text.body, color: color.textMuted, paddingTop: space[4] },
   cell: { flex: 1, paddingRight: space[2], paddingBottom: space[3] },
   tile: { gap: space[1] },

@@ -17,10 +17,10 @@ import { DeckDiffView } from './DeckDiffView';
  * are the point — a version number and a date say nothing a player recognises,
  * "−2 Bewitching Spirit" is the thing they actually remember doing.
  *
- * Long-press two nodes to compare them. That gesture is discoverable from the
- * hint under the list rather than from a mode switch, because comparing is
- * something you want occasionally and a permanent control for it would sit
- * there unused.
+ * `selecting` turns the whole column into a picker for comparison. It is a mode
+ * rather than a gesture because the gesture version was not findable: a tap
+ * opened the version's actions and only a long-press selected, so the natural
+ * way to pick the second version silently did something else.
  */
 
 export interface TimelineNode {
@@ -37,6 +37,8 @@ interface VersionTimelineProps {
   nodes: TimelineNode[];
   /** Versions picked for comparison, in pick order. */
   selectedIds: string[];
+  /** Compare mode: a tap picks rather than opening the version's actions. */
+  selecting: boolean;
   onPress: (node: TimelineNode) => void;
   onLongPress: (node: TimelineNode) => void;
 }
@@ -50,6 +52,7 @@ function formatDate(iso: string): string {
 export function VersionTimeline({
   nodes,
   selectedIds,
+  selecting,
   onPress,
   onLongPress,
 }: VersionTimelineProps) {
@@ -87,9 +90,13 @@ export function VersionTimeline({
               accessibilityLabel={`Version ${version.versionNumber}${
                 version.label ? `, ${version.label}` : ''
               }, ${node.matchCount} matches`}
-              accessibilityHint="Long press to compare with another version"
+              accessibilityHint={
+                selecting
+                  ? 'Tap to pick this version for the comparison'
+                  : 'Long press to compare with another version'
+              }
               onPress={() => onPress(node)}
-              onLongPress={() => onLongPress(node)}
+              onLongPress={selecting ? undefined : () => onLongPress(node)}
               delayLongPress={300}
               style={({ pressed }) => [
                 styles.node,
@@ -102,6 +109,11 @@ export function VersionTimeline({
                 <Text style={styles.label} numberOfLines={1}>
                   {version.label ?? (version.parentVersionId ? 'Untitled change' : 'First build')}
                 </Text>
+                {/* Only while picking — an empty circle on every node at rest
+                    would read as a status the version does not have. */}
+                {selecting ? (
+                  <View style={[styles.pick, selected && styles.pickOn]} />
+                ) : null}
               </View>
 
               <Text style={styles.meta}>
@@ -158,7 +170,15 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   nodeSelected: { borderColor: color.info, backgroundColor: color.surface },
-  header: { flexDirection: 'row', alignItems: 'baseline', gap: space[2] },
+  header: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  pick: {
+    width: 16,
+    height: 16,
+    borderRadius: radius.full,
+    borderWidth: 1.5,
+    borderColor: color.border,
+  },
+  pickOn: { backgroundColor: color.info, borderColor: color.info },
   number: { ...text.numeric, fontSize: 15, color: color.text },
   label: { ...text.bodyMedium, color: color.text, flex: 1 },
   meta: { ...text.microMeta, color: color.textMuted },

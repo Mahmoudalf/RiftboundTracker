@@ -14,20 +14,46 @@ export interface ToastAction {
   onPress: () => void;
 }
 
+export interface ToastOptions {
+  action?: ToastAction;
+  /**
+   * How long it stays up.
+   *
+   * Two very different jobs share this component. An **undoable** action needs
+   * long — the person who mis-tapped a result is usually still shuffling — while
+   * a plain **confirmation** like "copied" only has to be seen, and lingering
+   * turns it into something to dismiss.
+   */
+  durationMs?: number;
+}
+
+/** Long enough to notice a mis-tap and reach for Undo. */
+export const TOAST_UNDOABLE_MS = 7000;
+/** Long enough to read four words. */
+export const TOAST_CONFIRM_MS = 2600;
+
 interface ToastState {
   message: string | null;
   action: ToastAction | null;
+  durationMs: number;
   /** Bumped on every show, so a repeat message still restarts the timer. */
   nonce: number;
-  show: (message: string, action?: ToastAction) => void;
+  show: (message: string, options?: ToastOptions) => void;
   dismiss: () => void;
 }
 
 export const useToast = create<ToastState>((set) => ({
   message: null,
   action: null,
+  durationMs: TOAST_UNDOABLE_MS,
   nonce: 0,
-  show: (message, action) =>
-    set((s) => ({ message, action: action ?? null, nonce: s.nonce + 1 })),
+  show: (message, options) =>
+    set((s) => ({
+      message,
+      action: options?.action ?? null,
+      // An undoable toast defaults long; anything else should ask for short.
+      durationMs: options?.durationMs ?? TOAST_UNDOABLE_MS,
+      nonce: s.nonce + 1,
+    })),
   dismiss: () => set({ message: null, action: null }),
 }));

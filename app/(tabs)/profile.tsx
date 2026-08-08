@@ -84,7 +84,9 @@ export default function ProfileScreen() {
             Riot Games, used under Riot&apos;s Legal Jibber Jabber policy for non-commercial fan
             content.
           </Text>
-          <Text style={styles.footerMeta}>{metaLine('Riftbound Tracker', 'v0.1.0', 'M1')}</Text>
+          {/* No milestone here. It read "M1" for five milestones because a
+              hand-written stage label has nothing keeping it true. */}
+          <Text style={styles.footerMeta}>{metaLine('Riftbound Tracker', 'v0.1.0')}</Text>
         </View>
       </ScrollView>
     </Screen>

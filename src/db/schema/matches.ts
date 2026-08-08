@@ -111,6 +111,12 @@ export const matches = sqliteTable(
      */
     oppLegendName: text('opp_legend_name'),
     oppChampionName: text('opp_champion_name'),
+
+    /** The Battlefield each side played. Name stored for the usual reason. */
+    battlefieldCardId: text('battlefield_card_id'),
+    battlefieldName: text('battlefield_name'),
+    oppBattlefieldCardId: text('opp_battlefield_card_id'),
+    oppBattlefieldName: text('opp_battlefield_name'),
     /** Set even when the exact Legend is unknown — "I played against Fury". */
     oppDomains: text('opp_domains', { mode: 'json' }).$type<string[]>(),
     /** Free text, e.g. "Yasuo aggro", for an opponent not in the library. */
@@ -144,6 +150,23 @@ export const matchGames = sqliteTable(
     gameNumber: integer('game_number').notNull(),
     onPlay: integer('on_play', { mode: 'boolean' }),
     result: text('result').$type<MatchResult>().notNull(),
+
+    /** Riftbound scores to 8. Winning 8–6 and 8–0 are different games. */
+    scoreFor: integer('score_for'),
+    scoreAgainst: integer('score_against'),
+
+    /** The turn each Chosen Champion landed. */
+    championTurn: integer('champion_turn'),
+    oppChampionTurn: integer('opp_champion_turn'),
+
+    /**
+     * Card ids. Null means *not recorded*; an empty array would mean recorded
+     * and empty — a mulligan down to nothing — which is a different claim.
+     */
+    openingHand: text('opening_hand', { mode: 'json' }).$type<string[]>(),
+    mulliganed: text('mulliganed', { mode: 'json' }).$type<string[]>(),
+    battlefields: text('battlefields', { mode: 'json' }).$type<string[]>(),
+
     notes: text('notes'),
   },
   (t) => [

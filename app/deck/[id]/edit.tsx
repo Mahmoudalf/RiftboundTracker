@@ -5,6 +5,12 @@ import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View } from '
 
 import { CardGrid } from '@/components/decks/CardGrid';
 import { CardPickerSheet } from '@/components/decks/CardPickerSheet';
+import {
+  CardPoolFilters,
+  EMPTY_POOL_FILTERS,
+  poolKindFilters,
+  type PoolFilterState,
+} from '@/components/decks/CardPoolFilters';
 import { DeckSlotRow } from '@/components/decks/DeckSlotRow';
 import { LegalityBar } from '@/components/decks/LegalityBar';
 import { SaveVersionSheet } from '@/components/decks/SaveVersionSheet';
@@ -27,7 +33,9 @@ import {
   type SaveOptions,
 } from '@/db/queries/decks';
 import type { CardRow } from '@/db/schema/cards';
+import { saveMessage } from '@/features/decks/save-message';
 import { reconcileWithStored, useDeckEditor } from '@/features/decks/useDeckEditor';
+import { TOAST_CONFIRM_MS, useToast } from '@/features/matches/useToast';
 import { baseName, cardKey } from '@/lib/card-identity';
 import { diffLists, type DeckDiff } from '@/lib/deck-diff';
 import {
@@ -102,11 +110,12 @@ export default function DeckEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [mode, setMode] = useState<Mode>('deck');
   const [pool, setPool] = useState<Pool>('main');
-  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<PoolFilterState>(EMPTY_POOL_FILTERS);
   const [picker, setPicker] = useState<'legend' | 'champion' | null>(null);
   const [pending, setPending] = useState<DeckDiff | null>(null);
   /** Latched on the first commit, so a double tap cannot save twice. */
   const committing = useRef(false);
+  const showToast = useToast((s) => s.show);
 
   // Derived rather than held in state: the read is synchronous, so putting it
   // in an effect would render an empty editor first and then correct itself.
@@ -191,16 +200,22 @@ export default function DeckEditorScreen() {
     if (!legend) return [];
     if (pool === 'rune') return listRunesForIdentity(legend.domains);
     if (pool === 'battlefield') {
-      const term = search.trim().toLowerCase();
+      const term = filters.search.trim().toLowerCase();
       const all = listBattlefields();
       return term ? all.filter((c) => c.cleanName.toLowerCase().includes(term)) : all;
     }
+    const { types, supertypes } = poolKindFilters(filters.kinds);
+    const term = filters.search.trim();
     return queryCards({
-      search: search.trim() || undefined,
+      search: term || undefined,
       identity: legend.domains,
-      sort: search.trim() ? 'relevance' : 'energy',
+      sets: filters.setIds.length ? filters.setIds : undefined,
+      // No kind chosen means everything a main deck can hold, not nothing.
+      types: types.length || supertypes.length ? types : MAIN_DECK_TYPES,
+      supertypes: supertypes.length ? supertypes : undefined,
+      sort: term ? 'relevance' : filters.sort,
     }).filter((c) => MAIN_DECK_TYPES.includes(c.type));
-  }, [legend, pool, search]);
+  }, [legend, pool, filters]);
 
   const pickerCards = useMemo(() => {
     if (picker === 'legend') return listLegends();
@@ -285,14 +300,7 @@ export default function DeckEditorScreen() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     router.replace(`/deck/${id}`);
-    if (result.outcome === 'forked') {
-      // Confirms the fork happened *after* the fact rather than asking for
-      // permission again — the sheet already said what the button would do.
-      setTimeout(
-        () => Alert.alert(`Saved as v${result.versionNumber}`, 'Your earlier version is untouched.'),
-        400
-      );
-    }
+    showToast(saveMessage(result), { durationMs: TOAST_CONFIRM_MS });
   };
 
   /**
@@ -439,7 +447,7 @@ export default function DeckEditorScreen() {
                   accessibilityState={{ selected: pool === p.key }}
                   onPress={() => {
                     setPool(p.key);
-                    setSearch('');
+                    setFilters(EMPTY_POOL_FILTERS);
                   }}
                   style={[styles.poolChip, pool === p.key && styles.poolChipActive]}
                 >
@@ -452,17 +460,26 @@ export default function DeckEditorScreen() {
               ))}
             </View>
 
-            {pool !== 'rune' ? (
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
+            {/* Main and Side draw from the same ~900 cards and get the full
+                control set. Battlefields are 64 and Runes are 2 — a filter row
+                over those would cost more space than it saves. */}
+            {pool === 'main' || pool === 'sideboard' ? (
+              <CardPoolFilters
+                value={filters}
+                onChange={setFilters}
+                resultCount={addCards.length}
                 placeholder={
-                  pool === 'battlefield'
-                    ? 'Search Battlefields'
-                    : pool === 'sideboard'
-                      ? 'Search cards for the sideboard'
-                      : `Search ${legend?.domains.join(' / ') ?? ''} cards`
+                  pool === 'sideboard'
+                    ? 'Search cards for the sideboard'
+                    : `Search ${legend?.domains.join(' / ') ?? ''} cards`
                 }
+                editable={!!legend}
+              />
+            ) : pool === 'battlefield' ? (
+              <TextInput
+                value={filters.search}
+                onChangeText={(search) => setFilters({ ...filters, search })}
+                placeholder="Search Battlefields"
                 placeholderTextColor={color.textFaint}
                 style={styles.search}
                 autoCorrect={false}

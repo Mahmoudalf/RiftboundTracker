@@ -26,6 +26,15 @@ export interface CardFilters {
   search?: string;
   sets?: string[];
   types?: string[];
+  /**
+   * Card supertypes — `Champion`, `Signature`, `Basic`, `Token`.
+   *
+   * Separate from `types` because the builder's filter row mixes them: a player
+   * picking "Unit, Spell, Gear, Champion" is naming three types and one
+   * supertype, and Champion Units are Units. Folding them together would either
+   * hide Champions from the Unit filter or list every Unit under Champion.
+   */
+  supertypes?: string[];
   /** Matches cards containing ANY of these domains. */
   domains?: string[];
   /**
@@ -113,8 +122,25 @@ function buildFilter(filters: CardFilters): {
   };
 
   inClause('set_id', filters.sets);
-  inClause('type', filters.types);
   inClause('rarity', filters.rarities);
+
+  /*
+   * Types and supertypes are OR'd with each other, not AND'd.
+   *
+   * The builder's row reads "Unit, Spell, Gear, Champion" as one list of things
+   * to show. AND-ing them would ask for cards that are simultaneously a Spell
+   * and a Champion, which is nothing — selecting both would empty the grid.
+   */
+  const kindClauses: string[] = [];
+  if (filters.types?.length) {
+    kindClauses.push(`c.type IN (${filters.types.map(() => '?').join(',')})`);
+    params.push(...filters.types);
+  }
+  if (filters.supertypes?.length) {
+    kindClauses.push(`c.supertype IN (${filters.supertypes.map(() => '?').join(',')})`);
+    params.push(...filters.supertypes);
+  }
+  if (kindClauses.length) where.push(`(${kindClauses.join(' OR ')})`);
 
   if (filters.domains?.length) {
     // domain_key is a canonical CSV such as "Fury,Order". Anchored with commas
@@ -294,6 +320,29 @@ function byCardThenVariant(a: CardRow, b: CardRow): number {
   if (nameOrder !== 0) return nameOrder;
   const rank = (c: CardRow) => (variantLabel(c.name) === null ? 0 : 1);
   return rank(a) - rank(b) || a.name.localeCompare(b.name);
+}
+
+export interface SetFacet {
+  setId: string;
+  label: string;
+}
+
+/**
+ * Sets present in the mirror, newest first.
+ *
+ * Codes and labels together, because a filter chip saying `VEN` means nothing
+ * to someone who has not memorised the set codes — the point of the filter is
+ * that they do not have to.
+ */
+export function setFacets(): SetFacet[] {
+  return conn()
+    .getAllSync<{ set_id: string; set_label: string }>(
+      `SELECT set_id, set_label, MAX(collector_number) AS n
+         FROM cards
+        GROUP BY set_id, set_label
+        ORDER BY n DESC`
+    )
+    .map((row) => ({ setId: row.set_id, label: row.set_label }));
 }
 
 /** Distinct values actually present in the mirror — drives the filter sheet. */

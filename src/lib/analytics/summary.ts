@@ -1,4 +1,4 @@
-import type { MatchRow } from '@/db/schema/matches';
+import type { MatchResult, MatchRow } from '@/db/schema/matches';
 import { baseName } from '@/lib/card-identity';
 
 import { wilson, type Interval } from './wilson';
@@ -39,7 +39,15 @@ export interface Rate {
   provisional: boolean;
 }
 
-export function rateOf(matches: readonly MatchRow[]): Rate {
+/**
+ * Anything with a result can be rated — matches, and individual games.
+ *
+ * Widened from `MatchRow` so the hand analytics can rate games directly. The
+ * alternative was a cast, which compiles today only because this function reads
+ * nothing but `result`; the first time it read another field the cast would
+ * have started lying silently.
+ */
+export function rateOf(matches: readonly { result: MatchResult }[]): Rate {
   let wins = 0;
   let losses = 0;
   let draws = 0;

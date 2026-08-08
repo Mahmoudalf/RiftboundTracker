@@ -10,7 +10,7 @@
 | [M3](#m3--versioning) | Versioning | ✅ Done |
 | [M4](#m4--matches) | Match tracking | ✅ Done |
 | [M5](#m5--analytics) | Analytics | ✅ Done |
-| [M6](#m6--extras) | Extras | ⬜ Not started |
+| [M6](#m6--extras) | Extras | 🟡 In progress — import/export done |
 | [M7](#m7--cloud) | Cloud sync | ⬜ Not started |
 | [M8](#m8--ship) | Polish & ship | ⬜ Not started |
 
@@ -495,7 +495,10 @@ In priority order — each is independently shippable.
       downstream cost — `DATA-MODEL.md` §4 lists an on-play split as an M5 metric, and it will
       report n = 0 until this ships.
 
-- [ ] **Deck import/export** — parse pasted decklists (via `/cards/name?fuzzy=`), export as text and share code
+- [x] **Deck import/export** — built on `@piltoverarchive/riftbound-deck-codes` (Apache-2.0, zero deps,
+      offline). `src/lib/deck-code.ts` owns the mapping rules; export shares and copies, import
+      previews before writing. Sideboard supported both ways. Pasted *text* decklists via
+      `/cards/name?fuzzy=` were dropped — the code covers sharing and needs no network
 - [ ] **Collection tracker** — `collection` table, owned counts, "missing cards" flags in the builder
 - [ ] **Goldfish** — draw sample opening hands from a version, mulligan simulation
 - [ ] **Event mode** — group matches into tournaments with rounds and final placement.
@@ -545,23 +548,64 @@ Found on a device, not yet fixed. Each is a real defect or a real omission — n
 
 | # | Gap | Found | Severity |
 | --- | --- | --- | --- |
-| 1 | **Version compare is unreliable to invoke.** The diff itself is correct for every pair, branches included — proven by test. The *selection* is long-press-only, with no affordance, no way to cancel a pick, and a silent trap: after picking one version, tapping a second opens that version's action sheet instead of comparing, while the first stays selected | M3 device pass | High — the compare screen is what the app exists for, and it is currently reachable by accident |
-| 2 | **A save that amends in place says nothing.** With no matches logged, editing a deck correctly rewrites the current version instead of forking — but nothing tells the user that, so "I edited my deck and got no version" reads as a bug. Needs a post-save line, not a redesign | M3 device pass | Medium — correct behaviour, wrong impression |
+| 1 | ~~**Version compare is unreliable to invoke**~~ — **closed.** Replaced the long-press-only selection with an explicit mode: a **Compare** button above the timeline, tap-to-pick while it is on, a live "Tap one more · v2 selected" status, and Cancel. Long-press is kept as a shortcut *into* the mode. The trap is gone by construction — in compare mode a tap can only pick, and out of it a tap can only open the version's actions | M3 device pass | Closed |
+| 2 | ~~**A save that amends in place says nothing**~~ — **closed.** Every outcome now returns a line through the toast (`src/features/decks/save-message.ts`), and the amend case states the rule: *"v2 updated · no matches on it yet, so no new version"*. Reported again from a device as "editing no longer creates a version" — see below | M3 device pass | Closed |
 | 3 | **No route back to the tabs from a pushed screen.** A back chevron now exists, but deck detail, the editor and the build flow all cover the tab bar, so returning to Decks or Cards means walking the stack back. The fix is structural — move the deck routes inside the tabs group — not another button | M3 device pass | Medium |
-| 4 | **The main-deck step has no filters.** Search only. Picking 40 cards from ~900 wants the cost and type filters the gallery already has | M3 build | Medium |
-| 5 | **`versionMatchCounts()` is stubbed until M4.** Returns an empty map when the `matches` table does not exist, so every version reads "No matches yet" or "Locked". Correct today, and must be re-checked the moment matches land | M3 | Low — by design |
+| 4 | ~~**The main-deck step has no filters**~~ — **closed (first draft).** `CardPoolFilters` gives the main and sideboard pools search, sort (Name / Energy cost) and multi-select Type and Set. Two structural notes: the controls are a *fixed-height* row because they live in a FlashList header and any height change made the grid jump under a tap; and empty results now render via `ListEmptyComponent` so filtering to zero no longer unmounts the header. Type and supertype are OR'd in `queryCards` — Champion is a supertype, so AND-ing "Spell + Champion" would have returned nothing | M3 build | Closed |
+| 5 | ~~`versionMatchCounts()` stubbed~~ — **closed.** M4 shipped the `matches` table and the post-M4 audit removed the `sqlite_master` guard, which could no longer fire | M3 | Closed |
 | 6 | **A version label can only ever be set at fork time.** `setVersionLabel()` and `setVersionNotes()` exist, are tested, and have **no caller**. So a typo in the save sheet is permanent, and v1 can never be labelled at all — it never passes through a fork sheet. `deck_versions.notes` ("why did I make this change?") is unreachable entirely | Unreachable-code audit | Medium — the timeline is meant to read as a story, and half its text cannot be written |
 | 7 | **Deck rename, notes, and archive are unreachable.** `renameDeck()`, `setDeckNotes()` and `archiveDeck()` are implemented and tested with no UI caller. `listDecks(includeArchived)` takes a parameter nothing can set | Unreachable-code audit | Medium — a mistyped deck name currently means delete and rebuild |
 | 8 | **The editor never mentions unresolvable cards.** Deck detail names them; the editor says nothing, so a deck whose printing left the library just looks short, in the one screen where the user might "fix" it by adding a duplicate | Unreachable-code audit | Medium |
-| 9 | **Dead code:** `missingCardCount()` superseded by `missingCards()`, and `useDeckEditor.isDirty()` unused since the editor began diffing against the database | Unreachable-code audit | Low |
+| 9 | **Dead code:** `useDeckEditor.isDirty()`, unused since the editor began diffing against the database. `missingCardCount()` was the other half and is now deleted | Unreachable-code audit | Low |
 | 10 | **15 moderate `npm audit` advisories**, all in dev tooling (`@expo/cli`, `@expo/config*`, `@esbuild-kit/*`) — transitive, not in the app bundle. Recorded so it is a decision rather than an oversight | Post-move `npm ci` | Low |
 | 11 | **`events` and `matches.event_id` are shipped but unwritable.** Migration 6 created the table; nothing can create an event, so `event_id` is null on every row. M4 records `event_type` (the enum) only — event *grouping* is M6, where it is now written into the checklist | M4 data-layer audit | Low — scoped, not forgotten |
 | 12 | **`match_games` is shipped but unwritten.** Rescoped: its consumer is now *In-depth match logging* in M6, not M4's sheet, after the log flow was simplified to result / opponent Legend / their Champion / best-of / match style / note | M4 data-layer audit | Low — deferred deliberately, owner recorded |
-| 13 | **On-play / on-draw is no longer captured.** Dropped from the simplified sheet and moved to M6's in-depth logging. `DATA-MODEL.md` §4 lists an on-play split as an M5 metric, so that split reports **n = 0** until M6 — a one-chip field away from being fixed if it should stay on the fast path | M4 sheet simplification | Medium — a planned M5 metric currently has no data |
+| 13 | ~~On-play / on-draw not captured~~ — **closed.** Restored to the log sheet as a single three-option row during the post-M5 audit; the analytics split fills in as matches are logged | M4 sheet simplification | Closed |
 
-Gap 1 has `__DEV__` instrumentation in place (`[compare]` lines in the Metro log) recording both the
-long-press selection and the resolved pair, so the next device pass measures the interaction rather
-than guessing at it.
+| 14 | **The recent-opponent rail is gone.** `recentOpponents()` is implemented and tested with **no UI caller** — the match-logging overhaul replaced the opponent picker and the rail did not come across. M4 lists it as shipped, and it was there to keep the ten-second budget when logging a tournament's rounds in a row | Post-gap-1 audit | Medium — a shipped feature silently removed |
+| 15 | ~~`countDecks()` dead~~ — **closed.** No consumer anywhere, tests included. Deleted | Post-gap-1 audit | Closed |
+| 16 | ~~`deck-diff.ts` held a literal NUL byte~~ — **closed.** A raw `NUL` in the source, used as a key separator, made the file *binary* to every text tool — `grep` refused to search it, which is how it was found. Replaced with the escape sequence; behaviour identical, 17 diff tests unchanged | Post-gap-1 audit | Closed |
+
+### The "no new version" report, measured
+
+Reported from a device as a regression. It is not one. A fork is created **unlocked**, so the *next*
+edit amends it in place — no v3 — until a match is logged on it. `decks.test.ts` now walks that exact
+sequence and asserts every step, including that a match on the fork restores forking. The rule is
+"a version that has been played is immutable", not "the first edit is special".
+
+The defect was gap 2, not the version machinery: four of the five save outcomes said nothing at all,
+so the most common one looked exactly like a save that failed.
+
+### Version-history scaling, measured
+
+`version-scaling.test.ts` builds a real 49-slot deck and forks it, timing what deck detail actually
+reads. Node's `node:sqlite` in memory — a phone is slower, so treat these as a lower bound and the
+shape, not the absolute.
+
+| Versions | Every focus | + Versions tab | Compare | Rows | Size |
+| --- | --- | --- | --- | --- | --- |
+| 10 | 3 ms | 3 ms | 0.4 ms | 490 | 0.39 MB |
+| 50 | 16 ms | 17 ms | 0.4 ms | 2,450 | 0.95 MB |
+| 200 | 32 ms | 69 ms | 0.3 ms | 9,800 | 2.95 MB |
+| 400 | 65 ms | 137 ms | 0.3 ms | 19,600 | 5.68 MB |
+| 800 | 133 ms | 353 ms | 0.6 ms | 39,200 | 11.12 MB |
+
+Linear throughout, ~14 KB and ~0.5 ms per version. **Comparing is flat** — it reads two lists however
+long the history is, which is the property that had to hold.
+
+Two things changed because of the measurement:
+
+- **Timeline diffs are now computed only while the Versions tab is open.** `versionDiff` loads two
+  decklists per node, two thirds of the screen's cost, and it was paid on every focus regardless of
+  tab. Deck detail re-focuses after logging a match, so a long history was making the *match* flow
+  slow for a screen nobody had opened.
+- **The timeline draws 30 versions and folds the rest behind a tap.** It is a plain column, not a
+  virtualised list, because it shares the screen's scroll view — so every node it is given is mounted,
+  each with a diff view of up to six chips.
+
+**The practical ceiling is the render, not the database.** Storage and query time stay comfortable
+into the thousands; an un-virtualised column does not. If a real deck ever passes a few hundred
+versions the fix is a `FlashList` and a restructured screen, not a query change.
 
 Gaps 6 and 7 share a cause worth naming: the query layer was built out ahead of the screens, so
 functions exist, pass tests, and are never called. Tests passing is not evidence a feature is

@@ -3,19 +3,19 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { DomainBadge } from '@/components/cards/DomainBadge';
 import { CardPickerSheet } from '@/components/decks/CardPickerSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
-import { listChampionsForLegend, listLegends } from '@/db/queries/cards';
-import { listDecks } from '@/db/queries/decks';
+import { listBattlefields, listChampionsForLegend, listLegends } from '@/db/queries/cards';
+import { listDecks, loadDeckList } from '@/db/queries/decks';
 import {
+  battlefieldFields,
   deckRecord,
   logMatch,
+  opponentBattlefieldFields,
   opponentChampionFields,
   opponentFields,
-  recentOpponents,
   undoMatch,
 } from '@/db/queries/matches';
 import type { CardRow } from '@/db/schema/cards';
@@ -23,25 +23,27 @@ import { BEST_OF_OPTIONS, type EventType, type MatchResult } from '@/db/schema/m
 import { markLogAnother, markLogged, markSheetReady } from '@/features/matches/timing';
 import { useToast } from '@/features/matches/useToast';
 import { baseName, cardKey } from '@/lib/card-identity';
+import { matchStyleLabel } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
-import { metaLine, text } from '@/theme/typography';
+import { text } from '@/theme/typography';
 
 /**
- * Log a match.
+ * Log a match, top to bottom.
  *
- * *The flow that decides whether this app gets used at all.* Everything here is
- * subordinate to one number: under ten seconds from the tab bar to the
- * confirmation, or the flow gets redesigned rather than excused.
+ * The order is the design: **style → format → your deck → their deck → who went
+ * first → result.** It follows the shape of the match itself, so each answer is
+ * one you already have by the time you are asked, and the last tap is the one
+ * that saves.
  *
- * That budget is why the layout is what it is. The deck is **preselected** to
- * the one you played most recently, so the common case needs no deck tap at
- * all. WIN and LOSS are the largest targets on the screen and sit under the
- * thumb. Draw is deliberately small — it is rare, and giving it equal weight
- * would cost every win and loss a moment of aim.
+ * That is a deliberate trade against the earlier layout, which put WIN and LOSS
+ * at the top and everything optional underneath. Two taps was faster; it also
+ * meant the fields that make a match *analysable* — who you played, on what,
+ * going first or second — were the ones most easily skipped. A logged match
+ * with no opponent is a row in a total and nothing else.
  *
- * **The result tap saves.** There is no confirm step, because a confirm on a
- * two-tap flow is a third tap. Everything that could go wrong is handled after
- * the fact by Undo, which is why the toast is not decoration.
+ * Result still saves on tap. There is no confirm step, because a confirm at the
+ * bottom of a form is a tap that buys nothing — Undo in the toast covers the
+ * mis-tap, as it always has.
  */
 
 const RESULTS: { key: MatchResult; label: string }[] = [
@@ -49,72 +51,78 @@ const RESULTS: { key: MatchResult; label: string }[] = [
   { key: 'loss', label: 'LOSS' },
 ];
 
-const MATCH_STYLES: { key: EventType; label: string }[] = [
-  { key: 'casual', label: 'Casual' },
-  { key: 'skirmish', label: 'Skirmish' },
-  { key: 'nexus-night', label: 'Nexus Night' },
-  { key: 'locals', label: 'Locals' },
-  { key: 'tournament', label: 'Tournament' },
-  { key: 'online', label: 'Online' },
-  { key: 'testing', label: 'Testing' },
+const MATCH_STYLES: EventType[] = [
+  'casual',
+  'skirmish',
+  'nexus-night',
+  'locals',
+  'tournament',
+  'online',
+  'testing',
 ];
 
 const haptic = (style: Haptics.ImpactFeedbackStyle) => {
   if (Platform.OS !== 'web') void Haptics.impactAsync(style);
 };
 
+/** One card per name — art is not a distinction worth making about an opponent. */
+function dedupe(cards: CardRow[]): CardRow[] {
+  const seen = new Set<string>();
+  return cards.filter((card) => {
+    const key = cardKey(card);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+type Picker = 'legend' | 'champion' | 'ourField' | 'theirField';
+
 export default function LogMatchScreen() {
-  // Read once. `listDecks` orders by `updated_at` and `logMatch` touches it, so
-  // the head of this list is the deck you last played.
   const decks = useMemo(() => listDecks(), []);
   const [deckIndex, setDeckIndex] = useState(0);
+
+  const [eventType, setEventType] = useState<EventType>('casual');
+  const [bestOf, setBestOf] = useState<number | null>(null);
+  const [ourField, setOurField] = useState<CardRow | null>(null);
   const [opponent, setOpponent] = useState<CardRow | null>(null);
   const [oppChampion, setOppChampion] = useState<CardRow | null>(null);
-  const [picker, setPicker] = useState<'legend' | 'champion' | null>(null);
-
-  // Every optional field starts null. An unanswered question must stay
-  // unanswered in the database rather than become a confident wrong value —
-  // "Not sure" about who went first stores null, not `false`, because recording
-  // an unknown as "on the draw" would bias the split rather than shrink it.
+  const [theirField, setTheirField] = useState<CardRow | null>(null);
   const [onPlay, setOnPlay] = useState<boolean | null>(null);
-  const [bestOf, setBestOf] = useState<number | null>(null);
-  const [eventType, setEventType] = useState<EventType>('casual');
   const [notes, setNotes] = useState('');
+  const [picker, setPicker] = useState<Picker | null>(null);
 
-  const opponents = useMemo(() => recentOpponents(), []);
-
-  /**
-   * Champions that could partner the opponent's Legend.
-   *
-   * Deduped to one entry per card: choosing an opponent's Champion is recording
-   * *who they played*, not which art they owned, and twenty printings of Vi
-   * would be twenty ways to say the same thing.
-   */
-  const championChoices = useMemo(() => {
-    if (!opponent) return [];
-    const seen = new Set<string>();
-    return listChampionsForLegend(opponent).filter((card) => {
-      const key = cardKey(card);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [opponent]);
   const showToast = useToast((s) => s.show);
   const saving = useRef(false);
-
   const selected = decks[deckIndex];
 
   useEffect(() => {
     markSheetReady();
   }, []);
 
+  /**
+   * Our Battlefields come from the deck itself — you brought three, so those
+   * are the only three you can have played. Theirs is the whole library.
+   */
+  const ourFields = useMemo(() => {
+    const versionId = selected?.deck.currentVersionId;
+    if (!versionId) return [];
+    return loadDeckList(versionId)
+      .slots.filter((s) => s.zone === 'battlefield')
+      .map((s) => s.card);
+  }, [selected]);
+
+  const championChoices = useMemo(
+    () => (opponent ? dedupe(listChampionsForLegend(opponent)) : []),
+    [opponent]
+  );
+
   const reset = () => {
-    // "Log another" keeps the deck, the match style and the format — you are
-    // still at the same event, in the same bracket — and clears the opponent,
-    // which is the thing that changes every round.
+    // "Log another": you are still at the same event, with the same deck and
+    // Battlefields. The opponent is what changes between rounds.
     setOpponent(null);
     setOppChampion(null);
+    setTheirField(null);
     setOnPlay(null);
     setNotes('');
     saving.current = false;
@@ -144,17 +152,18 @@ export default function LogMatchScreen() {
       notes: notes.trim() || null,
       ...opponentFields(opponent),
       ...opponentChampionFields(oppChampion),
+      ...battlefieldFields(ourField),
+      ...opponentBattlefieldFields(theirField),
     });
 
-    // Read back rather than computing from the draft — the toast quotes the
-    // database, so a number that is wrong here is a number that is wrong.
     const record = deckRecord(deck.id);
     const rate = record.total > 0 ? Math.round((record.wins / record.total) * 100) : 0;
     const version = selected.version ? ` v${selected.version.versionNumber}` : '';
 
     showToast(
       `Logged · ${deck.name}${version} now ${record.wins}–${record.losses} (${rate}%)`,
-      { label: 'Undo', onPress: () => undoMatch(id) }
+      // Stays up the long default: a mis-tap on a result needs time to notice.
+      { action: { label: 'Undo', onPress: () => undoMatch(id) } }
     );
     markLogged();
 
@@ -181,6 +190,68 @@ export default function LogMatchScreen() {
     );
   }
 
+  /** A labelled row of chips — the shape almost every step here takes. */
+  const chips = <T,>(
+    options: { key: string; label: string; value: T }[],
+    current: T,
+    onSelect: (value: T) => void
+  ) => (
+    <View style={styles.chipRow}>
+      {options.map((option) => {
+        const active = current === option.value;
+        return (
+          <Pressable
+            key={option.key}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            onPress={() => {
+              haptic(Haptics.ImpactFeedbackStyle.Light);
+              onSelect(option.value);
+            }}
+            style={({ pressed }) => [
+              styles.chip,
+              active && styles.chipActive,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  /** A tappable field that opens a picker. */
+  const field = (label: string, value: string | null, onPress: () => void, disabled = false) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${value ?? 'not recorded'}`}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.field,
+        disabled && styles.fieldDisabled,
+        pressed && styles.pressed,
+      ]}
+    >
+      <Text style={value ? styles.fieldValue : styles.fieldPlaceholder} numberOfLines={1}>
+        {value ?? 'Not recorded'}
+      </Text>
+    </Pressable>
+  );
+
+  const step = (n: number, title: string, children: React.ReactNode) => (
+    <View style={styles.step}>
+      <View style={styles.stepHeader}>
+        <Text style={styles.stepNumber}>{n}</Text>
+        <Text style={styles.stepTitle}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
+
   return (
     <Screen
       title="Log a match"
@@ -201,263 +272,153 @@ export default function LogMatchScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Deck — preselected, and only a chooser when there is a choice. */}
-        {decks.length > 1 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.deckRail}
-          >
-            {decks.map((summary, index) => (
-              <Pressable
-                key={summary.deck.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected: index === deckIndex }}
-                onPress={() => {
-                  haptic(Haptics.ImpactFeedbackStyle.Light);
-                  setDeckIndex(index);
-                }}
-                style={({ pressed }) => [
-                  styles.deckChip,
-                  index === deckIndex && styles.deckChipActive,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text
-                  style={[styles.deckName, index === deckIndex && styles.deckNameActive]}
-                  numberOfLines={1}
-                >
-                  {summary.deck.name}
-                </Text>
-                {summary.version ? (
-                  <Text
-                    style={[styles.deckVersion, index === deckIndex && styles.deckNameActive]}
-                  >
-                    v{summary.version.versionNumber}
-                  </Text>
-                ) : null}
-              </Pressable>
-            ))}
-          </ScrollView>
-        ) : (
-          <Text style={styles.singleDeck}>
-            {metaLine(
-              selected?.deck.name,
-              selected?.version ? `v${selected.version.versionNumber}` : null
-            )}
-          </Text>
+        {step(
+          1,
+          'Match style',
+          chips(
+            MATCH_STYLES.map((key) => ({ key, label: matchStyleLabel(key), value: key })),
+            eventType,
+            setEventType
+          )
         )}
 
-        {/* The two taps. */}
-        <View style={styles.results}>
-          {RESULTS.map((r) => (
-            <Pressable
-              key={r.key}
-              accessibilityRole="button"
-              accessibilityLabel={`${r.label}${selected ? ` with ${selected.deck.name}` : ''}`}
-              onPress={() => save(r.key, false)}
-              onLongPress={() => save(r.key, true)}
-              delayLongPress={400}
-              accessibilityHint="Long press to log this and stay open for the next round"
-              style={({ pressed }) => [
-                styles.result,
-                r.key === 'win' ? styles.win : styles.loss,
-                pressed && styles.resultPressed,
-              ]}
-            >
-              <Text style={styles.resultLabel}>{r.label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        {step(
+          2,
+          'Best of',
+          chips<number | null>(
+            [
+              { key: 'none', label: '—', value: null },
+              ...BEST_OF_OPTIONS.map((n) => ({ key: String(n), label: `Bo${n}`, value: n })),
+            ],
+            bestOf,
+            setBestOf
+          )
+        )}
 
-        <View style={styles.tertiary}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => save('draw', false)}
-            hitSlop={12}
-            style={({ pressed }) => [styles.draw, pressed && styles.pressed]}
-          >
-            <Text style={styles.drawLabel}>· draw ·</Text>
-          </Pressable>
-        </View>
+        {step(
+          3,
+          'Your deck',
+          <>
+            {decks.length > 1
+              ? chips(
+                  decks.map((d, i) => ({
+                    key: d.deck.id,
+                    label: d.deck.name,
+                    value: i,
+                  })),
+                  deckIndex,
+                  (i) => {
+                    setDeckIndex(i);
+                    setOurField(null);
+                  }
+                )
+              : (
+                <Text style={styles.single}>{selected?.deck.name}</Text>
+              )}
+            <Text style={styles.fieldLabel}>Battlefield you played</Text>
+            {ourFields.length === 0 ? (
+              <Text style={styles.hint}>This deck has no Battlefields yet.</Text>
+            ) : (
+              chips<CardRow | null>(
+                [
+                  { key: 'none', label: '—', value: null },
+                  ...ourFields.map((c) => ({
+                    key: c.id,
+                    label: baseName(c.name),
+                    value: c,
+                  })),
+                ],
+                ourField,
+                setOurField
+              )
+            )}
+          </>
+        )}
 
-        <Text style={styles.hint}>
-          Hold WIN or LOSS to log it and stay here for the next round.
-        </Text>
+        {step(
+          4,
+          'Their deck',
+          <>
+            <Text style={styles.fieldLabel}>Legend</Text>
+            {field(
+              'Legend',
+              opponent ? baseName(opponent.name) : null,
+              () => setPicker('legend')
+            )}
 
-        {/* Opponent's Legend. Everything below is optional — the fast path
-            taps a result and never reaches it. */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Opponent&apos;s Legend</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.oppRail}
-          >
-            {opponents.map((card) => {
-              const active = opponent?.id === card.id;
-              return (
+            <Text style={styles.fieldLabel}>Chosen Champion</Text>
+            {field(
+              'Champion',
+              oppChampion ? baseName(oppChampion.name) : null,
+              () => setPicker('champion'),
+              !opponent
+            )}
+
+            <Text style={styles.fieldLabel}>Battlefield they played</Text>
+            {field(
+              'Their Battlefield',
+              theirField ? baseName(theirField.name) : null,
+              () => setPicker('theirField')
+            )}
+          </>
+        )}
+
+        {step(
+          5,
+          'Who went first',
+          chips<boolean | null>(
+            [
+              { key: 'me', label: 'I did', value: true },
+              { key: 'them', label: 'They did', value: false },
+              { key: 'unsure', label: 'Not sure', value: null },
+            ],
+            onPlay,
+            setOnPlay
+          )
+        )}
+
+        {step(
+          6,
+          'Result',
+          <>
+            <View style={styles.results}>
+              {RESULTS.map((r) => (
                 <Pressable
-                  key={card.id}
+                  key={r.key}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  accessibilityLabel={baseName(card.name)}
-                  onPress={() => {
-                    haptic(Haptics.ImpactFeedbackStyle.Light);
-                    setOpponent(active ? null : card);
-                    setOppChampion(null);
-                  }}
+                  accessibilityLabel={`${r.label}, saves the match`}
+                  accessibilityHint="Long press to log this and stay here for the next round"
+                  onPress={() => save(r.key, false)}
+                  onLongPress={() => save(r.key, true)}
+                  delayLongPress={400}
                   style={({ pressed }) => [
-                    styles.oppChip,
-                    active && styles.oppChipActive,
-                    pressed && styles.pressed,
+                    styles.result,
+                    r.key === 'win' ? styles.win : styles.loss,
+                    pressed && styles.resultPressed,
                   ]}
                 >
-                  <DomainBadge domains={card.domains} />
-                  <Text
-                    style={[styles.oppName, active && styles.oppNameActive]}
-                    numberOfLines={1}
-                  >
-                    {baseName(card.name)}
-                  </Text>
+                  <Text style={styles.resultLabel}>{r.label}</Text>
                 </Pressable>
-              );
-            })}
-
-            {/* The rail only knows Legends you have already faced, so it is
-                empty on the first match and can never be the only way in. */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Choose from all Legends"
-              onPress={() => setPicker('legend')}
-              style={({ pressed }) => [styles.oppChip, pressed && styles.pressed]}
-            >
-              <Text style={styles.searchLabel}>
-                {opponents.length === 0 ? 'Choose a Legend' : 'All Legends'}
-              </Text>
-            </Pressable>
-          </ScrollView>
-
-          {opponent && !opponents.some((c) => c.id === opponent.id) ? (
-            <Text style={styles.chosen}>{baseName(opponent.name)}</Text>
-          ) : null}
-        </View>
-
-        {/* Their Chosen Champion — only askable once a Legend is known, since
-            the candidates are derived from it. */}
-        {opponent ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Their Chosen Champion</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Choose the opponent's Champion"
-              onPress={() => setPicker('champion')}
-              style={({ pressed }) => [styles.field, pressed && styles.pressed]}
-            >
-              <Text style={oppChampion ? styles.fieldValue : styles.fieldPlaceholder}>
-                {oppChampion ? baseName(oppChampion.name) : 'Not recorded'}
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {/* One row, three options, and "Not sure" is the default. Restored to
-            the fast path because it is the cheapest data in the app — one tap —
-            and without it a whole section of the analytics can only render as
-            an instruction. */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Who went first?</Text>
-          <View style={styles.segmented}>
-            {[
-              { key: 'play', label: 'I did', value: true },
-              { key: 'draw', label: 'They did', value: false },
-              { key: 'unknown', label: 'Not sure', value: null },
-            ].map((option) => (
+              ))}
+            </View>
+            <View style={styles.tertiary}>
               <Pressable
-                key={option.key}
                 accessibilityRole="button"
-                accessibilityState={{ selected: onPlay === option.value }}
-                onPress={() => {
-                  haptic(Haptics.ImpactFeedbackStyle.Light);
-                  setOnPlay(option.value);
-                }}
-                style={({ pressed }) => [
-                  styles.segment,
-                  onPlay === option.value && styles.segmentActive,
-                  pressed && styles.pressed,
-                ]}
+                onPress={() => save('draw', false)}
+                hitSlop={12}
+                style={({ pressed }) => [styles.draw, pressed && styles.pressed]}
               >
-                <Text
-                  style={[
-                    styles.segmentLabel,
-                    onPlay === option.value && styles.segmentLabelActive,
-                  ]}
-                >
-                  {option.label}
-                </Text>
+                <Text style={styles.drawLabel}>· draw ·</Text>
               </Pressable>
-            ))}
-          </View>
-        </View>
+            </View>
+            <Text style={styles.hint}>
+              Tapping a result saves the match. Hold it to log and stay here for the next round.
+            </Text>
+          </>
+        )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Best of</Text>
-          <View style={styles.segmented}>
-            {BEST_OF_OPTIONS.map((value) => (
-              <Pressable
-                key={value}
-                accessibilityRole="button"
-                accessibilityState={{ selected: bestOf === value }}
-                accessibilityLabel={`Best of ${value}`}
-                // Tapping the chosen one again clears it, so "I did not record
-                // this" stays reachable after a mis-tap.
-                onPress={() => setBestOf(bestOf === value ? null : value)}
-                style={({ pressed }) => [
-                  styles.segment,
-                  bestOf === value && styles.segmentActive,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text
-                  style={[styles.segmentLabel, bestOf === value && styles.segmentLabelActive]}
-                >
-                  Bo{value}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Match style</Text>
-          <View style={styles.segmented}>
-            {MATCH_STYLES.map((option) => (
-              <Pressable
-                key={option.key}
-                accessibilityRole="button"
-                accessibilityState={{ selected: eventType === option.key }}
-                onPress={() => setEventType(option.key)}
-                style={({ pressed }) => [
-                  styles.segment,
-                  eventType === option.key && styles.segmentActive,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.segmentLabel,
-                    eventType === option.key && styles.segmentLabelActive,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Note</Text>
+        <View style={styles.step}>
+          <Text style={styles.fieldLabel}>Note</Text>
           <TextInput
             value={notes}
             onChangeText={setNotes}
@@ -472,14 +433,34 @@ export default function LogMatchScreen() {
 
       <CardPickerSheet
         visible={picker !== null}
-        title={picker === 'legend' ? 'Opponent’s Legend' : 'Their Chosen Champion'}
+        title={
+          picker === 'legend'
+            ? 'Their Legend'
+            : picker === 'champion'
+              ? 'Their Chosen Champion'
+              : 'Battlefield they played'
+        }
         subtitle={
           picker === 'champion' && opponent
             ? `Champions that partner ${baseName(opponent.name)}`
             : undefined
         }
-        cards={picker === 'legend' ? listLegends() : championChoices}
-        selectedId={picker === 'legend' ? (opponent?.id ?? null) : (oppChampion?.id ?? null)}
+        cards={
+          picker === 'legend'
+            ? dedupe(listLegends())
+            : picker === 'champion'
+              ? championChoices
+              : picker === 'theirField'
+                ? dedupe(listBattlefields())
+                : []
+        }
+        selectedId={
+          picker === 'legend'
+            ? (opponent?.id ?? null)
+            : picker === 'champion'
+              ? (oppChampion?.id ?? null)
+              : (theirField?.id ?? null)
+        }
         emptyMessage={
           picker === 'champion'
             ? 'No Champion Unit in the library partners that Legend.'
@@ -489,8 +470,10 @@ export default function LogMatchScreen() {
           if (picker === 'legend') {
             setOpponent(card);
             setOppChampion(null);
-          } else {
+          } else if (picker === 'champion') {
             setOppChampion(card);
+          } else {
+            setTheirField(card);
           }
         }}
         onClose={() => setPicker(null)}
@@ -500,7 +483,7 @@ export default function LogMatchScreen() {
 }
 
 const styles = StyleSheet.create({
-  body: { paddingBottom: space[12], gap: space[4] },
+  body: { paddingBottom: space[16], gap: space[6] },
   close: {
     minHeight: 36,
     justifyContent: 'center',
@@ -510,66 +493,36 @@ const styles = StyleSheet.create({
   },
   closeLabel: { ...text.smallMedium, color: color.text },
 
-  deckRail: { gap: space[2], paddingRight: space[4] },
-  deckChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[2],
-    minHeight: 44,
-    paddingHorizontal: space[4],
+  step: { gap: space[2] },
+  stepHeader: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  stepNumber: {
+    ...text.numeric,
+    fontSize: 11,
+    color: color.bg,
+    backgroundColor: color.textMuted,
+    width: 18,
+    height: 18,
     borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: color.border,
-    maxWidth: 240,
+    textAlign: 'center',
+    lineHeight: 18,
   },
-  deckChipActive: { backgroundColor: color.text, borderColor: color.text },
-  deckName: { ...text.smallMedium, color: color.textSecondary, flexShrink: 1 },
-  deckNameActive: { color: color.bg },
-  deckVersion: { ...text.numeric, fontSize: 12, color: color.textMuted },
-  singleDeck: { ...text.meta, color: color.textMuted },
+  stepTitle: { ...text.meta, color: color.textSecondary },
+  fieldLabel: { ...text.microMeta, color: color.textMuted, paddingTop: space[1] },
+  single: { ...text.bodyMedium, color: color.text },
+  hint: { ...text.microMeta, color: color.textFaint },
 
-  results: { flexDirection: 'row', gap: space[3] },
-  result: {
-    flex: 1,
-    // Deliberately large. This is tapped under time pressure, often without
-    // looking, and every millimetre of target is a millisecond of aim saved.
-    minHeight: 96,
-    alignItems: 'center',
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  chip: {
+    minHeight: 38,
     justifyContent: 'center',
-    borderRadius: radius.xl,
-    borderWidth: 2,
-  },
-  win: { borderColor: color.win, backgroundColor: color.surface },
-  loss: { borderColor: color.loss, backgroundColor: color.surface },
-  resultPressed: { opacity: 0.6 },
-  resultLabel: { ...text.display, fontSize: 28, color: color.text },
-
-  tertiary: { alignItems: 'center' },
-  draw: { minHeight: 36, justifyContent: 'center', paddingHorizontal: space[6] },
-  drawLabel: { ...text.small, color: color.textMuted },
-  hint: { ...text.microMeta, color: color.textFaint, textAlign: 'center' },
-
-  section: { gap: space[2] },
-  sectionLabel: { ...text.meta, color: color.textSecondary },
-  empty: { ...text.small, color: color.textFaint },
-
-  oppRail: { gap: space[2], paddingRight: space[4] },
-  oppChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[2],
-    minHeight: 44,
     paddingHorizontal: space[3],
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: color.border,
-    maxWidth: 200,
   },
-  oppChipActive: { borderColor: color.text, backgroundColor: color.raised },
-  oppName: { ...text.small, color: color.textSecondary, flexShrink: 1 },
-  oppNameActive: { color: color.text },
-  searchLabel: { ...text.smallMedium, color: color.info },
-  chosen: { ...text.small, color: color.text },
+  chipActive: { backgroundColor: color.text, borderColor: color.text },
+  chipLabel: { ...text.small, color: color.textSecondary },
+  chipLabelActive: { color: color.bg },
 
   field: {
     minHeight: 44,
@@ -580,21 +533,26 @@ const styles = StyleSheet.create({
     borderColor: color.border,
     backgroundColor: color.surface,
   },
+  fieldDisabled: { opacity: 0.45 },
   fieldValue: { ...text.small, color: color.text },
   fieldPlaceholder: { ...text.small, color: color.textFaint },
 
-  segmented: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
-  segment: {
-    minHeight: 40,
+  results: { flexDirection: 'row', gap: space[3] },
+  result: {
+    flex: 1,
+    minHeight: 88,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: space[3],
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: color.border,
+    borderRadius: radius.xl,
+    borderWidth: 2,
   },
-  segmentActive: { backgroundColor: color.text, borderColor: color.text },
-  segmentLabel: { ...text.small, color: color.textSecondary },
-  segmentLabelActive: { color: color.bg },
+  win: { borderColor: color.win, backgroundColor: color.surface },
+  loss: { borderColor: color.loss, backgroundColor: color.surface },
+  resultPressed: { opacity: 0.6 },
+  resultLabel: { ...text.display, fontSize: 26, color: color.text },
+  tertiary: { alignItems: 'center' },
+  draw: { minHeight: 36, justifyContent: 'center', paddingHorizontal: space[6] },
+  drawLabel: { ...text.small, color: color.textMuted },
 
   notes: {
     ...text.small,
@@ -604,7 +562,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: color.border,
     padding: space[3],
-    minHeight: 72,
+    minHeight: 64,
     textAlignVertical: 'top',
   },
   pressed: { opacity: 0.75 },

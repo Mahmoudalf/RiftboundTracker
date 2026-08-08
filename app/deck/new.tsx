@@ -12,6 +12,12 @@ import {
 
 import { DomainBadge } from '@/components/cards/DomainBadge';
 import { CardGrid } from '@/components/decks/CardGrid';
+import {
+  CardPoolFilters,
+  EMPTY_POOL_FILTERS,
+  poolKindFilters,
+  type PoolFilterState,
+} from '@/components/decks/CardPoolFilters';
 import { LegalityBar } from '@/components/decks/LegalityBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
@@ -60,7 +66,7 @@ const MAIN_DECK_TYPES = ['Unit', 'Spell', 'Gear'];
 
 export default function NewDeckScreen() {
   const [stepIndex, setStepIndex] = useState(0);
-  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<PoolFilterState>(EMPTY_POOL_FILTERS);
   const step = STEPS[stepIndex]!;
 
   const slots = useDeckEditor((s) => s.slots);
@@ -96,15 +102,24 @@ export default function NewDeckScreen() {
 
   const mainPool = useMemo(() => {
     if (!legend) return [];
+    const { types, supertypes } = poolKindFilters(filters.kinds);
+    const term = filters.search.trim();
+
     return queryCards({
-      search: search.trim() || undefined,
+      search: term || undefined,
       identity: legend.domains,
-      sort: search.trim() ? 'relevance' : 'energy',
+      sets: filters.setIds.length ? filters.setIds : undefined,
+      // No kind chosen means "everything a main deck can hold", not "nothing".
+      types: types.length || supertypes.length ? types : MAIN_DECK_TYPES,
+      supertypes: supertypes.length ? supertypes : undefined,
+      // Relevance only means something with a term behind it; otherwise the
+      // player's chosen sort wins.
+      sort: term ? 'relevance' : filters.sort,
     }).filter((c) => MAIN_DECK_TYPES.includes(c.type));
-  }, [legend, search]);
+  }, [legend, filters]);
 
   const filterByName = (cards: CardRow[]) => {
-    const term = search.trim().toLowerCase();
+    const term = filters.search.trim().toLowerCase();
     if (!term) return cards;
     return cards.filter((c) => c.cleanName.toLowerCase().includes(term));
   };
@@ -146,14 +161,14 @@ export default function NewDeckScreen() {
     // new identity gets flagged by the legality bar rather than deleted.
     if (slots.length === 0) startNew(card);
     else setLegend(card);
-    setSearch('');
+    setFilters(EMPTY_POOL_FILTERS);
     setStepIndex(1);
   };
 
   const onPickChampion = (card: CardRow) => {
     setChampion(card);
     if (!name) setName(baseName(card.name).split(/[-,]/)[0]!.trim());
-    setSearch('');
+    setFilters(EMPTY_POOL_FILTERS);
     setStepIndex(2);
   };
 
@@ -170,7 +185,7 @@ export default function NewDeckScreen() {
   };
 
   const go = (delta: number) => {
-    setSearch('');
+    setFilters(EMPTY_POOL_FILTERS);
     setStepIndex((i) => Math.min(STEPS.length - 1, Math.max(0, i + delta)));
   };
 
@@ -211,24 +226,35 @@ export default function NewDeckScreen() {
     overview: { title: 'Review', meta: 'Name it and save' },
   };
 
-  const searchable = step === 'legend' || step === 'main' || step === 'battlefields';
-  const searchField = searchable ? (
-    <TextInput
-      value={search}
-      onChangeText={setSearch}
-      placeholder={
-        step === 'legend'
-          ? 'Search Legends'
-          : step === 'battlefields'
-            ? 'Search Battlefields'
-            : `Search ${legend?.domains.join(' / ') ?? ''} cards`
-      }
-      placeholderTextColor={color.textFaint}
-      style={styles.search}
-      autoCorrect={false}
-      accessibilityLabel="Search cards"
-    />
-  ) : undefined;
+  /*
+   * The main deck gets the full control set; the other steps get a plain
+   * search box.
+   *
+   * Legends and Battlefields are short, closed lists — 180 and 64 — where a
+   * name is enough. The main deck is ~900 cards, and picking 40 of them by name
+   * assumes you already know what you are looking for, which is the one thing a
+   * player learning the format does not have.
+   */
+  const searchField =
+    step === 'main' ? (
+      <CardPoolFilters
+        value={filters}
+        onChange={setFilters}
+        resultCount={mainPool.length}
+        placeholder={`Search ${legend?.domains.join(' / ') ?? ''} cards`}
+        editable={!!legend}
+      />
+    ) : step === 'legend' || step === 'battlefields' ? (
+      <TextInput
+        value={filters.search}
+        onChangeText={(search) => setFilters({ ...filters, search })}
+        placeholder={step === 'legend' ? 'Search Legends' : 'Search Battlefields'}
+        placeholderTextColor={color.textFaint}
+        style={styles.search}
+        autoCorrect={false}
+        accessibilityLabel="Search cards"
+      />
+    ) : undefined;
 
   return (
     <Screen title={HEADINGS[step].title} meta={HEADINGS[step].meta}>

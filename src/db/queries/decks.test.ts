@@ -384,6 +384,44 @@ describe('version locking', () => {
     expect(forked.label).toBe('−3 A and 1 more');
   });
 
+  /*
+   * Reported from a device as "editing a deck no longer creates a version".
+   * Reproduced here as the exact sequence rather than argued about: the fork is
+   * unlocked when it is born, so the *next* edit amends it. Correct, and
+   * indistinguishable from a broken save if the UI says nothing — which is why
+   * gap 2 is a defect even though nothing here is.
+   */
+  it('amends the fork on the next edit, because a fork starts unlocked', () => {
+    const { deckId, versionId, legend } = makeDeck();
+    const [a, b, c] = [1, 2, 3].map((n) => seedCard({ id: `c${n}`, name: `Card ${n}` }));
+
+    saveDeckEdit(versionId, withCards(versionId, legend, [[a!, 3]]));
+    logMatch(versionId);
+
+    const forked = saveDeckEdit(versionId, withCards(versionId, legend, [[b!, 3]]));
+    expect(forked.outcome).toBe('forked');
+    expect(listVersions(deckId)).toHaveLength(2);
+
+    // Second edit, no match logged in between. No v3 — and the fork carries it.
+    const again = saveDeckEdit(forked.versionId, withCards(forked.versionId, legend, [[c!, 3]]));
+    expect(again.outcome).toBe('amended');
+    expect(again.versionId).toBe(forked.versionId);
+    expect(listVersions(deckId)).toHaveLength(2);
+    expect(
+      loadDeckList(forked.versionId)
+        .slots.filter((s) => s.zone === 'main')
+        .map((s) => s.card.id)
+    ).toEqual(['c3']);
+
+    // A match on the fork restores forking, so the rule is "played versions are
+    // immutable", not "the first edit is special".
+    logMatch(forked.versionId);
+    expect(
+      saveDeckEdit(forked.versionId, withCards(forked.versionId, legend, [[a!, 1]])).outcome
+    ).toBe('forked');
+    expect(listVersions(deckId)).toHaveLength(3);
+  });
+
   it('numbers versions contiguously from the deck maximum (invariant 4)', () => {
     const { deckId, versionId, legend } = makeDeck();
     const cards = [1, 2, 3].map((n) => seedCard({ id: `c${n}`, name: `Card ${n}` }));

@@ -6,14 +6,19 @@ import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
 /**
- * A select, for choosing one of a list that is too long to spend a chip rail on.
+ * A select, for choosing from a list that is too long to spend a chip rail on.
  *
  * Chips are better when there are three or four options and the choice is worth
  * showing at rest. A deck list is neither — it grows without bound, and the
  * screen below it is the thing the user came for.
  *
- * Drawn chevron rather than a typed character, for the same reason as the back
- * control: a font fallback should never be able to make a control unreadable.
+ * `multiple` keeps the sheet open and accumulates a set instead of replacing
+ * one. Both modes deliberately render the same fixed-height trigger: these sit
+ * in list headers, and a control that changes height as you use it makes the
+ * list beneath it jump.
+ *
+ * Drawn chevron and tick rather than typed characters, for the same reason as
+ * the back control: a font fallback should never make a control unreadable.
  */
 
 export interface DropdownOption<T> {
@@ -23,14 +28,17 @@ export interface DropdownOption<T> {
   meta?: string;
 }
 
-interface DropdownProps<T> {
+type DropdownProps<T> = {
   label: string;
-  value: T;
   options: DropdownOption<T>[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** In `multiple` mode this is a toggle — the caller adds or removes. */
   onSelect: (value: T) => void;
-}
+} & (
+  | { multiple?: false; value: T }
+  | { multiple: true; values: readonly T[]; onClear: () => void }
+);
 
 function Chevron() {
   return (
@@ -46,27 +54,49 @@ function Chevron() {
   );
 }
 
-export function Dropdown<T extends string | null>({
-  label,
-  value,
-  options,
-  open,
-  onOpenChange,
-  onSelect,
-}: DropdownProps<T>) {
-  const selected = options.find((o) => o.value === value);
+function Tick() {
+  return (
+    <Svg width={14} height={11} viewBox="0 0 14 11" fill="none">
+      <Path
+        d="M1 5.5L5 9.5L13 1.5"
+        stroke={color.text}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export function Dropdown<T extends string | null>(props: DropdownProps<T>) {
+  const { label, options, open, onOpenChange, onSelect } = props;
+  const selected = props.multiple ? props.values : [props.value];
+
+  /*
+   * One selection reads better as itself than as "Type · 1" — the whole point
+   * of the trigger is to answer "what is filtering this list" without opening
+   * anything. Past one, the name of the field plus a count is all that fits.
+   */
+  const chosen = options.filter((o) => selected.includes(o.value));
+  const triggerLabel =
+    chosen.length === 1 ? chosen[0]!.label : chosen.length > 1 ? `${label} · ${chosen.length}` : label;
+  const active = props.multiple && chosen.length > 0;
 
   return (
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${label}: ${selected?.label ?? 'none'}`}
+        accessibilityLabel={`${label}: ${chosen.map((o) => o.label).join(', ') || 'any'}`}
         accessibilityState={{ expanded: open }}
         onPress={() => onOpenChange(true)}
-        style={({ pressed }) => [styles.trigger, pressed && styles.pressed]}
+        style={({ pressed }) => [
+          styles.trigger,
+          active && styles.triggerActive,
+          pressed && styles.pressed,
+        ]}
       >
-        <Text style={styles.triggerLabel} numberOfLines={1}>
-          {selected?.label ?? label}
+        <Text style={[styles.triggerLabel, active && styles.triggerLabelActive]} numberOfLines={1}>
+          {triggerLabel}
         </Text>
         <Chevron />
       </Pressable>
@@ -87,33 +117,56 @@ export function Dropdown<T extends string | null>({
           <Text style={styles.sheetLabel}>{label}</Text>
           <ScrollView style={styles.list}>
             {options.map((option) => {
-              const active = option.value === value;
+              const isSelected = selected.includes(option.value);
               return (
                 <Pressable
                   key={String(option.value)}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
+                  accessibilityState={{ selected: isSelected }}
                   onPress={() => {
                     onSelect(option.value);
-                    onOpenChange(false);
+                    if (!props.multiple) onOpenChange(false);
                   }}
                   style={({ pressed }) => [
                     styles.option,
-                    active && styles.optionActive,
+                    isSelected && styles.optionActive,
                     pressed && styles.pressed,
                   ]}
                 >
                   <Text
-                    style={[styles.optionLabel, active && styles.optionLabelActive]}
+                    style={[styles.optionLabel, isSelected && styles.optionLabelActive]}
                     numberOfLines={1}
                   >
                     {option.label}
                   </Text>
                   {option.meta ? <Text style={styles.optionMeta}>{option.meta}</Text> : null}
+                  {props.multiple && isSelected ? <Tick /> : null}
                 </Pressable>
               );
             })}
           </ScrollView>
+
+          {props.multiple ? (
+            <View style={styles.footer}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={chosen.length === 0}
+                onPress={props.onClear}
+                style={({ pressed }) => [styles.footerButton, pressed && styles.pressed]}
+              >
+                <Text style={[styles.clearLabel, chosen.length === 0 && styles.disabled]}>
+                  Clear
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => onOpenChange(false)}
+                style={({ pressed }) => [styles.footerButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.doneLabel}>Done</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
       </Modal>
     </>
@@ -132,7 +185,9 @@ const styles = StyleSheet.create({
     borderColor: color.border,
     backgroundColor: color.surface,
   },
+  triggerActive: { backgroundColor: color.text, borderColor: color.text },
   triggerLabel: { ...text.smallMedium, color: color.text, flexShrink: 1 },
+  triggerLabelActive: { color: color.bg },
   scrim: { flex: 1, backgroundColor: color.scrim },
   sheet: {
     position: 'absolute',
@@ -166,5 +221,17 @@ const styles = StyleSheet.create({
   optionLabel: { ...text.body, color: color.textSecondary, flexShrink: 1 },
   optionLabelActive: { color: color.text },
   optionMeta: { ...text.microMeta, color: color.textMuted },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: space[4],
+    paddingTop: space[2],
+    borderTopWidth: 1,
+    borderTopColor: color.borderSubtle,
+  },
+  footerButton: { minHeight: 44, justifyContent: 'center' },
+  clearLabel: { ...text.smallMedium, color: color.textMuted },
+  doneLabel: { ...text.smallMedium, color: color.info },
+  disabled: { opacity: 0.4 },
   pressed: { opacity: 0.7 },
 });

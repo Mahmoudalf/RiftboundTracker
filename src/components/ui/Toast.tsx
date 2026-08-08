@@ -21,7 +21,6 @@ import { text } from '@/theme/typography';
  * still shuffling.
  */
 
-const DURATION_MS = 7000;
 /** Clears the tab bar (64) plus its overhanging centre button. */
 const ABOVE_TAB_BAR = 84;
 
@@ -30,14 +29,15 @@ export function Toast() {
   const message = useToast((s) => s.message);
   const action = useToast((s) => s.action);
   const nonce = useToast((s) => s.nonce);
+  const durationMs = useToast((s) => s.durationMs);
   const dismiss = useToast((s) => s.dismiss);
 
   useEffect(() => {
     if (!message) return;
-    const timer = setTimeout(dismiss, DURATION_MS);
+    const timer = setTimeout(dismiss, durationMs);
     return () => clearTimeout(timer);
     // `nonce` restarts the timer when the same message is raised again.
-  }, [message, nonce, dismiss]);
+  }, [message, nonce, durationMs, dismiss]);
 
   if (!message) return null;
 

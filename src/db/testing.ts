@@ -66,6 +66,16 @@ export function applyMigrationsUpTo(
   version: number
 ): void {
   db.execSync('PRAGMA journal_mode = WAL;');
+  /*
+   * Match `migrate()` exactly.
+   *
+   * This was missing, so every test ran with foreign keys **off** while the
+   * device runs with them **on** — the dangerous direction. An insert with a
+   * dangling reference, or a delete that should cascade, would pass here and
+   * fail on a phone. A harness more permissive than the driver is worse than no
+   * harness for precisely the bugs it exists to catch.
+   */
+  db.execSync('PRAGMA foreign_keys = ON;');
   for (const migration of migrations) {
     if (migration.version > version) break;
     db.withTransactionSync(() => {

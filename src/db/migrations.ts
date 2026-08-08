@@ -366,6 +366,60 @@ export const MIGRATIONS: readonly Migration[] = [
         ON matches(deck_id, played_at DESC);
     `,
   },
+  {
+    version: 10,
+    up: /* sql */ `
+      -- Per-game detail, the opt-in second tier.
+      --
+      -- match_games has existed since migration 6 with nothing writing to it;
+      -- this is the milestone that gives it a consumer. Everything here is
+      -- nullable because a player may record a score and no opening hand, or an
+      -- opening hand and no champion turn, and half-filled detail is still
+      -- worth more than none.
+      --
+      -- Riftbound is scored to 8 points, so the score is per game and both
+      -- sides matter: winning 8-6 and winning 8-0 are different games, and only
+      -- the result column can currently tell them apart, which it cannot.
+      ALTER TABLE match_games ADD COLUMN score_for          INTEGER;
+      ALTER TABLE match_games ADD COLUMN score_against      INTEGER;
+
+      -- The turn each Chosen Champion landed. The single most asked question
+      -- about a Riftbound game after who won.
+      ALTER TABLE match_games ADD COLUMN champion_turn      INTEGER;
+      ALTER TABLE match_games ADD COLUMN opp_champion_turn  INTEGER;
+
+      -- Card ids, as JSON arrays. Kept as ids rather than a join table because
+      -- these are read whole, per game, and never queried across matches by
+      -- card -- the analytics load the games and group in TypeScript, the same
+      -- way every other statistic in this app is computed.
+      --
+      -- Nullable, and null means "not recorded". An empty array would mean
+      -- "recorded, and there was nothing" -- a mulligan to zero cards.
+      ALTER TABLE match_games ADD COLUMN opening_hand       TEXT;
+      ALTER TABLE match_games ADD COLUMN mulliganed         TEXT;
+      ALTER TABLE match_games ADD COLUMN battlefields       TEXT;
+    `,
+  },
+  {
+    version: 11,
+    up: /* sql */ `
+      -- The Battlefield each side played, at match level.
+      --
+      -- Distinct from match_games.battlefields, which is per-game and still
+      -- unwritten: this is the one a player can answer while logging, without
+      -- reconstructing three games. Whether the deeper per-game record is worth
+      -- its taps is a separate question.
+      --
+      -- Names alongside ids for the third time, and for the third reason:
+      -- migration 5 for deck cards, 7 for opponents, and now this. A match is a
+      -- permanent record and the card mirror is disposable, so an id on its own
+      -- becomes unrenderable the moment a printing leaves the library.
+      ALTER TABLE matches ADD COLUMN battlefield_card_id      TEXT;
+      ALTER TABLE matches ADD COLUMN battlefield_name         TEXT;
+      ALTER TABLE matches ADD COLUMN opp_battlefield_card_id  TEXT;
+      ALTER TABLE matches ADD COLUMN opp_battlefield_name     TEXT;
+    `,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;
