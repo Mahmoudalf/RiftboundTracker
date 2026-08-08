@@ -39,13 +39,6 @@ export const PLAYABLE_DOMAINS = DOMAINS.filter(
   (d): d is Exclude<Domain, 'Colorless'> => d !== 'Colorless'
 );
 
-/** Opposed pairs, per the game's rules. */
-export const DOMAIN_PAIRS = [
-  ['Fury', 'Calm'],
-  ['Mind', 'Body'],
-  ['Chaos', 'Order'],
-] as const satisfies readonly (readonly [Domain, Domain])[];
-
 export interface DomainColor {
   /** Sampled from the Basic Rune card art. Reference only — do not render. */
   print: string;

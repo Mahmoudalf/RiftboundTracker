@@ -35,6 +35,7 @@ import {
   checkLegality,
   COPY_LIMIT,
   defaultZoneFor,
+  slotBlockReason,
   type DeckZone,
 } from '@/lib/legality';
 import { CARD_ASPECT, color, radius, space } from '@/theme/tokens';
@@ -70,6 +71,14 @@ const POOLS: { key: Pool; label: string }[] = [
 ];
 
 const MAIN_DECK_TYPES = ['Unit', 'Spell', 'Gear'];
+
+/** Tile-sized wording for each reason a card cannot go in. */
+const BLOCK_LABELS: Record<NonNullable<ReturnType<typeof slotBlockReason>>, string> = {
+  'off-identity': 'Off identity',
+  'copy-limit': `Max ${COPY_LIMIT}`,
+  'foreign-signature': 'Another Champion',
+  'battlefield-duplicate': 'Already in deck',
+};
 
 export default function DeckEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -449,16 +458,26 @@ export default function DeckEditorScreen() {
               tileAspect={pool === 'battlefield' ? 1 / CARD_ASPECT : CARD_ASPECT}
               quantityOf={quantityIn(pool === 'main' ? 'main' : pool)}
               blockedReason={(card) => {
-                if (pool === 'battlefield') {
-                  return copiesOf(card, ['battlefield']) === 0 &&
-                    legality.counts.battlefield >= BATTLEFIELD_COUNT
-                    ? 'Deck is full'
-                    : null;
+                /*
+                 * The rules come from `slotBlockReason`, which is the tested
+                 * implementation. This used to re-derive a subset of them
+                 * inline — and silently omitted the foreign-Signature rule, so
+                 * another Champion's Signature card looked addable in the rail
+                 * and only failed once it was in the deck.
+                 *
+                 * "Deck is full" stays here: it is not a rule about the card,
+                 * it is a fact about this zone being complete.
+                 */
+                const reason = slotBlockReason(card, list);
+                if (reason) return BLOCK_LABELS[reason];
+
+                if (
+                  pool === 'battlefield' &&
+                  legality.counts.battlefield >= BATTLEFIELD_COUNT
+                ) {
+                  return 'Deck is full';
                 }
-                if (pool === 'rune') return null;
-                return copiesOf(card, ['main', 'champion']) >= COPY_LIMIT
-                  ? `Max ${COPY_LIMIT}`
-                  : null;
+                return null;
               }}
               onAdd={onAdd}
               onRemove={(card) => adjust(card, defaultZoneFor(card), -1)}

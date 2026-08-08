@@ -2,9 +2,9 @@ import { domainKey } from '@/api/riftcodex/mapper';
 import { baseName, championMatchesLegend, variantLabel } from '@/lib/card-identity';
 
 import { conn } from '../connection';
-import type { CardRow, SetRow } from '../schema/cards';
+import type { CardRow } from '../schema/cards';
 
-import { hydrateCard, hydrateSet } from './hydrate';
+import { hydrateCard } from './hydrate';
 
 /**
  * Card queries.
@@ -199,10 +199,6 @@ export function getCard(id: string): CardRow | null {
   return row ? hydrateCard(row) : null;
 }
 
-export function countCards(): number {
-  return conn().getFirstSync<{ n: number }>('SELECT COUNT(*) AS n FROM cards')?.n ?? 0;
-}
-
 /** How many cards a filter set would match, without selecting or hydrating them. */
 export function countMatchingCards(filters: CardFilters = {}): number {
   const { where, params } = buildFilter(filters);
@@ -213,10 +209,6 @@ export function countMatchingCards(filters: CardFilters = {}): number {
   return conn().getFirstSync<{ n: number }>(statement, params)?.n ?? 0;
 }
 
-export function listSets(): SetRow[] {
-  return conn().getAllSync<Record<string, unknown>>('SELECT * FROM sets ORDER BY published_on DESC')
-    .map(hydrateSet);
-}
 
 /**
  * Every Legend printing, variants included.

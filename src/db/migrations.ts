@@ -350,6 +350,22 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE matches ADD COLUMN best_of INTEGER;
     `,
   },
+  {
+    version: 9,
+    up: /* sql */ `
+      -- Every match list is "this deck, newest first".
+      --
+      -- The separate deck_id and played_at indexes could serve the filter or
+      -- the order, never both: SQLite picked deck_id, then sorted every row it
+      -- found before taking the first 50. Measured at 10,000 matches that was
+      -- 37 ms to return a 50-row window -- the LIMIT bounded how much was
+      -- hydrated but not how much was sorted.
+      --
+      -- A composite in the query's own order lets it walk the index and stop.
+      CREATE INDEX IF NOT EXISTS matches_deck_played_idx
+        ON matches(deck_id, played_at DESC);
+    `,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

@@ -8,6 +8,8 @@ import { DeckSlotRow } from '@/components/decks/DeckSlotRow';
 import { LegalityBar } from '@/components/decks/LegalityBar';
 import { VersionCompareSheet } from '@/components/decks/VersionCompareSheet';
 import { VersionTimeline, type TimelineNode } from '@/components/decks/VersionTimeline';
+import { MatchRow } from '@/components/matches/MatchRow';
+import { WinRateBar } from '@/components/stats/WinRateBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
@@ -18,7 +20,6 @@ import {
   getDeck,
   listVersions,
   loadDeckList,
-  lockVersion,
   missingCards,
   setCurrentVersion,
   versionDiff,
@@ -26,8 +27,17 @@ import {
   VersionHasMatchesError,
   type MissingCard,
 } from '@/db/queries/decks';
+import { deckRecord, listMatches, type DeckRecord } from '@/db/queries/matches';
+import {
+  versionStatLabel,
+  versionStats,
+  type VersionStat,
+} from '@/db/queries/version-stats';
 import type { DeckRow, DeckVersionRow } from '@/db/schema/decks';
+import type { MatchRow as MatchRowType } from '@/db/schema/matches';
+import { rateOf } from '@/lib/analytics/summary';
 import type { DeckDiff } from '@/lib/deck-diff';
+import { recordLine } from '@/lib/format';
 import { checkLegality, type DeckList, type DeckZone } from '@/lib/legality';
 import { deckGradient } from '@/theme/domains';
 import { color, radius, space } from '@/theme/tokens';
@@ -36,17 +46,19 @@ import { metaLine, text } from '@/theme/typography';
 /**
  * Deck detail.
  *
- * Overview, List, and — since M3 — Versions. Matches and Stats arrive with the
- * milestones that give them something to show; a Matches tab before matches
- * exist is a tab that teaches the user the app is empty.
+ * Overview, List, Versions (M3) and Matches (M4). Stats arrives with M5, for
+ * the same reason the others waited: a tab that opens on nothing teaches the
+ * user the app is empty, and a win rate without an interval behind it teaches
+ * them something worse.
  */
 
-type Tab = 'overview' | 'list' | 'versions';
+type Tab = 'overview' | 'list' | 'versions' | 'matches';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'list', label: 'List' },
   { key: 'versions', label: 'Versions' },
+  { key: 'matches', label: 'Matches' },
 ];
 
 const ZONE_ORDER: { zone: DeckZone; label: string; fixed?: boolean }[] = [
@@ -66,6 +78,12 @@ export default function DeckDetailScreen() {
   const [missing, setMissing] = useState<MissingCard[]>([]);
   const [nodes, setNodes] = useState<TimelineNode[]>([]);
   const [compare, setCompare] = useState<string[]>([]);
+  const [matches, setMatches] = useState<MatchRowType[]>([]);
+  const [record, setRecord] = useState<DeckRecord>({ wins: 0, losses: 0, draws: 0, total: 0 });
+  const [versionPerformance, setVersionPerformance] = useState<VersionStat[]>([]);
+  const [matchesByVersion, setMatchesByVersion] = useState<Map<string, MatchRowType[]>>(
+    new Map()
+  );
 
   const load = useCallback(() => {
     const row = getDeck(id);
@@ -77,6 +95,19 @@ export default function DeckDetailScreen() {
     setVersions(rows);
     setList(loadDeckList(row.currentVersionId));
     setMissing(missingCards(row.currentVersionId));
+    const deckMatches = listMatches({ deckId: row.id });
+    setMatches(deckMatches);
+    setRecord(deckRecord(row.id));
+    setVersionPerformance(versionStats(row.id));
+
+    const byVersion = new Map<string, MatchRowType[]>();
+    for (const match of deckMatches) {
+      const bucket = byVersion.get(match.deckVersionId) ?? [];
+      bucket.push(match);
+      byVersion.set(match.deckVersionId, bucket);
+    }
+    setMatchesByVersion(byVersion);
+
     const numberById = new Map(rows.map((v) => [v.id, v.versionNumber]));
     setNodes(
       rows.map((version) => ({
@@ -139,24 +170,6 @@ export default function DeckDetailScreen() {
         text: `Make v${node.version.versionNumber} current`,
         onPress: () => {
           setCurrentVersion(id, node.version.id);
-          load();
-        },
-      });
-    }
-
-    /*
-     * TEMPORARY — remove when M4 lands.
-     *
-     * `lockVersion()` is called by match logging, which does not exist yet, so
-     * without this nothing in the app can put a version into the locked state
-     * and fork-on-save is unreachable outside the test suite. Dev builds only;
-     * `__DEV__` is false in any release bundle.
-     */
-    if (__DEV__ && !node.version.lockedAt) {
-      options.push({
-        text: 'Simulate a match (lock)',
-        onPress: () => {
-          lockVersion(node.version.id);
           load();
         },
       });
@@ -341,6 +354,58 @@ export default function DeckDetailScreen() {
               <Text style={styles.deleteLabel}>Delete deck</Text>
             </Pressable>
           </View>
+        ) : tab === 'matches' ? (
+          <View style={styles.overview}>
+            {matches.length === 0 ? (
+              <Text style={styles.hint}>
+                No matches yet. Tap the + in the tab bar to log one — it attaches to whichever
+                version this deck currently points at.
+              </Text>
+            ) : (
+              <>
+                {/* The rate lives in the bar, which cannot render one without
+                    its sample size and interval. The line above is a record —
+                    a fact, not an estimate. */}
+                <WinRateBar rate={rateOf(matches)} />
+
+                {versionPerformance.length > 1 ? (
+                  <View style={styles.versionBlock}>
+                    <Text style={styles.sectionLabel}>By version</Text>
+                    {versionPerformance.map((stat) => (
+                      <WinRateBar
+                        key={stat.versionIds.join('+')}
+                        rate={stat.rate}
+                        label={versionStatLabel(stat)}
+                        sublabel={
+                          stat.pooled
+                            ? 'Same cards, different printings — pooled'
+                            : (stat.label ?? undefined)
+                        }
+                        compact
+                      />
+                    ))}
+                    <Text style={styles.hint}>
+                      Long-press two versions in the Versions tab to compare them properly.
+                    </Text>
+                  </View>
+                ) : null}
+
+                <Text style={styles.sectionLabel}>
+                  {metaLine(
+                    recordLine(record.wins, record.losses, record.draws),
+                    `${record.total} ${record.total === 1 ? 'match' : 'matches'}`
+                  )}
+                </Text>
+                {matches.map((match) => (
+                  <MatchRow
+                    key={match.id}
+                    match={match}
+                    onPress={() => router.push(`/match/${match.id}`)}
+                  />
+                ))}
+              </>
+            )}
+          </View>
         ) : tab === 'versions' ? (
           <View style={styles.overview}>
             <VersionTimeline
@@ -392,6 +457,7 @@ export default function DeckDetailScreen() {
         b={comparing?.b ?? null}
         diff={comparing?.diff ?? null}
         matchCounts={matchCounts}
+        matchesByVersion={matchesByVersion}
         onClose={() => setCompare([])}
       />
     </Screen>

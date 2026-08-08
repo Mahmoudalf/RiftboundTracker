@@ -8,8 +8,8 @@
 | [M1](#m1--card-data) | Card data & gallery | ✅ Done |
 | [M2](#m2--decks) | Decks & builder | ✅ Done |
 | [M3](#m3--versioning) | Versioning | ✅ Done |
-| [M4](#m4--matches) | Match tracking | ⬜ Not started |
-| [M5](#m5--analytics) | Analytics | ⬜ Not started |
+| [M4](#m4--matches) | Match tracking | ✅ Done |
+| [M5](#m5--analytics) | Analytics | ✅ Done |
 | [M6](#m6--extras) | Extras | ⬜ Not started |
 | [M7](#m7--cloud) | Cloud sync | ⬜ Not started |
 | [M8](#m8--ship) | Polish & ship | ⬜ Not started |
@@ -416,21 +416,22 @@ removed with M4:
 
 ## M4 — Matches
 
-- [ ] Drizzle schema for `matches`, `match_games`, `events`
-- [ ] Log-match sheet: deck selector, WIN/LOSS, recent-opponent chip rail
-- [ ] "Add details" expander: on play/draw, BO3 strip, event, mulligans, tags, notes
-- [ ] Undo toast with live record readout
-- [ ] "Log another" for consecutive rounds
-- [ ] Match list, detail, and edit
-- [ ] Haptics throughout
-- [ ] **Call `lockVersion()` on the first match** — the whole M3 model is inert until something does
-- [ ] **Remove the M3 scaffolding**: the `__DEV__` "Simulate a match (lock)" action, the Profile
+- [x] Drizzle schema for `matches`, `match_games`, `events` (migrations 6-9)
+- [x] Log-match sheet: deck selector, WIN/LOSS, recent-opponent rail + full Legend picker
+- [x] Simplified field set instead of an expander: on play/draw, opponent Legend and Chosen Champion, best-of, match style, note. Mulligans, BO3 detail and tags moved to M6 in-depth logging
+- [x] Undo toast with live record readout
+- [x] "Log another" for consecutive rounds (hold WIN or LOSS)
+- [x] Match list, detail, and edit
+- [x] Haptics throughout
+- [x] **Call `lockVersion()` on the first match** — done inside `logMatch`, in the same transaction as the insert
+- [x] **Remove the M3 scaffolding**: the `__DEV__` "Simulate a match (lock)" action, the Profile
       self-check (`src/features/decks/version-selfcheck.ts`), and the `[editor]` / `[compare]` logs
 - [x] **Re-check `versionMatchCounts()`** against the real `matches` table — it currently returns an
       empty map by design, and every "No matches yet" in the timeline depends on that being right
-- [ ] **Wire `match_games`** — migration 6 created the table and nothing reads or writes it. The BO3
-      strip in the details expander is its only consumer, and shipping M4 without it leaves dead
-      schema of exactly the kind the unreachable-code audit flagged
+- [x] ~~**Wire `match_games`**~~ — **rescoped out of M4.** The sheet was simplified to result,
+      opponent Legend, their Chosen Champion, best-of, match style and a note; per-game detail moved
+      to *In-depth match logging* in M6, which is now the table's documented owner. The audit item
+      stands, only its deadline moved: if M6 ships without it, `match_games` is dead schema
 
 **Done when:** a stopwatch confirms **under 10 seconds** from tab bar to confirmation toast. If it's
 slower, the flow gets redesigned before moving on.
@@ -439,18 +440,32 @@ slower, the flow gets redesigned before moving on.
 
 ## M5 — Analytics
 
-- [ ] `src/lib/analytics/` — win rate, Wilson CI, splits, streaks, rolling series
-- [ ] `compareVersions()` with `inconclusive` verdict and `matchesNeeded`
-- [ ] Deck stats screen
-- [ ] Version comparison view
-- [ ] Matchup matrix
-- [ ] Charts: rolling win rate, win-rate bars with CI whiskers, sparklines
-- [ ] Cross-deck Stats tab
-- [ ] Provisional styling below n = 20 applied everywhere
-- [ ] **Pool versions whose diff is `cardSetIdentical`** when computing per-version stats. This is
+M5 ships in two passes. The **matchup view** is done: who you played, how it went, and the matches
+behind each row. The **statistical breakdown** — everything that needs an interval to be honest —
+is the second tab and has not started.
+
+- [x] **Matchup view** (`matchups.ts` + the Stats tab): grouped by the opposing Legend *and* its
+      Chosen Champion, printings collapsed, ordered by most recently faced, expandable to the
+      matches behind each row, with a per-deck filter
+- [x] Counts as the headline, rates muted below `PROVISIONAL_THRESHOLD`, and opponent-less matches
+      counted in the totals rather than silently dropped
+- [x] `src/lib/analytics/` — win rate, Wilson CI, splits, streaks
+- [x] Version comparison with an `inconclusive` verdict and `matchesNeeded`
+- [x] Deck stats — record, per-version bars, and the match list on deck detail
+- [x] Version comparison view — "Did it help?" inside the compare sheet
+- [x] Matchup breakdown, by Legend + Chosen Champion
+- [x] Win-rate bars with CI bands
+- [x] Cross-deck Stats tab
+- [x] Provisional styling below n = 20 applied everywhere
+- [x] **Pool versions whose diff is `cardSetIdentical`** when computing per-version stats. This is
       not an optimisation — it is the promise that justified making an art swap fork a locked
-      version in M3. Two versions holding the same 40 cards under different printings must report
-      one combined sample, or that decision cost the user statistical power for nothing
+      version in M3. Two versions holding the same 40 cards under different printings report one
+      combined sample (`version-stats.ts`), so the decision cost nothing after all
+- [ ] **Rolling win rate and sparklines** — deferred. Both are presentation, not evidence: a
+      rolling series says nothing a record and an interval do not already say, and a sparkline on a
+      deck card is decoration until there are enough matches for its shape to mean something.
+      Neither appears in M5's "done when". Revisit once real usage shows deck lists long enough to
+      need scanning by shape
 
 **Done when:** no screen can display a win rate without its sample size and interval, and a
 comparison of two small samples refuses to declare a winner.
@@ -541,7 +556,8 @@ Found on a device, not yet fixed. Each is a real defect or a real omission — n
 | 9 | **Dead code:** `missingCardCount()` superseded by `missingCards()`, and `useDeckEditor.isDirty()` unused since the editor began diffing against the database | Unreachable-code audit | Low |
 | 10 | **15 moderate `npm audit` advisories**, all in dev tooling (`@expo/cli`, `@expo/config*`, `@esbuild-kit/*`) — transitive, not in the app bundle. Recorded so it is a decision rather than an oversight | Post-move `npm ci` | Low |
 | 11 | **`events` and `matches.event_id` are shipped but unwritable.** Migration 6 created the table; nothing can create an event, so `event_id` is null on every row. M4 records `event_type` (the enum) only — event *grouping* is M6, where it is now written into the checklist | M4 data-layer audit | Low — scoped, not forgotten |
-| 12 | **`match_games` is shipped but unwritten.** Its only consumer is the BO3 strip inside M4's details expander, so it is this milestone's work rather than a deferral — added to the M4 checklist | M4 data-layer audit | Medium — dead schema if M4 ships without it |
+| 12 | **`match_games` is shipped but unwritten.** Rescoped: its consumer is now *In-depth match logging* in M6, not M4's sheet, after the log flow was simplified to result / opponent Legend / their Champion / best-of / match style / note | M4 data-layer audit | Low — deferred deliberately, owner recorded |
+| 13 | **On-play / on-draw is no longer captured.** Dropped from the simplified sheet and moved to M6's in-depth logging. `DATA-MODEL.md` §4 lists an on-play split as an M5 metric, so that split reports **n = 0** until M6 — a one-chip field away from being fixed if it should stay on the fast path | M4 sheet simplification | Medium — a planned M5 metric currently has no data |
 
 Gap 1 has `__DEV__` instrumentation in place (`[compare]` lines in the Metro log) recording both the
 long-press selection and the resolved pair, so the next device pass measures the interaction rather

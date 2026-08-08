@@ -161,17 +161,6 @@ export function missingCards(versionId: string): MissingCard[] {
     }));
 }
 
-/** Cards in a version that are no longer in the mirror, for an honest warning. */
-export function missingCardCount(versionId: string): number {
-  return (
-    conn().getFirstSync<{ n: number }>(
-      `SELECT COUNT(*) AS n FROM deck_version_cards dvc
-        WHERE dvc.deck_version_id = ?
-          AND NOT EXISTS (SELECT 1 FROM cards c WHERE c.id = dvc.card_id)`,
-      [versionId]
-    )?.n ?? 0
-  );
-}
 
 /**
  * Create a deck and its first version.

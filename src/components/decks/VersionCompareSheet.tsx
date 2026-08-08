@@ -1,8 +1,11 @@
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { WinRateBar } from '@/components/stats/WinRateBar';
 import { Pressable } from '@/components/ui/Pressable';
 import type { DeckVersionRow } from '@/db/schema/decks';
+import { rateOf, separable, type Rate } from '@/lib/analytics/summary';
+import { matchesNeeded } from '@/lib/analytics/wilson';
 import type { DeckDiff } from '@/lib/deck-diff';
 import { MAIN_DECK_SIZE } from '@/lib/legality';
 import { color, radius, space } from '@/theme/tokens';
@@ -11,18 +14,17 @@ import { text } from '@/theme/typography';
 import { DeckDiffView } from './DeckDiffView';
 
 /**
- * Two versions, side by side.
+ * Two versions, side by side — *did the change help?*
  *
- * This is the screen the whole app exists to reach: *did the change help?*
- * Today it can only answer the first half — what actually changed — because
- * matches do not exist until M4 and win rates until M5. It says so plainly
- * rather than showing a hopeful empty chart, and the record row is already
- * wired to the match counts so it fills itself in when there is something to
- * fill in.
+ * The screen the whole app exists to reach, and the one most able to mislead.
+ * A deck tracker that answers this question loosely is worse than one that does
+ * not answer it, because a confident wrong answer gets acted on: cards come out
+ * of a deck that was fine.
  *
- * The verdict line is deliberately absent. An honest comparison needs a
- * confidence interval behind it, and inventing one from a handful of games is
- * exactly the false precision `DATA-MODEL.md` §4 forbids.
+ * So the verdict is bounded by the intervals rather than by the point estimates.
+ * If two Wilson intervals overlap, the data does not separate the versions and
+ * the screen says exactly that — plus how many more matches would. 6–4 against
+ * 4–6 is not a finding, however much it looks like one.
  */
 
 interface VersionCompareSheetProps {
@@ -31,6 +33,8 @@ interface VersionCompareSheetProps {
   b: DeckVersionRow | null;
   diff: DeckDiff | null;
   matchCounts: Map<string, number>;
+  /** Matches for each version, keyed by version id. */
+  matchesByVersion?: Map<string, Parameters<typeof rateOf>[0]>;
   onClose: () => void;
 }
 
@@ -40,9 +44,31 @@ export function VersionCompareSheet({
   b,
   diff,
   matchCounts,
+  matchesByVersion,
   onClose,
 }: VersionCompareSheetProps) {
   const insets = useSafeAreaInsets();
+
+  const rateA: Rate | null = a && matchesByVersion ? rateOf(matchesByVersion.get(a.id) ?? []) : null;
+  const rateB: Rate | null = b && matchesByVersion ? rateOf(matchesByVersion.get(b.id) ?? []) : null;
+
+  const verdict = (() => {
+    if (!rateA || !rateB) return null;
+    if (rateA.decided === 0 || rateB.decided === 0) {
+      return 'One of these has no decided matches yet, so there is nothing to compare.';
+    }
+    if (separable(rateA, rateB)) {
+      const better = (rateB.rate ?? 0) > (rateA.rate ?? 0) ? b : a;
+      return `v${better?.versionNumber} is measurably ahead — the intervals do not overlap.`;
+    }
+    const thinner = rateA.decided <= rateB.decided ? rateA : rateB;
+    const more = matchesNeeded(thinner.wins, thinner.decided);
+    return more === null
+      ? 'Too close to call — the intervals overlap, and no realistic number of matches would separate them.'
+      : `Too close to call — the intervals overlap. About ${more} more ${
+          more === 1 ? 'match' : 'matches'
+        } would start to separate them.`;
+  })();
 
   return (
     <Modal
@@ -89,18 +115,25 @@ export function VersionCompareSheet({
             )}
           </View>
 
+          {rateA && rateB ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Did it help?</Text>
+              <WinRateBar rate={rateA} label={`v${a?.versionNumber}`} compact />
+              <WinRateBar rate={rateB} label={`v${b?.versionNumber}`} compact />
+              {verdict ? <Text style={styles.verdict}>{verdict}</Text> : null}
+              <Text style={styles.note}>
+                Correlational, not causal. The metagame moves and pilots improve, so a version that
+                looks better may simply have been played later.
+              </Text>
+            </View>
+          ) : null}
+
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>What changed</Text>
             {diff ? (
               <DeckDiffView diff={diff} emptyMessage="These two lists are identical." />
             ) : null}
           </View>
-
-          <Text style={styles.note}>
-            Win rates and a verdict arrive with match tracking. Comparing two records without a
-            confidence interval behind them is how a deck tracker starts lying to you, so this
-            screen would rather say nothing yet.
-          </Text>
         </ScrollView>
       </View>
     </Modal>
@@ -140,6 +173,7 @@ const styles = StyleSheet.create({
   illegal: { color: color.warning },
   section: { gap: space[2] },
   sectionLabel: { ...text.meta, color: color.textSecondary },
+  verdict: { ...text.small, color: color.text, paddingTop: space[1] },
   note: { ...text.small, color: color.textFaint },
   pressed: { opacity: 0.8 },
 });

@@ -27,8 +27,19 @@ import {
  * anything — it only reports.
  */
 
-export const DECK_ZONES = ['legend', 'champion', 'main', 'rune', 'battlefield', 'sideboard'] as const;
-export type DeckZone = (typeof DECK_ZONES)[number];
+/**
+ * The zones a card can occupy.
+ *
+ * A bare union rather than an exported array: nothing ever iterated the array,
+ * and the screens that show zones each order them their own way.
+ */
+export type DeckZone =
+  | 'legend'
+  | 'champion'
+  | 'main'
+  | 'rune'
+  | 'battlefield'
+  | 'sideboard';
 
 /**
  * Revision of the rules encoded here.
@@ -402,14 +413,9 @@ export function defaultZoneFor(card: Pick<CardRow, 'type'>): DeckZone {
   return 'main';
 }
 
-/**
- * One-line summary for the legality bar.
- *
- * Leads with the counts because those are what change as you build, and appends
- * the single most important failure rather than a list — the bar is one line,
- * and the full issue list lives in the sheet behind it.
+/*
+ * `legalitySummary()` lived here and returned the counts as one string. Deleted
+ * in the post-M5 audit: `LegalityBar` renders each count as its own element so
+ * it can colour them independently, which is strictly better than a sentence,
+ * and the string had no caller.
  */
-export function legalitySummary(result: LegalityResult): string {
-  const { main, rune, battlefield } = result.counts;
-  return `Main ${main}/${MAIN_DECK_SIZE} · Runes ${rune}/${RUNE_DECK_SIZE} · Battlefields ${battlefield}/${BATTLEFIELD_COUNT}`;
-}

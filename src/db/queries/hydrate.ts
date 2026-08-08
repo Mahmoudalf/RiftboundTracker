@@ -7,17 +7,9 @@ import {
   deckVersions,
   decks,
   type DeckRow,
-  type DeckVersionCardRow,
   type DeckVersionRow,
 } from '../schema/decks';
-import {
-  events,
-  matchGames,
-  matches,
-  type EventRow,
-  type MatchGameRow,
-  type MatchRow,
-} from '../schema/matches';
+import { matches, type MatchRow } from '../schema/matches';
 
 /**
  * Turn a raw `SELECT *` row into a typed row object.
@@ -174,30 +166,21 @@ export function hydrateDeckVersion(row: Record<string, unknown>): DeckVersionRow
   return hydrate<DeckVersionRow>(row, deckVersionColumns);
 }
 
-export function hydrateDeckVersionCard(row: Record<string, unknown>): DeckVersionCardRow {
-  return hydrate<DeckVersionCardRow>(row, deckVersionCardColumns);
-}
-
 /**
  * Matches, through the same derivation, and the most exposed of the three.
  * `deck_version_id`, `opp_legend_card_id`, `played_at` and `on_play` are every
  * one of them multi-word — a silently-undefined `deckVersionId` would attach a
  * result to no list at all, which is the failure the whole version model exists
  * to prevent.
+ *
+ * Hydrators for `match_games` and `events` are deliberately absent. Both tables
+ * exist (migration 6) and nothing reads them yet; a hydrator with no reader is
+ * how the last three rounds of dead code started. They arrive with M6, next to
+ * the queries that need them.
  */
-export const eventColumns: ColumnMapping[] = buildMapping(events);
 export const matchColumns: ColumnMapping[] = buildMapping(matches);
-export const matchGameColumns: ColumnMapping[] = buildMapping(matchGames);
 
 export function hydrateMatch(row: Record<string, unknown>): MatchRow {
   return hydrate<MatchRow>(row, matchColumns);
-}
-
-export function hydrateMatchGame(row: Record<string, unknown>): MatchGameRow {
-  return hydrate<MatchGameRow>(row, matchGameColumns);
-}
-
-export function hydrateEvent(row: Record<string, unknown>): EventRow {
-  return hydrate<EventRow>(row, eventColumns);
 }
 

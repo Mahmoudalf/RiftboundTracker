@@ -19,7 +19,6 @@ import {
   listVersions,
   loadDeckList,
   lockVersion,
-  missingCardCount,
   missingCards,
   renameDeck,
   saveDeckEdit,
@@ -585,7 +584,7 @@ describe('version locking', () => {
       [result.versionId]
     );
     expect(rows.map((r) => r.card_id).sort()).toEqual(['a', 'ghost', 'legend-1']);
-    expect(missingCardCount(result.versionId)).toBe(1);
+    expect(missingCards(result.versionId)).toHaveLength(1);
   });
 
   it('locks idempotently and never unlocks', () => {
@@ -852,7 +851,7 @@ describe('loadDeckList', () => {
     db.runSync('DELETE FROM cards WHERE id = ?', ['ghost']);
 
     expect(loadDeckList(versionId).slots.filter((s) => s.zone === 'main')).toEqual([]);
-    expect(missingCardCount(versionId)).toBe(1);
+    expect(missingCards(versionId)).toHaveLength(1);
   });
 });
 

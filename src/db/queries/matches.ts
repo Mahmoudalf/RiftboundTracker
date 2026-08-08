@@ -364,10 +364,3 @@ export function undoMatch(id: string): void {
   });
 }
 
-export function countMatches(): number {
-  return (
-    conn().getFirstSync<{ n: number }>(
-      'SELECT COUNT(*) AS n FROM matches WHERE deleted_at IS NULL'
-    )?.n ?? 0
-  );
-}

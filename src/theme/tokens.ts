@@ -54,8 +54,12 @@ export const radius = {
 } as const;
 
 /**
- * Minimum interactive target, enforced on every pressable. The match-log result
- * buttons are far larger — they get tapped under time pressure.
+ * Minimum interactive target.
+ *
+ * Enforced by `components/ui/Pressable`, which measures itself and expands its
+ * **touch area** with `hitSlop` to reach this — never its layout, so a 26 dp
+ * control stays 26 dp and simply becomes tappable at 44. The match-log result
+ * buttons are far larger by design; they get tapped under time pressure.
  */
 export const HIT_TARGET = 44;
 
@@ -99,7 +103,11 @@ export const elevation = {
 /** Riftbound cards are 744x1039 — every card surface uses this ratio. */
 export const CARD_ASPECT = 744 / 1039;
 
-/** Below this many matches, stats render as provisional. See docs/DATA-MODEL.md §4. */
-export const PROVISIONAL_THRESHOLD = 20;
+/*
+ * `PROVISIONAL_THRESHOLD` lived here and duplicated `PROVISIONAL_N` in
+ * `lib/analytics/summary.ts`. Both said 20, so changing either would have left
+ * half the app disagreeing about what counts as enough evidence. It belongs
+ * with the statistics — it is a rule about data, not about appearance.
+ */
 
 export type ColorToken = keyof typeof color;

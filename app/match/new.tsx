@@ -73,7 +73,10 @@ export default function LogMatchScreen() {
   const [picker, setPicker] = useState<'legend' | 'champion' | null>(null);
 
   // Every optional field starts null. An unanswered question must stay
-  // unanswered in the database rather than become a confident wrong value.
+  // unanswered in the database rather than become a confident wrong value —
+  // "Not sure" about who went first stores null, not `false`, because recording
+  // an unknown as "on the draw" would bias the split rather than shrink it.
+  const [onPlay, setOnPlay] = useState<boolean | null>(null);
   const [bestOf, setBestOf] = useState<number | null>(null);
   const [eventType, setEventType] = useState<EventType>('casual');
   const [notes, setNotes] = useState('');
@@ -112,6 +115,7 @@ export default function LogMatchScreen() {
     // which is the thing that changes every round.
     setOpponent(null);
     setOppChampion(null);
+    setOnPlay(null);
     setNotes('');
     saving.current = false;
   };
@@ -134,6 +138,7 @@ export default function LogMatchScreen() {
       deckId: deck.id,
       deckVersionId: versionId,
       result,
+      onPlay,
       bestOf,
       eventType,
       notes: notes.trim() || null,
@@ -355,6 +360,45 @@ export default function LogMatchScreen() {
             </Pressable>
           </View>
         ) : null}
+
+        {/* One row, three options, and "Not sure" is the default. Restored to
+            the fast path because it is the cheapest data in the app — one tap —
+            and without it a whole section of the analytics can only render as
+            an instruction. */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Who went first?</Text>
+          <View style={styles.segmented}>
+            {[
+              { key: 'play', label: 'I did', value: true },
+              { key: 'draw', label: 'They did', value: false },
+              { key: 'unknown', label: 'Not sure', value: null },
+            ].map((option) => (
+              <Pressable
+                key={option.key}
+                accessibilityRole="button"
+                accessibilityState={{ selected: onPlay === option.value }}
+                onPress={() => {
+                  haptic(Haptics.ImpactFeedbackStyle.Light);
+                  setOnPlay(option.value);
+                }}
+                style={({ pressed }) => [
+                  styles.segment,
+                  onPlay === option.value && styles.segmentActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.segmentLabel,
+                    onPlay === option.value && styles.segmentLabelActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Best of</Text>
