@@ -12,16 +12,29 @@ import { text } from '@/theme/typography';
 
 export default function DecksScreen() {
   const [decks, setDecks] = useState<DeckSummary[]>([]);
+  const [archived, setArchived] = useState<DeckSummary[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Re-read on focus rather than subscribing: the editor and the create flow
   // both return here after writing, and a deck list is a handful of rows.
   useFocusEffect(
     useCallback(() => {
-      setDecks(listDecks());
+      const live = listDecks();
+      setDecks(live);
+      /*
+       * Archived decks are fetched whether or not they are shown, because the
+       * toggle only earns its space when there is something behind it. Without
+       * this, archiving would be a one-way door — the deck leaves the list and
+       * nothing in the app admits it still exists.
+       */
+      const liveIds = new Set(live.map((s) => s.deck.id));
+      setArchived(listDecks(true).filter((s) => !liveIds.has(s.deck.id)));
     }, [])
   );
 
-  if (decks.length === 0) {
+  const visible = showArchived ? [...decks, ...archived] : decks;
+
+  if (decks.length === 0 && archived.length === 0) {
     return (
       <Screen title="Decks">
         <EmptyState
@@ -39,7 +52,7 @@ export default function DecksScreen() {
   return (
     <Screen
       title="Decks"
-      meta={`${decks.length} ${decks.length === 1 ? 'deck' : 'decks'}`}
+      meta={`${visible.length} ${visible.length === 1 ? 'deck' : 'decks'}`}
       action={
         <View style={styles.actions}>
           <Pressable
@@ -72,6 +85,35 @@ export default function DecksScreen() {
             onPress={() => router.push(`/deck/${summary.deck.id}`)}
           />
         ))}
+
+        {/* The toggle sits *between* the two groups, so when archived decks are
+            showing it doubles as the divider. Appended below them instead, an
+            archived deck was indistinguishable from a live one. */}
+        {archived.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showArchived }}
+            onPress={() => setShowArchived((s) => !s)}
+            style={({ pressed }) => [styles.archiveToggle, pressed && styles.pressed]}
+          >
+            <Text style={styles.archiveLabel}>
+              {showArchived
+                ? 'Hide archived'
+                : `Show ${archived.length} archived ${archived.length === 1 ? 'deck' : 'decks'}`}
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {showArchived
+          ? archived.map((summary) => (
+              <DeckCard
+                key={summary.deck.id}
+                summary={summary}
+                onPress={() => router.push(`/deck/${summary.deck.id}`)}
+              />
+            ))
+          : null}
+
         <View style={styles.footer} />
       </ScrollView>
     </Screen>
@@ -99,5 +141,12 @@ const styles = StyleSheet.create({
     borderColor: color.border,
   },
   importLabel: { ...text.smallMedium, color: color.text },
+  archiveToggle: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: space[2],
+  },
+  archiveLabel: { ...text.smallMedium, color: color.textMuted },
   pressed: { opacity: 0.8 },
 });

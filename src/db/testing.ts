@@ -76,7 +76,20 @@ export function applyMigrationsUpTo(
    * harness for precisely the bugs it exists to catch.
    */
   db.execSync('PRAGMA foreign_keys = ON;');
+
+  /*
+   * Skip what is already applied, exactly as `migrate()` does.
+   *
+   * Without this the helper always replayed from migration 1, so calling it a
+   * second time re-ran every migration and died on the first `ALTER TABLE`.
+   * That made the scenario most worth testing impossible to write: an existing
+   * device, holding existing rows, moving forward one version.
+   */
+  const current =
+    db.getFirstSync<{ user_version: number }>('PRAGMA user_version;')?.user_version ?? 0;
+
   for (const migration of migrations) {
+    if (migration.version <= current) continue;
     if (migration.version > version) break;
     db.withTransactionSync(() => {
       db.execSync(migration.up);

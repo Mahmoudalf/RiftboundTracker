@@ -37,8 +37,8 @@ import { text } from '@/theme/typography';
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
 const TABS: { name: string; label: string; icon: IconName }[] = [
-  { name: 'index', label: 'Decks', icon: 'decks' },
-  { name: 'cards', label: 'Cards', icon: 'cards' },
+  { name: '(decks)', label: 'Decks', icon: 'decks' },
+  { name: 'collection', label: 'Collection', icon: 'cards' },
   { name: 'stats', label: 'Stats', icon: 'stats' },
   { name: 'profile', label: 'You', icon: 'profile' },
 ];
@@ -80,8 +80,29 @@ export function TabBar({ state, navigation }: TabBarProps) {
             target: route.key,
             canPreventDefault: true,
           });
-          if (!focused && !event.defaultPrevented) {
+          if (event.defaultPrevented) return;
+
+          if (!focused) {
             navigation.navigate(route.name);
+            return;
+          }
+
+          /*
+           * Pressing the tab you are already on returns it to its root.
+           *
+           * This only started mattering when the Decks tab gained its own
+           * stack: without it, opening a deck and then reaching for the Decks
+           * tab to get back to the list does nothing at all, because the tab is
+           * already focused. Every phone user expects the second press to pop.
+           *
+           * The action is written out rather than imported from
+           * `@react-navigation/native`, which is not a declared dependency —
+           * importing it is the phantom-dependency bug recorded in M0, and it
+           * resolves only while npm happens to hoist expo-router's copy.
+           */
+          const nested = route.state as { index?: number; key?: string } | undefined;
+          if (nested?.key && (nested.index ?? 0) > 0) {
+            navigation.dispatch({ type: 'POP_TO_TOP', target: nested.key });
           }
         }}
       >

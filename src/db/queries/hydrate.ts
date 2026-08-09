@@ -2,6 +2,7 @@ import { getTableColumns } from 'drizzle-orm';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 
 import { cards, sets, type CardRow, type SetRow } from '../schema/cards';
+import { binders, type BinderRow } from '../schema/collection';
 import {
   deckVersionCards,
   deckVersions,
@@ -169,6 +170,19 @@ export function hydrateDeck(row: Record<string, unknown>): DeckRow {
 
 export function hydrateDeckVersion(row: Record<string, unknown>): DeckVersionRow {
   return hydrate<DeckVersionRow>(row, deckVersionColumns);
+}
+
+/**
+ * Binders, same derivation — `sort_order` is the multi-word one here.
+ *
+ * No `hydrateBinderCard`: `binderCards()` reads a projection joined to `cards`,
+ * not a whole `binder_cards` row, so a hydrator for the full row would have no
+ * caller. Added one, then deleted it in the same pass.
+ */
+const binderColumns: ColumnMapping[] = buildMapping(binders);
+
+export function hydrateBinder(row: Record<string, unknown>): BinderRow {
+  return hydrate<BinderRow>(row, binderColumns);
 }
 
 /**

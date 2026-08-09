@@ -172,9 +172,66 @@ Optional per-game BO3 detail: `id` · `match_id` · `game_number` · `on_play?` 
 `id` · `name` · `format` · `event_type` · `started_at` · `location?` · `rounds?` ·
 `final_placement?` · `notes?`.
 
-### `collection`
+### `binders` · `binder_cards` (migration 12)
 
-`card_id` PK → `cards.id` · `quantity_owned` · `updated_at`.
+`binders` — `id` · `name` · `accent?` (a domain name, for the rail) · `notes?` · `sort_order` ·
+sync columns including `deleted_at`.
+
+`binder_cards` — `id` · `binder_id` → `binders.id` `ON DELETE CASCADE` · `card_id` · `card_name?` ·
+`riftbound_id?` · `quantity` · `finish` · `created_at` · `updated_at`.
+`UNIQUE(binder_id, card_id, finish)`; indexed on `card_id`, which is the hot path.
+
+### Finish (migration 13)
+
+`finish` is `standard` or `foil` — **a row per finish, not a column per finish.** Two copies of a
+card in different finishes are two different objects to a collector: they trade separately and are
+stored separately. A column per finish would also need a schema change the first time a third
+treatment appears, which for a game this young is a matter of time.
+
+Existing rows default to `standard`: every card filed before the migration was recorded without the
+distinction existing, and calling it foil would invent information.
+
+**Which finishes a card comes in is not in the card data.** Verified against the live Riftcodex API,
+not only our mirror — the card object has no finish, foil, or treatment field in any form. So the
+rule lives in `src/lib/finishes.ts` as game knowledge, stated once:
+
+| Rule | Cards |
+| --- | --- |
+| `type = 'Legend'` | 180 |
+| `rarity = 'Showcase'` | 120 |
+| `supertype = 'Signature'` **or** the `signature` flag | 61 / 36 — see below |
+| `alternate_art` **or** `overnumbered` | varies |
+
+380 of 1,451 cards are foil-only; the remaining 1,071 offer both. The two Signature signals
+genuinely disagree upstream — 61 cards carry the supertype, 36 carry the metadata flag — so the rule
+ORs them rather than trusting either alone.
+
+The default is **permissive**: a card matching no rule offers both finishes. If a rule is missing the
+cost is an unused option; if the default were "standard only", the cost would be a foil the player
+physically holds and cannot record. Losing data is worse than offering a choice nobody takes.
+
+`resolveFinish()` is applied in `adjustCardQuantity`, not only in the UI — a caller asking for a
+standard Legend gets a foil rather than a printing that does not exist. A rule enforced in a screen
+is a rule the next screen will not have.
+
+`distinctCards` counts `DISTINCT card_id`, not rows: one card held in two finishes is still one card.
+
+**Superseded the planned `collection` table**, which was to be `card_id` PK · `quantity_owned`.
+That design stored the owned count *and* let binders reference cards, which is two numbers for one
+fact — the moment they disagree something has to decide which is right, and nothing can.
+
+**Owned is derived, never stored:** `SUM(quantity)` over `binder_cards` joined to live binders. The
+total and its breakdown are then the same data, and deleting a binder subtracts exactly the copies
+it held with nothing to reconcile. It also matches the physical object — owning three copies *is*
+two in the trade binder and one in a deck box.
+
+`quantity` reaching zero **deletes the row** rather than storing a zero. A zero row is invisible in
+the UI and still occupies the unique index, so a later add would collide with something the user
+cannot see.
+
+`card_name` is denormalized for the fourth time in this schema, after migrations 5, 7 and 11, and for
+the same reason: the card mirror is disposable and this is not. A printing leaving the library must
+never make a card you own unrenderable — you still physically have it.
 
 ---
 

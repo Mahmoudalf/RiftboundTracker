@@ -28,6 +28,7 @@ import {
   getDeck,
   getVersion,
   loadDeckList,
+  missingCards,
   saveDeckEdit,
   versionMatchCounts,
   type SaveOptions,
@@ -138,6 +139,35 @@ export default function DeckEditorScreen() {
       matchCount: versionMatchCounts(deck.id).get(version.id) ?? 0,
     };
   }, [deck]);
+
+  /**
+   * Cards in this version the library cannot currently resolve.
+   *
+   * Deck detail has always named these; the editor said nothing, so the deck
+   * simply looked short — in the one screen where the natural fix is to add a
+   * duplicate of a card that is already there. The counts in the legality bar
+   * are short by exactly this much, and without the line there is no way to
+   * know that from here.
+   */
+  const missing = useMemo(
+    () => (deck?.currentVersionId ? missingCards(deck.currentVersionId) : []),
+    [deck]
+  );
+
+  /*
+   * Only the zones the legality bar actually counts.
+   *
+   * `missingCards` also returns the Legend and Champion, which do not appear in
+   * any of those totals — so summing all of it would claim the main deck was
+   * short by one when it was the Legend's printing that vanished.
+   */
+  const missingFromCounts = useMemo(
+    () =>
+      missing
+        .filter((m) => m.zone !== 'legend' && m.zone !== 'champion')
+        .reduce((n, m) => n + m.quantity, 0),
+    [missing]
+  );
 
   const slots = useDeckEditor((s) => s.slots);
   const versionId = useDeckEditor((s) => s.versionId);
@@ -365,6 +395,17 @@ export default function DeckEditorScreen() {
         </Text>
       ) : null}
 
+      {missing.length > 0 ? (
+        <Text style={styles.missingBanner}>
+          Not in the card library:{' '}
+          {missing.map((m) => `${m.quantity}× ${m.name ?? 'an unknown card'}`).join(', ')}. Still
+          in the deck and kept when you save
+          {missingFromCounts > 0
+            ? ` — the counts below are short by ${missingFromCounts}.`
+            : '.'}
+        </Text>
+      ) : null}
+
       <View style={styles.modes}>
         {(['deck', 'add'] as const).map((m) => (
           <Pressable
@@ -566,6 +607,11 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   listContent: { paddingBottom: space[4], gap: space[5] },
   lockBanner: {
+    ...text.microMeta,
+    color: color.warning,
+    paddingBottom: space[3],
+  },
+  missingBanner: {
     ...text.microMeta,
     color: color.warning,
     paddingBottom: space[3],

@@ -12,11 +12,13 @@ import { VersionCompareSheet } from '@/components/decks/VersionCompareSheet';
 import { VersionTimeline, type TimelineNode } from '@/components/decks/VersionTimeline';
 import { MatchRow } from '@/components/matches/MatchRow';
 import { WinRateBar } from '@/components/stats/WinRateBar';
+import { DetailsSheet } from '@/components/ui/DetailsSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import { queryCards } from '@/db/queries/cards';
 import {
+  archiveDeck,
   compareVersions,
   deleteDeck,
   deleteVersion,
@@ -24,7 +26,11 @@ import {
   listVersions,
   loadDeckList,
   missingCards,
+  renameDeck,
   setCurrentVersion,
+  setDeckNotes,
+  setVersionLabel,
+  setVersionNotes,
   versionDiff,
   versionMatchCounts,
   VersionHasMatchesError,
@@ -102,6 +108,9 @@ export default function DeckDetailScreen() {
   const [showAllVersions, setShowAllVersions] = useState(false);
   const [compare, setCompare] = useState<string[]>([]);
   const [compareMode, setCompareMode] = useState(false);
+  /** Which details sheet is open — the deck's, or one version's. */
+  const [editingDeck, setEditingDeck] = useState(false);
+  const [editingVersion, setEditingVersion] = useState<DeckVersionRow | null>(null);
   const [matches, setMatches] = useState<MatchRowType[]>([]);
   const [record, setRecord] = useState<DeckRecord>({ wins: 0, losses: 0, draws: 0, total: 0 });
   const [versionPerformance, setVersionPerformance] = useState<VersionStat[]>([]);
@@ -213,6 +222,14 @@ export default function DeckDetailScreen() {
 
     const options: Parameters<typeof Alert.alert>[2] = [{ text: 'Cancel', style: 'cancel' }];
 
+    // Always offered, including on v1 — which is the version that could never
+    // be labelled before, because a label was only ever set at fork time and
+    // the first build never passes through a fork sheet.
+    options.push({
+      text: node.version.label ? 'Edit label & notes' : 'Add a label',
+      onPress: () => setEditingVersion(node.version),
+    });
+
     if (!node.isCurrent) {
       options.push({
         text: `Make v${node.version.versionNumber} current`,
@@ -242,9 +259,6 @@ export default function DeckDetailScreen() {
         },
       });
     }
-
-    // Only Cancel left — nothing to offer, so say nothing.
-    if (options.length === 1) return;
 
     Alert.alert(
       `v${node.version.versionNumber}`,
@@ -342,6 +356,56 @@ export default function DeckDetailScreen() {
     );
   };
 
+  // All four setters trim blank to null themselves, so the screen passes what
+  // was typed. An unlabelled version then reads as "Untitled change", which is
+  // true — where `''` would render as a version deliberately named nothing.
+  const onSaveDeckDetails = (name: string, notes: string) => {
+    renameDeck(id, name);
+    setDeckNotes(id, notes);
+    setEditingDeck(false);
+    load();
+  };
+
+  const onSaveVersionDetails = (label: string, notes: string) => {
+    if (!editingVersion) return;
+    setVersionLabel(editingVersion.id, label);
+    setVersionNotes(editingVersion.id, notes);
+    setEditingVersion(null);
+    load();
+  };
+
+  /**
+   * Archive, not delete.
+   *
+   * A deck stops appearing in the list without touching a single match. The
+   * confirm says so, because "archive" is the sort of word people read as
+   * "delete but politer".
+   */
+  const onArchive = () => {
+    if (deck?.archivedAt) {
+      archiveDeck(id, false);
+      setEditingDeck(false);
+      load();
+      return;
+    }
+
+    Alert.alert(
+      `Archive ${deck?.name}?`,
+      'It leaves the deck list. Its versions and match history are kept, and it still counts in your overall stats — "Show archived" on the Decks tab brings it back.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Archive',
+          onPress: () => {
+            archiveDeck(id, true);
+            setEditingDeck(false);
+            router.replace('/');
+          },
+        },
+      ]
+    );
+  };
+
   const onDelete = () => {
     Alert.alert('Delete this deck?', 'Its versions and match history go with it.', [
       { text: 'Cancel', style: 'cancel' },
@@ -376,7 +440,10 @@ export default function DeckDetailScreen() {
       meta={metaLine(
         current ? `v${current.versionNumber}` : null,
         versions.length > 1 ? `${versions.length} versions` : null,
-        legality.legal ? 'Legal' : 'Incomplete'
+        legality.legal ? 'Legal' : 'Incomplete',
+        // Otherwise an archived deck is indistinguishable from a live one once
+        // you are inside it, and the only clue was that it left a list.
+        deck.archivedAt ? 'Archived' : null
       )}
       action={
         <Pressable
@@ -457,6 +524,17 @@ export default function DeckDetailScreen() {
                 results always stay attached to the list that played them.
               </Text>
             </View>
+
+            {deck.notes ? <Text style={styles.notes}>{deck.notes}</Text> : null}
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Rename this deck or edit its notes"
+              onPress={() => setEditingDeck(true)}
+              style={({ pressed }) => [styles.export, pressed && styles.pressed]}
+            >
+              <Text style={styles.exportLabel}>Deck details</Text>
+            </Pressable>
 
             <Pressable
               accessibilityRole="button"
@@ -636,6 +714,37 @@ export default function DeckDetailScreen() {
         onClose={exitCompare}
       />
 
+      <DetailsSheet
+        visible={editingDeck}
+        title="Deck details"
+        nameLabel="Name"
+        namePlaceholder="Deck name"
+        initialName={deck.name}
+        initialNotes={deck.notes ?? ''}
+        notesPlaceholder="What is this deck trying to do? What did you last change?"
+        onClose={() => setEditingDeck(false)}
+        onSave={onSaveDeckDetails}
+        secondary={{
+          label: deck.archivedAt ? 'Restore from archive' : 'Archive this deck',
+          onPress: onArchive,
+        }}
+      />
+
+      <DetailsSheet
+        visible={editingVersion !== null}
+        title={`v${editingVersion?.versionNumber ?? ''}`}
+        nameLabel="Label"
+        namePlaceholder="−2 Bewitching Spirit"
+        // Optional on purpose: an unlabelled version reads as "Untitled
+        // change", which is true, and forcing a name would produce worse ones.
+        nameRequired={false}
+        initialName={editingVersion?.label ?? ''}
+        initialNotes={editingVersion?.notes ?? ''}
+        notesPlaceholder="Why did you make this change?"
+        onClose={() => setEditingVersion(null)}
+        onSave={onSaveVersionDetails}
+      />
+
     </Screen>
   );
 }
@@ -684,6 +793,7 @@ const styles = StyleSheet.create({
   identity: { flexDirection: 'row' },
   issues: { gap: space[1] },
   issue: { ...text.small, color: color.warning },
+  notes: { ...text.small, color: color.textSecondary },
   warning: { ...text.small, color: color.warning },
   sectionLabel: { ...text.meta, color: color.textSecondary },
   versionBlock: { gap: space[2] },

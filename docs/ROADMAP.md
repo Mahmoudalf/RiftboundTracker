@@ -356,7 +356,10 @@ The first audit named these and moved on. Two were real, one was clean, one was 
 | 4 | `syncDeckIdentity` via `setCurrentVersion` / `deleteVersion` | **Split.** Legend and domains were safe; the Champion was not |
 
 **1 — what `router.replace` actually does.** `/deck/[id]/edit` and `/deck/[id]` are both routes of
-the root `Stack` (there is no `_layout.tsx` under `app/deck/`). `router.replace` resolves to a React
+the same `Stack`. *(Written when that stack was the root one. Gap 3 moved them into the Decks tab's
+own stack — the route pair still shares a stack, so the reasoning is unchanged, and the `useRef`
+latch that actually prevents the double save never depended on navigation at all.)* `router.replace`
+resolves to a React
 Navigation `REPLACE` on that stack — `getNavigationAction` only rewrites the type for drawer and tab
 navigators — so the top route is swapped, the edit screen unmounts, and the effect cleanup clears the
 draft. **The unmount is real.** What is not real is its timing: `replace` goes through expo-router's
@@ -499,7 +502,54 @@ In priority order — each is independently shippable.
       offline). `src/lib/deck-code.ts` owns the mapping rules; export shares and copies, import
       previews before writing. Sideboard supported both ways. Pasted *text* decklists via
       `/cards/name?fuzzy=` were dropped — the code covers sharing and needs no network
-- [ ] **Collection tracker** — `collection` table, owned counts, "missing cards" flags in the builder
+- [x] **Collection tracker — pass 1.** The Cards tab is now **Collection**: the gallery is still what
+      opens, with a binder rail above it and a Gallery ⇄ Owned toggle. Binders are create / rename /
+      recolour / delete (soft), and selecting one turns the grid into a filing surface — tap adds a
+      copy, the minus removes one, long-press still opens the card.
+
+      **There is no `collection` table and no owned-quantity column.** What you own of a card is
+      `SUM(quantity)` across live binders (migration 12: `binders`, `binder_cards`). A flat count
+      kept beside binder contents would be two numbers for one fact, and something would eventually
+      have to decide which of them is right. It also matches the physical object — owning three
+      copies *is* two in the trade binder and one in a deck box. `collection.test.ts` asserts the sum
+      can never disagree with the rows behind it, including across a binder deletion.
+
+      **Finishes (migration 13).** Standard and foil are separate rows, and a card is only offered
+      the finishes it was printed in. The blocker worth recording: **the card API carries no finish
+      data** — confirmed against the live endpoint, not just the mirror — so the rule cannot be
+      derived and lives in `src/lib/finishes.ts` as stated game knowledge (Legends, Showcase,
+      Signature, and alt-art/overnumbered are foil-only; 380 of 1,451 cards). `resolveFinish()` runs
+      in the write path as well as the UI, so nothing can file a standard Legend.
+
+      Deferred to pass 2: **"missing cards" in the builder** — `ownedCounts()` exists and is tested,
+      and nothing outside the Collection tab calls it yet
+
+      **Post-build audit.** Five exports created and deleted in the same pass for having no consumer
+      (`hydrateBinderCard`, `binderCardColumns`, `getBinder`, `collectionSummary`, and
+      `setCardQuantity`, now module-private). Two real findings:
+
+      | # | Finding | Fix |
+      | --- | --- | --- |
+      | 1 | **`binderCards()` was 88% of a tap.** It joined `cards` and hydrated ~29 columns per row to produce an id → quantity map. Measured at a full-library binder: **85 ms** per tap, and superlinear — 4× the rows for 18× the time | Split into `binderQuantities()` (two columns, no join) and `missingFromLibrary()`. **10.7 ms**, linear |
+      | 2 | **Cards whose printing had left the library were invisible in their own binder.** The data layer preserved them by name, the grid renders from `cards`, so a binder read "61 copies" above 59 tiles | Named on screen with quantities. Same class as gap 8 |
+
+      Eight adversarial probes in `collection-audit.test.ts` — upserting into a soft-deleted binder,
+      driving quantity negative, a 100,000-copy count, and the `ON DELETE CASCADE` that
+      `deleteBinder` can never reach. All held.
+
+      Scaling (`collection-scaling.test.ts`, 4 binders, Node in-memory SQLite):
+
+      | Rows | Reload after a tap | Size |
+      | --- | --- | --- |
+      | 500 | 1.0 ms | 0.52 MB |
+      | 2,000 | 2.7 ms | 1.42 MB |
+      | 8,000 | 10.7 ms | 4.88 MB |
+
+      8,000 is past what is physically reachable — the library holds 1,451 distinct cards, so no
+      binder can exceed that many rows. The realistic worst case sits nearer the 2,000-row line
+- [ ] **Collection tracker — pass 2**: ownership in the deck builder ("2 of 3 owned" on a tile) and a
+      missing-cards summary on deck detail. This is the payoff for cataloguing a collection, and
+      until it ships the collection only talks to itself
 - [ ] **Goldfish** — draw sample opening hands from a version, mulligan simulation
 - [ ] **Event mode** — group matches into tournaments with rounds and final placement.
       The `events` table and `matches.event_id` already exist (migration 6) and **nothing can write
@@ -550,20 +600,24 @@ Found on a device, not yet fixed. Each is a real defect or a real omission — n
 | --- | --- | --- | --- |
 | 1 | ~~**Version compare is unreliable to invoke**~~ — **closed.** Replaced the long-press-only selection with an explicit mode: a **Compare** button above the timeline, tap-to-pick while it is on, a live "Tap one more · v2 selected" status, and Cancel. Long-press is kept as a shortcut *into* the mode. The trap is gone by construction — in compare mode a tap can only pick, and out of it a tap can only open the version's actions | M3 device pass | Closed |
 | 2 | ~~**A save that amends in place says nothing**~~ — **closed.** Every outcome now returns a line through the toast (`src/features/decks/save-message.ts`), and the amend case states the rule: *"v2 updated · no matches on it yet, so no new version"*. Reported again from a device as "editing no longer creates a version" — see below | M3 device pass | Closed |
-| 3 | **No route back to the tabs from a pushed screen.** A back chevron now exists, but deck detail, the editor and the build flow all cover the tab bar, so returning to Decks or Cards means walking the stack back. The fix is structural — move the deck routes inside the tabs group — not another button | M3 device pass | Medium |
+| 3 | ~~**No route back to the tabs from a pushed screen**~~ — **closed.** The Decks tab owns a stack (`app/(tabs)/(decks)/`), so deck detail, the editor, the build flow and import push *inside* it and the bar stays put. Because `(decks)` is a group, **no URL changed** — verified against the generated route manifest, and every `router.push` in the app is untouched. What stays on the root stack is what should genuinely cover everything: logging a match, a full-bleed card, the filter sheet | M3 device pass | Closed |
+| 19 | ~~**Pressing the active tab did nothing**~~ — **closed.** Introduced by the fix for gap 3 and caught before the device saw it: with the Decks tab holding a stack, opening a deck and then reaching for the Decks tab to get back to the list was a no-op, because the tab was already focused. A second press now pops that tab to its root. The action is written out rather than imported from `@react-navigation/native`, which is **not a declared dependency** — importing it is the phantom-dependency bug from M0 | Gap 3 audit | Closed |
+| 20 | ~~`.expo/types/router.d.ts` had accumulated bogus routes~~ — **investigated, not a defect.** Typed-routes generation had registered `src/` modules — test files included — as routes, which reads like test code shipping in the app. Measured instead of assumed: the Hermes bundle contains no `vitest`, no `describe(`, no test module. It is a stale dev-server artifact, gitignored, regenerated on the next `expo start`, and deleting it leaves typecheck passing. Recorded so the next person who sees it does not go hunting | Gap 3 audit | Closed |
 | 4 | ~~**The main-deck step has no filters**~~ — **closed (first draft).** `CardPoolFilters` gives the main and sideboard pools search, sort (Name / Energy cost) and multi-select Type and Set. Two structural notes: the controls are a *fixed-height* row because they live in a FlashList header and any height change made the grid jump under a tap; and empty results now render via `ListEmptyComponent` so filtering to zero no longer unmounts the header. Type and supertype are OR'd in `queryCards` — Champion is a supertype, so AND-ing "Spell + Champion" would have returned nothing | M3 build | Closed |
 | 5 | ~~`versionMatchCounts()` stubbed~~ — **closed.** M4 shipped the `matches` table and the post-M4 audit removed the `sqlite_master` guard, which could no longer fire | M3 | Closed |
-| 6 | **A version label can only ever be set at fork time.** `setVersionLabel()` and `setVersionNotes()` exist, are tested, and have **no caller**. So a typo in the save sheet is permanent, and v1 can never be labelled at all — it never passes through a fork sheet. `deck_versions.notes` ("why did I make this change?") is unreachable entirely | Unreachable-code audit | Medium — the timeline is meant to read as a story, and half its text cannot be written |
-| 7 | **Deck rename, notes, and archive are unreachable.** `renameDeck()`, `setDeckNotes()` and `archiveDeck()` are implemented and tested with no UI caller. `listDecks(includeArchived)` takes a parameter nothing can set | Unreachable-code audit | Medium — a mistyped deck name currently means delete and rebuild |
-| 8 | **The editor never mentions unresolvable cards.** Deck detail names them; the editor says nothing, so a deck whose printing left the library just looks short, in the one screen where the user might "fix" it by adding a duplicate | Unreachable-code audit | Medium |
+| 6 | ~~**A version label can only ever be set at fork time**~~ — **closed.** Tapping any version in the timeline now offers *Add a label* / *Edit label & notes*, v1 included. Notes render on the timeline node, or the field would have been write-only — which is how half this screen's text became unreachable in the first place | Unreachable-code audit | Closed |
+| 7 | ~~**Deck rename, notes, and archive are unreachable**~~ — **closed.** *Deck details* on the deck overview edits name and notes and archives; the Decks tab grew a **Show N archived** toggle that doubles as the divider, and deck detail carries an "Archived" chip. `archiveDeck` already took a boolean, so restoring came free | Unreachable-code audit | Closed |
+| 8 | ~~**The editor never mentions unresolvable cards**~~ — **closed.** The editor carries the same banner deck detail has, naming each card and its count. It reports the shortfall from **countable zones only** — `missingCards` also returns the Legend and Champion, which appear in no total, so summing everything would have claimed the main deck was a card short when it was the Legend's printing that vanished | Unreachable-code audit | Closed |
 | 9 | **Dead code:** `useDeckEditor.isDirty()`, unused since the editor began diffing against the database. `missingCardCount()` was the other half and is now deleted | Unreachable-code audit | Low |
 | 10 | **15 moderate `npm audit` advisories**, all in dev tooling (`@expo/cli`, `@expo/config*`, `@esbuild-kit/*`) — transitive, not in the app bundle. Recorded so it is a decision rather than an oversight | Post-move `npm ci` | Low |
 | 11 | **`events` and `matches.event_id` are shipped but unwritable.** Migration 6 created the table; nothing can create an event, so `event_id` is null on every row. M4 records `event_type` (the enum) only — event *grouping* is M6, where it is now written into the checklist | M4 data-layer audit | Low — scoped, not forgotten |
 | 12 | **`match_games` is shipped but unwritten.** Rescoped: its consumer is now *In-depth match logging* in M6, not M4's sheet, after the log flow was simplified to result / opponent Legend / their Champion / best-of / match style / note | M4 data-layer audit | Low — deferred deliberately, owner recorded |
 | 13 | ~~On-play / on-draw not captured~~ — **closed.** Restored to the log sheet as a single three-option row during the post-M5 audit; the analytics split fills in as matches are logged | M4 sheet simplification | Closed |
 
-| 14 | **The recent-opponent rail is gone.** `recentOpponents()` is implemented and tested with **no UI caller** — the match-logging overhaul replaced the opponent picker and the rail did not come across. M4 lists it as shipped, and it was there to keep the ten-second budget when logging a tournament's rounds in a row | Post-gap-1 audit | Medium — a shipped feature silently removed |
+| 14 | ~~**The recent-opponent rail is gone**~~ — **closed.** Restored above the Legend field in step 4 of the log flow, not inside the picker: a shortcut you have to open something to reach is not a shortcut. Read once on mount, so logging four rounds of an event does not reshuffle the rail between them. Four probes were written against `recentOpponents()` when it finally got a consumer — undone matches, deleted matches, a printing leaving the library mid-event, and the limit — and **all four passed unchanged**. The query was correct; only its reachability was the defect | Post-gap-1 audit | Closed |
 | 15 | ~~`countDecks()` dead~~ — **closed.** No consumer anywhere, tests included. Deleted | Post-gap-1 audit | Closed |
+| 17 | ~~**Archiving a deck erased it from Stats**~~ — **closed.** Found while auditing gaps 6-7, and the reason archiving could not have shipped as written. `stats.tsx` called `listDecks()`, which excludes archived, so an archived deck left the picker and took its match history with it. Worse, **"All decks" disagreed with itself**: the headline record summed only live decks while the history list beneath it read every match in the database, so archiving changed the total without changing a row. Stats now reads `listDecks(true)` and labels archived entries | Post-gap-6/7 audit | Closed |
+| 18 | ~~`setDeckNotes` stored `''` instead of clearing~~ — **closed.** Its two siblings trim blank to null; this one stored the raw string, so an emptied field left an empty note behind — which renders as a note someone deliberately wrote nothing in. Invisible until a screen could call it | Post-gap-6/7 audit | Closed |
 | 16 | ~~`deck-diff.ts` held a literal NUL byte~~ — **closed.** A raw `NUL` in the source, used as a key separator, made the file *binary* to every text tool — `grep` refused to search it, which is how it was found. Replaced with the escape sequence; behaviour identical, 17 diff tests unchanged | Post-gap-1 audit | Closed |
 
 ### The "no new version" report, measured

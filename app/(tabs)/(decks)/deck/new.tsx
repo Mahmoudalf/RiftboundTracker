@@ -196,9 +196,9 @@ export default function NewDeckScreen() {
       <Screen title="Build a deck">
         <EmptyState
           title="No cards yet"
-          body="The card library has not finished downloading. Open the Cards tab to let it finish, then come back."
+          body="The card library has not finished downloading. Open the Collection tab to let it finish, then come back."
           actions={[
-            { label: 'Open Cards', onPress: () => router.replace('/cards'), primary: true },
+            { label: 'Open Collection', onPress: () => router.replace('/collection'), primary: true },
             { label: 'Go back', onPress: () => router.back() },
           ]}
         />

@@ -136,6 +136,15 @@ export function VersionTimeline({
                 )}
               </Text>
 
+              {/* Shown, or the notes field would be write-only — which is how
+                  half of this screen's text became unreachable in the first
+                  place. */}
+              {version.notes ? (
+                <Text style={styles.notes} numberOfLines={3}>
+                  {version.notes}
+                </Text>
+              ) : null}
+
               {node.diff ? (
                 <DeckDiffView diff={node.diff} limit={6} emptyMessage="No card changes" />
               ) : null}
@@ -182,5 +191,6 @@ const styles = StyleSheet.create({
   number: { ...text.numeric, fontSize: 15, color: color.text },
   label: { ...text.bodyMedium, color: color.text, flex: 1 },
   meta: { ...text.microMeta, color: color.textMuted },
+  notes: { ...text.small, color: color.textSecondary },
   pressed: { opacity: 0.75 },
 });

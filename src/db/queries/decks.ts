@@ -753,15 +753,24 @@ export function deleteVersion(versionId: string): void {
 
 export function renameDeck(deckId: string, name: string): void {
   conn().runSync('UPDATE decks SET name = ?, updated_at = ?, dirty = 1 WHERE id = ?', [
-    name,
+    // Trimmed like the other setters. The sheet blocks an empty name, but not
+    // trailing spaces, and " Vi " sorts and reads as a different deck.
+    name.trim(),
     now(),
     deckId,
   ]);
 }
 
+/**
+ * Blank clears the note, matching `setVersionNotes` and `setVersionLabel`.
+ *
+ * This one stored the raw string, so an emptied field left `''` behind — which
+ * renders as a note the user deliberately wrote nothing in, and is not the same
+ * thing as having no note. Only reachable now that a screen calls it.
+ */
 export function setDeckNotes(deckId: string, notes: string): void {
   conn().runSync('UPDATE decks SET notes = ?, updated_at = ?, dirty = 1 WHERE id = ?', [
-    notes,
+    notes.trim() || null,
     now(),
     deckId,
   ]);

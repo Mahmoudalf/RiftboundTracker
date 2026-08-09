@@ -420,6 +420,81 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE matches ADD COLUMN opp_battlefield_name     TEXT;
     `,
   },
+  {
+    version: 12,
+    up: /* sql */ `
+      -- Binders: how a collection is actually organised.
+      --
+      -- There is no separate "owned quantity" table. What you own of a card is
+      -- the sum of its copies across binders, which is the one arrangement that
+      -- cannot drift — a flat count beside binder contents is two numbers for
+      -- one fact, and something eventually has to decide which of them is
+      -- right. It also matches the physical object: owning three copies means
+      -- two in the trade binder and one in a deck box.
+      CREATE TABLE IF NOT EXISTS binders (
+        id                TEXT PRIMARY KEY NOT NULL,
+        name              TEXT NOT NULL,
+        -- A domain name, or null. Binders are scanned visually in a rail, and
+        -- a colour is found faster than a word.
+        accent            TEXT,
+        notes             TEXT,
+        sort_order        INTEGER NOT NULL DEFAULT 0,
+        created_at        TEXT NOT NULL,
+        updated_at        TEXT NOT NULL,
+        deleted_at        TEXT,
+        user_id           TEXT,
+        dirty             INTEGER NOT NULL DEFAULT 1,
+        updated_by_device TEXT
+      );
+
+      -- card_name beside card_id for the fourth time, and for the same reason
+      -- as migrations 5, 7 and 11: the card mirror is disposable and this is
+      -- not. A printing leaving the library must never make a card you own
+      -- unrenderable — you still physically have it.
+      CREATE TABLE IF NOT EXISTS binder_cards (
+        id           TEXT PRIMARY KEY NOT NULL,
+        binder_id    TEXT NOT NULL,
+        card_id      TEXT NOT NULL,
+        card_name    TEXT,
+        riftbound_id TEXT,
+        quantity     INTEGER NOT NULL,
+        created_at   TEXT NOT NULL,
+        updated_at   TEXT NOT NULL,
+        FOREIGN KEY (binder_id) REFERENCES binders(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS binder_cards_binder_idx ON binder_cards(binder_id);
+      -- Owned totals group by card_id across every binder, so this is the hot
+      -- path rather than binder_id.
+      CREATE INDEX IF NOT EXISTS binder_cards_card_idx   ON binder_cards(card_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS binder_cards_unique_idx
+        ON binder_cards(binder_id, card_id);
+
+      CREATE INDEX IF NOT EXISTS binders_deleted_idx ON binders(deleted_at);
+    `,
+  },
+  {
+    version: 13,
+    up: /* sql */ `
+      -- Finish: 'standard' or 'foil'.
+      --
+      -- A row per finish rather than a second quantity column. Two copies of a
+      -- card in different finishes are two different objects to a collector —
+      -- they trade separately and are stored separately — and a column per
+      -- finish would need a schema change the first time a third treatment
+      -- appears, which for a game this young is a matter of time.
+      --
+      -- Defaulting to 'standard' is right for existing rows: every card filed
+      -- before this migration was recorded without the distinction existing, so
+      -- claiming it was foil would invent information.
+      ALTER TABLE binder_cards ADD COLUMN finish TEXT NOT NULL DEFAULT 'standard';
+
+      -- The uniqueness rule changes with it: one row per card *per finish*.
+      DROP INDEX IF EXISTS binder_cards_unique_idx;
+      CREATE UNIQUE INDEX IF NOT EXISTS binder_cards_unique_idx
+        ON binder_cards(binder_id, card_id, finish);
+    `,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

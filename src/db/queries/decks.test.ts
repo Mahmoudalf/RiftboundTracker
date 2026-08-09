@@ -23,6 +23,9 @@ import {
   renameDeck,
   saveDeckEdit,
   setCurrentVersion,
+  setDeckNotes,
+  setVersionLabel,
+  setVersionNotes,
   versionDiff,
   VersionHasMatchesError,
 } from './decks';
@@ -1018,5 +1021,116 @@ describe('renameDeck', () => {
       db.getFirstSync<{ dirty: number }>('SELECT dirty FROM decks WHERE id = ?', [deckId])
         ?.dirty
     ).toBe(1);
+  });
+});
+
+/**
+ * Notes and labels, now that screens can actually reach them.
+ *
+ * All four setters share one contract — blank clears rather than storing an
+ * empty string. `setDeckNotes` did not, which nothing had noticed because no
+ * caller existed: an emptied field left `''` behind, and `''` renders as a note
+ * someone deliberately wrote nothing in rather than as no note at all.
+ */
+describe('notes and labels', () => {
+  it('clears a deck note when the field is emptied', () => {
+    const { deckId } = makeDeck();
+
+    setDeckNotes(deckId, 'Sideboard the Gear matchup');
+    expect(getDeck(deckId)?.notes).toBe('Sideboard the Gear matchup');
+
+    setDeckNotes(deckId, '   ');
+    expect(getDeck(deckId)?.notes).toBeNull();
+  });
+
+  it('labels a version that never passed through a fork sheet', () => {
+    // v1 is the case that mattered: a label used to be set only at fork time,
+    // so the first build could never have one.
+    const { versionId } = makeDeck();
+    expect(getVersion(versionId)?.label).toBeNull();
+
+    setVersionLabel(versionId, 'Opening build');
+    setVersionNotes(versionId, 'Straight from the precon, before any testing.');
+
+    expect(getVersion(versionId)?.label).toBe('Opening build');
+    expect(getVersion(versionId)?.notes).toBe('Straight from the precon, before any testing.');
+  });
+
+  it('clears a version label back to unlabelled', () => {
+    const { versionId } = makeDeck();
+    setVersionLabel(versionId, 'Typo');
+    setVersionLabel(versionId, '');
+
+    expect(getVersion(versionId)?.label).toBeNull();
+  });
+
+  /*
+   * The common case, and the one the lock rule could plausibly have blocked.
+   * v1 is almost always locked by the time anyone wants to name it — you play
+   * the deck, then decide what that build was. Locking protects the card list,
+   * not the label.
+   */
+  it('labels a version that has already been played', () => {
+    const { deckId, versionId } = makeDeck();
+    lockVersion(versionId);
+
+    setVersionLabel(versionId, 'The build I took to Nexus Night');
+
+    const version = getVersion(versionId)!;
+    expect(version.label).toBe('The build I took to Nexus Night');
+    expect(version.lockedAt).not.toBeNull();
+    expect(listVersions(deckId)).toHaveLength(1);
+  });
+
+  it('trims a padded deck name rather than storing it', () => {
+    const { deckId } = makeDeck();
+    renameDeck(deckId, '  Vi Control  ');
+    expect(getDeck(deckId)?.name).toBe('Vi Control');
+  });
+
+  it('leaves the version list and its cards alone', () => {
+    const { deckId, versionId, legend } = makeDeck();
+    saveDeckEdit(versionId, {
+      slots: [{ card: legend, quantity: 1, zone: 'legend' }],
+    });
+    const before = loadDeckList(versionId);
+
+    setVersionLabel(versionId, 'Renamed');
+    setVersionNotes(versionId, 'A note');
+
+    // Naming a version is not editing it: no fork, no card change, no lock.
+    expect(listVersions(deckId)).toHaveLength(1);
+    expect(loadDeckList(versionId).slots).toEqual(before.slots);
+    expect(getVersion(versionId)?.lockedAt).toBeNull();
+  });
+});
+
+describe('archiveDeck', () => {
+  it('hides the deck from the list and puts it back', () => {
+    const { deckId } = makeDeck('Archivable');
+
+    archiveDeck(deckId, true);
+    expect(listDecks().map((s) => s.deck.id)).not.toContain(deckId);
+    expect(listDecks(true).map((s) => s.deck.id)).toContain(deckId);
+
+    archiveDeck(deckId, false);
+    expect(listDecks().map((s) => s.deck.id)).toContain(deckId);
+  });
+
+  /*
+   * The distinction the confirm text promises. Archiving is not deleting, so
+   * everything attached to the deck has to survive it — otherwise "your match
+   * history is kept" is a lie told in a dialog.
+   */
+  it('keeps versions and matches intact', () => {
+    const { deckId, versionId, legend } = makeDeck('Archivable');
+    saveDeckEdit(versionId, { slots: [{ card: legend, quantity: 1, zone: 'legend' }] });
+    lockVersion(versionId);
+
+    archiveDeck(deckId, true);
+
+    expect(listVersions(deckId)).toHaveLength(1);
+    expect(loadDeckList(versionId).slots).toHaveLength(1);
+    expect(getDeck(deckId)?.deletedAt).toBeNull();
   });
 });

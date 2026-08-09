@@ -474,6 +474,78 @@ describe('recentOpponents', () => {
     logMatch({ deckId, deckVersionId: versionId, result: 'win' });
     expect(recentOpponents()).toEqual([]);
   });
+
+  /*
+   * Probes added when the rail finally got a consumer. Nothing had ever called
+   * this from a screen, so its behaviour under the conditions a screen actually
+   * creates had never been exercised.
+   */
+
+  it('forgets an opponent whose match was undone', () => {
+    const { deckId, versionId } = makeDeck();
+    seedCard({ id: 'yasuo', name: 'Yasuo', type: 'Legend' });
+    const matchId = logMatch({
+      deckId,
+      deckVersionId: versionId,
+      result: 'win',
+      oppLegendCardId: 'yasuo',
+    });
+
+    expect(recentOpponents()).toHaveLength(1);
+    undoMatch(matchId);
+    expect(recentOpponents()).toEqual([]);
+  });
+
+  it('forgets an opponent whose only match was deleted', () => {
+    const { deckId, versionId } = makeDeck();
+    seedCard({ id: 'yasuo', name: 'Yasuo', type: 'Legend' });
+    const matchId = logMatch({
+      deckId,
+      deckVersionId: versionId,
+      result: 'win',
+      oppLegendCardId: 'yasuo',
+    });
+
+    deleteMatch(matchId);
+    expect(recentOpponents()).toEqual([]);
+  });
+
+  /*
+   * The rail exists for the second round of an event, so it has to survive the
+   * card mirror losing a printing between rounds. The JOIN to `cards` drops an
+   * unresolvable Legend rather than handing the screen a blank chip.
+   */
+  it('omits an opponent whose printing has left the library', () => {
+    const { deckId, versionId } = makeDeck();
+    seedCard({ id: 'yasuo', name: 'Yasuo', type: 'Legend' });
+    seedCard({ id: 'lux', name: 'Lux', type: 'Legend' });
+    logMatch({ deckId, deckVersionId: versionId, result: 'win', oppLegendCardId: 'yasuo' });
+    logMatch({ deckId, deckVersionId: versionId, result: 'win', oppLegendCardId: 'lux' });
+
+    db.runSync('DELETE FROM cards WHERE id = ?', ['yasuo']);
+
+    const rail = recentOpponents();
+    expect(rail.map((c) => c.id)).toEqual(['lux']);
+    // Not a null row — the screen maps straight over this.
+    expect(rail.every((c) => !!c.name)).toBe(true);
+  });
+
+  it('honours its limit', () => {
+    const { deckId, versionId } = makeDeck();
+    for (let i = 0; i < 12; i++) {
+      seedCard({ id: `l${i}`, name: `Legend ${i}`, type: 'Legend' });
+      logMatch({
+        deckId,
+        deckVersionId: versionId,
+        result: 'win',
+        oppLegendCardId: `l${i}`,
+        playedAt: `2026-08-${String(i + 1).padStart(2, '0')}T10:00:00.000Z`,
+      });
+    }
+
+    expect(recentOpponents()).toHaveLength(8);
+    expect(recentOpponents(3).map((c) => c.id)).toEqual(['l11', 'l10', 'l9']);
+  });
 });
 
 describe('undo and delete', () => {

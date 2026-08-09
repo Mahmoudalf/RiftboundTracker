@@ -9,8 +9,10 @@ export default function TabsLayout() {
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: color.bg } }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Decks' }} />
-      <Tabs.Screen name="cards" options={{ title: 'Cards' }} />
+      {/* A group, not a screen: the Decks tab owns its own stack so deck
+          detail and the editor push *inside* the tab rather than over it. */}
+      <Tabs.Screen name="(decks)" options={{ title: 'Decks' }} />
+      <Tabs.Screen name="collection" options={{ title: 'Collection' }} />
       <Tabs.Screen name="stats" options={{ title: 'Stats' }} />
       <Tabs.Screen name="profile" options={{ title: 'You' }} />
     </Tabs>

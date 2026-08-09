@@ -46,6 +46,8 @@ const ALL_DECKS = '__all__';
 interface DeckOption {
   id: string;
   name: string;
+  /** Still listed, still counted — just labelled, so the picker is honest. */
+  archived: boolean;
   record: DeckRecord;
 }
 
@@ -64,10 +66,23 @@ export default function StatsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      const summaries = listDecks();
+      /*
+       * Archived decks included, deliberately.
+       *
+       * Two things went wrong without them. Their history became unreachable —
+       * the deck left the picker and took its matches with it, in the one
+       * screen whose whole job is remembering results. And "All decks"
+       * disagreed with itself: the headline record summed only live decks
+       * while the list beneath it read every match in the database, so
+       * archiving changed the total without changing a single row.
+       *
+       * Archiving means "not playing this now", not "erase what it did".
+       */
+      const summaries = listDecks(true);
       const options = summaries.map((s) => ({
         id: s.deck.id,
         name: s.deck.name,
+        archived: s.deck.archivedAt !== null,
         record: deckRecord(s.deck.id),
       }));
 
@@ -136,7 +151,10 @@ export default function StatsScreen() {
     ...decks.map((deck) => ({
       value: deck.id,
       label: deck.name,
-      meta: recordLine(deck.record.wins, deck.record.losses, deck.record.draws) ?? 'No matches',
+      meta: metaLine(
+        recordLine(deck.record.wins, deck.record.losses, deck.record.draws) ?? 'No matches',
+        deck.archived ? 'Archived' : null
+      ),
     })),
   ];
 

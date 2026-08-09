@@ -16,6 +16,7 @@ import {
   opponentBattlefieldFields,
   opponentChampionFields,
   opponentFields,
+  recentOpponents,
   undoMatch,
 } from '@/db/queries/matches';
 import type { CardRow } from '@/db/schema/cards';
@@ -116,6 +117,16 @@ export default function LogMatchScreen() {
     () => (opponent ? dedupe(listChampionsForLegend(opponent)) : []),
     [opponent]
   );
+
+  /*
+   * Read once on mount, not per render and not after each save.
+   *
+   * Logging four rounds of an event should not reshuffle the rail underneath
+   * you between rounds — the round you just logged would jump to the front and
+   * move everything else, and the rail's value is that its contents stay where
+   * your thumb last found them.
+   */
+  const recent = useMemo(() => dedupe(recentOpponents()), []);
 
   const reset = () => {
     // "Log another": you are still at the same event, with the same deck and
@@ -340,6 +351,57 @@ export default function LogMatchScreen() {
           'Their deck',
           <>
             <Text style={styles.fieldLabel}>Legend</Text>
+
+            {/*
+              The rail exists for one situation: logging a tournament's rounds
+              one after another, where the Legend you are about to record is
+              usually one you have faced recently. Opening a 180-card picker for
+              that is most of the ten-second budget spent on the field least
+              likely to be new.
+
+              Above the picker rather than inside it — a shortcut you have to
+              open something to reach is not a shortcut.
+            */}
+            {recent.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.recentRail}
+                keyboardShouldPersistTaps="handled"
+              >
+                {recent.map((card) => {
+                  const active = opponent?.id === card.id;
+                  return (
+                    <Pressable
+                      key={card.id}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={`${baseName(card.name)}, recently faced`}
+                      onPress={() => {
+                        haptic(Haptics.ImpactFeedbackStyle.Light);
+                        // Re-tapping clears, so a mis-tap costs one tap rather
+                        // than a trip through the picker to undo.
+                        setOpponent(active ? null : card);
+                        setOppChampion(null);
+                      }}
+                      style={({ pressed }) => [
+                        styles.chip,
+                        active && styles.chipActive,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text
+                        style={[styles.chipLabel, active && styles.chipLabelActive]}
+                        numberOfLines={1}
+                      >
+                        {baseName(card.name)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
+
             {field(
               'Legend',
               opponent ? baseName(opponent.name) : null,
@@ -512,6 +574,9 @@ const styles = StyleSheet.create({
   hint: { ...text.microMeta, color: color.textFaint },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  // Scrolls rather than wraps: eight Legend names would be three rows tall, and
+  // this sits in the middle of a six-step form.
+  recentRail: { flexDirection: 'row', gap: space[2], paddingRight: space[4] },
   chip: {
     minHeight: 38,
     justifyContent: 'center',
