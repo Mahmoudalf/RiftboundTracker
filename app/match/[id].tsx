@@ -8,6 +8,7 @@ import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import { getCard, listChampionsForLegend, listLegends } from '@/db/queries/cards';
 import { getDeck, getVersion } from '@/db/queries/decks';
+import { getEvent } from '@/db/queries/events';
 import {
   deleteMatch,
   getMatch,
@@ -18,12 +19,12 @@ import {
 import type { CardRow } from '@/db/schema/cards';
 import {
   BEST_OF_OPTIONS,
-  EVENT_TYPES,
-  type EventType,
+  MATCH_STYLES,
   type MatchResult,
+  type MatchStyle,
 } from '@/db/schema/matches';
 import { baseName, cardKey } from '@/lib/card-identity';
-import { matchDate, matchStyleLabel } from '@/lib/format';
+import { matchDate, matchStyleLabel, recordLine } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
@@ -75,6 +76,9 @@ export default function MatchDetailScreen() {
 
   const deck = getDeck(match.deckId);
   const version = getVersion(match.deckVersionId);
+  // Read inline like the deck and version above, and re-read on every render
+  // for the same reason: deleting the event elsewhere must stop linking to it.
+  const event = match.eventId ? getEvent(match.eventId) : null;
 
   // The Legend the opponent played, if the library still has it. The *name*
   // comes from the match row either way — that is what migration 7 is for.
@@ -210,12 +214,38 @@ export default function MatchDetailScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Match style</Text>
-          {chipRow<EventType>(
-            EVENT_TYPES.map((key) => ({ key, label: matchStyleLabel(key), value: key })),
+          {chipRow<MatchStyle>(
+            MATCH_STYLES.map((key) => ({ key, label: matchStyleLabel(key), value: key })),
             match.eventType,
             (value) => patch({ eventType: value })
           )}
         </View>
+
+        {/*
+          The event this round belonged to, if any.
+          *
+          A link rather than a picker: moving a match between events is a rare
+          correction, and the useful thing here is the way back to the day it
+          was part of.
+        */}
+        {event ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Event</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${event.name}`}
+              onPress={() => router.push(`/event/${event.id}`)}
+              style={({ pressed }) => [styles.eventLink, pressed && styles.pressed]}
+            >
+              <Text style={styles.eventLinkLabel} numberOfLines={1}>
+                {event.name}
+              </Text>
+              <Text style={styles.eventLinkMeta}>
+                {recordLine(event.wins, event.losses, event.draws) ?? 'No rounds'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Note</Text>
@@ -281,9 +311,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: color.border,
   },
-  segmentActive: { backgroundColor: color.text, borderColor: color.text },
+  segmentActive: { backgroundColor: color.accent, borderColor: color.text },
   segmentLabel: { ...text.small, color: color.textSecondary },
-  segmentLabelActive: { color: color.bg },
+  segmentLabelActive: { color: color.onAccent },
   field: {
     minHeight: 44,
     justifyContent: 'center',
@@ -311,5 +341,19 @@ const styles = StyleSheet.create({
   footnote: { ...text.microMeta, color: color.textFaint },
   delete: { minHeight: 44, justifyContent: 'center' },
   deleteLabel: { ...text.bodyMedium, color: color.danger },
+  eventLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space[3],
+    minHeight: 48,
+    paddingHorizontal: space[4],
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: color.border,
+    backgroundColor: color.surface,
+  },
+  eventLinkLabel: { ...text.bodyMedium, color: color.text, flexShrink: 1 },
+  eventLinkMeta: { ...text.microMeta, color: color.textMuted },
   pressed: { opacity: 0.75 },
 });

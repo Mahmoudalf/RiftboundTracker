@@ -2,7 +2,7 @@ import { newId } from '@/lib/id';
 
 import { conn } from '../connection';
 import type { CardRow } from '../schema/cards';
-import type { EventType, MatchResult, MatchRow } from '../schema/matches';
+import type { MatchStyle, MatchResult, MatchRow } from '../schema/matches';
 
 import { hydrateCard, hydrateMatch } from './hydrate';
 
@@ -42,7 +42,7 @@ export interface LogMatchInput {
   oppDomains?: string[] | null;
   oppLabel?: string | null;
   eventId?: string | null;
-  eventType?: EventType;
+  eventType?: MatchStyle;
   mulligans?: number | null;
   durationSeconds?: number | null;
   notes?: string | null;
@@ -197,12 +197,18 @@ export function getMatch(id: string): MatchRow | null {
 }
 
 /** Newest first — the order every match list and the undo toast read in. */
-export function listMatches(options: { deckId?: string; limit?: number } = {}): MatchRow[] {
+export function listMatches(
+  options: { deckId?: string; eventId?: string; limit?: number } = {}
+): MatchRow[] {
   const where = ['deleted_at IS NULL'];
   const params: (string | number)[] = [];
   if (options.deckId) {
     where.push('deck_id = ?');
     params.push(options.deckId);
+  }
+  if (options.eventId) {
+    where.push('event_id = ?');
+    params.push(options.eventId);
   }
   // Parameterised rather than interpolated, matching `recentOpponents`. The
   // floored number was never injectable, but two conventions for the same thing

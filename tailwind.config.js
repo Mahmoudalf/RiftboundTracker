@@ -2,6 +2,15 @@ const { neutral, semantic, domainUtilities, scrim } = require('./src/theme/palet
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  /*
+   * Class-based dark mode.
+   *
+   * NativeWind defaults to `media`, and on web that makes the colour scheme
+   * read-only — the app sets it explicitly and the runtime throws. The app is
+   * dark-only, so the media query buys nothing; this is only reachable on the
+   * web target used for design verification.
+   */
+  darkMode: 'class',
   content: ['./app/**/*.{js,jsx,ts,tsx}', './src/**/*.{js,jsx,ts,tsx}'],
   presets: [require('nativewind/preset')],
   theme: {

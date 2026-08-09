@@ -107,6 +107,23 @@ describe('saveMatchGames', () => {
     expect(game!.battlefields).toEqual(['bf1', 'bf2']);
   });
 
+  /*
+   * The two Battlefields are separate columns precisely so one being missing
+   * cannot promote the other. A positional pair would make [theirs] and [mine]
+   * the same row.
+   */
+  it('keeps each side of the Battlefields apart when only one is recorded', () => {
+    const { matchId } = makeMatch();
+    saveMatchGames(matchId, [
+      { gameNumber: 1, result: 'win', oppBattlefieldCardId: 'theirs-1' },
+      { gameNumber: 2, result: 'loss', battlefieldCardId: 'mine-2' },
+    ]);
+
+    const [one, two] = listMatchGames(matchId);
+    expect(one).toMatchObject({ battlefieldCardId: null, oppBattlefieldCardId: 'theirs-1' });
+    expect(two).toMatchObject({ battlefieldCardId: 'mine-2', oppBattlefieldCardId: null });
+  });
+
   it('keeps null distinct from an empty list', () => {
     const { matchId } = makeMatch();
     saveMatchGames(matchId, [

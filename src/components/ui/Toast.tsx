@@ -107,8 +107,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space[3],
     borderRadius: radius.full,
-    backgroundColor: color.text,
+    backgroundColor: color.accent,
   },
-  actionLabel: { ...text.smallMedium, color: color.bg },
+  actionLabel: { ...text.smallMedium, color: color.onAccent },
   pressed: { opacity: 0.8 },
 });

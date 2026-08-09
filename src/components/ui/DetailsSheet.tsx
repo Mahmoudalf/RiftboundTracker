@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Modal, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
@@ -31,6 +31,12 @@ interface DetailsSheetProps {
   notesPlaceholder: string;
   onClose: () => void;
   onSave: (name: string, notes: string) => void;
+  /**
+   * A caller-owned control between the notes field and the buttons — an event's
+   * style, for instance. Its state belongs to the caller; this sheet only ever
+   * manages the two fields it draws itself.
+   */
+  extra?: ReactNode;
   /** An extra, non-destructive-looking action — archiving, for instance. */
   secondary?: { label: string; onPress: () => void };
 }
@@ -50,6 +56,7 @@ function DetailsForm({
   notesPlaceholder,
   onClose,
   onSave,
+  extra,
   secondary,
 }: DetailsSheetProps) {
   const [name, setName] = useState(initialName);
@@ -92,6 +99,8 @@ function DetailsForm({
           textAlignVertical="top"
           accessibilityLabel="Notes"
         />
+
+        {extra}
 
         <View style={styles.actions}>
           <Pressable
@@ -165,9 +174,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.lg,
-    backgroundColor: color.text,
+    backgroundColor: color.accent,
   },
-  primaryLabel: { ...text.bodyMedium, color: color.bg },
+  primaryLabel: { ...text.bodyMedium, color: color.onAccent },
   secondary: {
     minHeight: 48,
     paddingHorizontal: space[5],

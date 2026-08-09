@@ -211,12 +211,12 @@ describe('logMatch', () => {
     const { deckId, versionId } = makeDeck();
     const id = logMatch({
       deckId, deckVersionId: versionId, result: 'win',
-      bestOf: 3, eventType: 'nexus-night',
+      bestOf: 3, eventType: 'tournament',
     });
 
     const match = getMatch(id)!;
     expect(match.bestOf).toBe(3);
-    expect(match.eventType).toBe('nexus-night');
+    expect(match.eventType).toBe('tournament');
   });
 
   it('keeps the format unrecorded when it was not asked', () => {

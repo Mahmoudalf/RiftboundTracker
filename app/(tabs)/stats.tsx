@@ -10,10 +10,11 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import { listDecks } from '@/db/queries/decks';
+import { listEvents, type EventSummary } from '@/db/queries/events';
 import { HISTORY_PAGE, matchHistory, type MatchHistoryEntry } from '@/db/queries/history';
 import { deckRecord, listMatches, type DeckRecord } from '@/db/queries/matches';
 import type { MatchRow } from '@/db/schema/matches';
-import { recordLine } from '@/lib/format';
+import { eventStyleLabel, matchDate, recordLine } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
@@ -34,11 +35,12 @@ import { metaLine, text } from '@/theme/typography';
  * can carry a confidence interval.
  */
 
-type Tab = 'matches' | 'analytics';
+type Tab = 'matches' | 'analytics' | 'events';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'matches', label: 'Matches' },
   { key: 'analytics', label: 'Analytics' },
+  { key: 'events', label: 'Events' },
 ];
 
 const ALL_DECKS = '__all__';
@@ -63,6 +65,7 @@ export default function StatsScreen() {
   const [allMatches, setAllMatches] = useState<MatchRow[]>([]);
   const [record, setRecord] = useState<DeckRecord | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [events, setEvents] = useState<EventSummary[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -100,6 +103,7 @@ export default function StatsScreen() {
       // whole layer costs under a millisecond over 2,000 rows.
       const everything = listMatches(scoped);
 
+      setEvents(listEvents());
       setDecks(options);
       setDeckId(active);
       setHistory(page.entries);
@@ -193,7 +197,42 @@ export default function StatsScreen() {
         </View>
       </View>
 
-      {tab === 'analytics' ? (
+      {tab === 'events' ? (
+        events.length === 0 ? (
+          <EmptyState
+            title="No events yet"
+            body="An event groups the rounds of one tournament or games night, so you can see how that day went rather than only how the deck does overall. Log a match, pick an organised match style, and name one."
+          />
+        ) : (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
+            {events.map((event) => (
+              <Pressable
+                key={event.id}
+                accessibilityRole="button"
+                accessibilityLabel={`${event.name}, ${event.total} rounds`}
+                onPress={() => router.push(`/event/${event.id}`)}
+                style={({ pressed }) => [styles.eventRow, pressed && styles.pressed]}
+              >
+                <View style={styles.eventBody}>
+                  <Text style={styles.eventName} numberOfLines={1}>
+                    {event.name}
+                  </Text>
+                  <Text style={styles.eventMeta}>
+                    {metaLine(
+                      eventStyleLabel(event.eventType),
+                      matchDate(event.startedAt),
+                      event.finalPlacement ? `Placed ${event.finalPlacement}` : null
+                    )}
+                  </Text>
+                </View>
+                <Text style={styles.eventRecord}>
+                  {recordLine(event.wins, event.losses, event.draws) ?? '—'}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )
+      ) : tab === 'analytics' ? (
         <ScrollView showsVerticalScrollIndicator={false}>
           <AnalyticsPanel matches={allMatches} />
         </ScrollView>
@@ -259,9 +298,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.full,
   },
-  tabActive: { backgroundColor: color.raised },
+  tabActive: { backgroundColor: color.accent },
   tabLabel: { ...text.smallMedium, color: color.textMuted },
-  tabLabelActive: { color: color.text },
+  tabLabelActive: { color: color.onAccent },
   list: { paddingBottom: space[16] },
   separator: { height: space[2] },
   footer: { gap: space[2], paddingTop: space[4], alignItems: 'flex-start' },
@@ -275,5 +314,20 @@ const styles = StyleSheet.create({
     borderColor: color.border,
   },
   loadMoreLabel: { ...text.smallMedium, color: color.text },
+  eventRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+    minHeight: 60,
+    paddingHorizontal: space[4],
+    borderRadius: radius.lg,
+    backgroundColor: color.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: color.border,
+  },
+  eventBody: { flex: 1, gap: space[0.5] },
+  eventName: { ...text.bodyMedium, color: color.text },
+  eventMeta: { ...text.microMeta, color: color.textMuted },
+  eventRecord: { ...text.numeric, fontSize: 14, color: color.textSecondary },
   pressed: { opacity: 0.75 },
 });

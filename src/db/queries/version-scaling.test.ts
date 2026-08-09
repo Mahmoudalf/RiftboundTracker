@@ -5,6 +5,7 @@ import { MIGRATIONS } from '../migrations';
 import type { CardRow } from '../schema/cards';
 import { applyMigrationsUpTo, createTestDatabase, type TestDatabase } from '../testing';
 
+import { deckCoverage } from './coverage';
 import {
   compareVersions,
   createDeck,
@@ -142,6 +143,9 @@ function buildRealisticDeck() {
 function loadOverview(deckId: string) {
   listVersions(deckId);
   versionMatchCounts(deckId);
+  // Reads every *live* deck's card rows, not just this one — copies are shared,
+  // so what this deck owns depends on what the others took.
+  deckCoverage(deckId);
   return versionStats(deckId);
 }
 

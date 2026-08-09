@@ -1,4 +1,4 @@
-import type { EventType } from '@/db/schema/matches';
+import type { EventStyle, MatchStyle } from '@/db/schema/matches';
 
 /**
  * Display formatting shared across screens.
@@ -34,25 +34,43 @@ export function matchDate(iso: string, now: Date = new Date()): string {
   });
 }
 
-const MATCH_STYLE_LABELS: Record<EventType, string> = {
+const MATCH_STYLE_LABELS: Record<MatchStyle, string> = {
   casual: 'Casual',
-  skirmish: 'Skirmish',
-  'nexus-night': 'Nexus Night',
-  locals: 'Locals',
-  tournament: 'Tournament',
   online: 'Online',
+  tournament: 'Tournament',
   testing: 'Testing',
 };
 
+const EVENT_STYLE_LABELS: Record<EventStyle, string> = {
+  'nexus-night': 'Nexus Night',
+  skirmish: 'Skirmish',
+  locals: 'Locals',
+  'regional-qualifier': 'Regional Qualifier',
+  'regional-final': 'Regional Final',
+};
+
 /**
- * The stored `event_type` as a player would read it.
+ * Turn a slug nobody mapped into something readable.
  *
- * Falls back to the raw value rather than to a blank: a row written by a newer
- * build than this one should still say *something* rather than silently look
- * like it has no style at all.
+ * Reached by rows written before the style split, which hold values these
+ * lists no longer offer. Rewriting that history to fit a newer vocabulary
+ * would be worse than rendering it plainly.
  */
+function humanise(value: string): string {
+  return value
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+/** How the match was played: Casual, Online, Tournament, Testing. */
 export function matchStyleLabel(value: string): string {
-  return MATCH_STYLE_LABELS[value as EventType] ?? value;
+  return MATCH_STYLE_LABELS[value as MatchStyle] ?? humanise(value);
+}
+
+/** The tier of an event: Nexus Night, Skirmish, Locals, Regional…. */
+export function eventStyleLabel(value: string): string {
+  return EVENT_STYLE_LABELS[value as EventStyle] ?? humanise(value);
 }
 
 /** `Bo3`, or null when the format was not recorded. */

@@ -254,9 +254,9 @@ const styles = StyleSheet.create({
   done: {
     height: 50,
     borderRadius: radius.lg,
-    backgroundColor: color.text,
+    backgroundColor: color.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  doneLabel: { ...text.bodyMedium, color: color.bg },
+  doneLabel: { ...text.bodyMedium, color: color.onAccent },
 });

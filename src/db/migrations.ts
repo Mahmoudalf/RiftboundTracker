@@ -495,6 +495,75 @@ export const MIGRATIONS: readonly Migration[] = [
         ON binder_cards(binder_id, card_id, finish);
     `,
   },
+  {
+    version: 14,
+    up: /* sql */ `
+      -- Repair binder card names.
+      --
+      -- Migration 12 stored the API's normalised search string — "Vi Piltover
+      -- Enforcer Signature" — where every other table stores the display name,
+      -- "Vi - Piltover Enforcer (Signature)". Two consequences: the
+      -- missing-from-library banner rendered the wrong form, and ownership can
+      -- never be matched against a deck, because \`cardKey()\` strips a
+      -- parenthesised printing suffix from the display name and the two forms
+      -- share no key.
+      --
+      -- Repaired from the mirror where the card is still there. Rows whose
+      -- printing has already left the library keep what they have — a slightly
+      -- wrong name is worth more than none, and those rows are exactly the ones
+      -- the banner exists to surface.
+      UPDATE binder_cards
+         SET card_name = (SELECT c.name FROM cards c WHERE c.id = binder_cards.card_id)
+       WHERE EXISTS (SELECT 1 FROM cards c WHERE c.id = binder_cards.card_id);
+    `,
+  },
+  {
+    version: 15,
+    up: /* sql */ `
+      -- Split match style from event style.
+      --
+      -- The old list mixed two questions: Skirmish, Nexus Night and Locals are
+      -- not alternatives to Tournament, they *are* tournaments. Kept as
+      -- siblings, "how do I do in tournaments" could not be answered without
+      -- knowing which three of the seven counted.
+      --
+      -- Matches keep four styles — casual, online, tournament, testing — and the
+      -- three organised-play tiers become event styles, one level down.
+      --
+      -- **This loses the finer label on existing matches**, and does so
+      -- knowingly. A match logged as "nexus-night" becomes "tournament"; there
+      -- is nowhere to put the tier, because the tier now lives on an event and
+      -- no event exists for a match logged before events did. The alternative
+      -- was to invent one event per style spanning months of unrelated nights,
+      -- which would produce a record for a day that never happened. Losing a
+      -- label beats fabricating an occasion.
+      UPDATE matches
+         SET event_type = 'tournament'
+       WHERE event_type IN ('skirmish', 'nexus-night', 'locals');
+
+      -- Events are deliberately NOT rewritten. Any created before this split
+      -- hold whatever style was picked, which is still meaningful, and
+      -- \`eventStyleLabel\` renders an unrecognised value rather than blanking
+      -- it. Only the picker is narrowed, so nothing is written that is not in
+      -- the new vocabulary and nothing already written is rewritten to fit it.
+    `,
+  },
+  {
+    version: 16,
+    up: /* sql */ `
+      -- Battlefields, per game, told apart.
+      --
+      -- \`match_games.battlefields\` is one untyped array — fine for "what was in
+      -- play", useless for "which one was mine". Logging now asks both sides for
+      -- every game, and a positional pair would lie the moment one is skipped:
+      -- [theirs] and [mine] are the same shape.
+      --
+      -- Named to match the columns on \`matches\`, which hold game 1's answers so
+      -- the splits built on them keep meaning what they meant.
+      ALTER TABLE match_games ADD COLUMN battlefield_card_id TEXT;
+      ALTER TABLE match_games ADD COLUMN opp_battlefield_card_id TEXT;
+    `,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

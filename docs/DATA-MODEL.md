@@ -153,7 +153,7 @@ on demand than to keep correct across edits, merges, and sync conflicts.
 | `opp_domains?` | json — set even when the exact Legend is unknown |
 | `opp_label?` | Free text, e.g. `"Yasuo aggro"` |
 | `event_id?` → `events.id` | |
-| `event_type` | `casual` \| `locals` \| `tournament` \| `online` \| `testing` |
+| `event_type` | The **match style**: `casual` \| `online` \| `tournament` \| `testing`. Not the event tier — see `events` below |
 | `mulligans?` / `duration_seconds?` / `notes?` / `tags?` | All optional detail |
 
 `deck_id` is stored alongside `deck_version_id` on purpose: deck-level aggregates never need a join,
@@ -170,7 +170,22 @@ Optional per-game BO3 detail: `id` · `match_id` · `game_number` · `on_play?` 
 ### `events`
 
 `id` · `name` · `format` · `event_type` · `started_at` · `location?` · `rounds?` ·
-`final_placement?` · `notes?`.
+`final_placement?` · `notes?`, plus sync columns.
+
+**Two vocabularies, one column name.** `matches.event_type` is the *match style* — how the game
+was played: `casual`, `online`, `tournament`, `testing`. `events.event_type` is the *event style* —
+the tier of a specific occasion: `nexus-night`, `skirmish`, `locals`, `regional-qualifier`,
+`regional-final`. Both columns keep the name `event_type`; renaming either would be a migration for
+no gain.
+
+They were one flat list of seven until migration 15, which was a category error: Skirmish and
+Nexus Night are not alternatives to Tournament, they are kinds of tournament. Splitting them makes
+"how do I do in tournaments" answerable and puts the tier where the question has an answer — on the
+occasion, not on each round.
+
+A match with `event_type = tournament` **must** carry an `event_id`; every other style may not have
+one. Deleting an event soft-deletes only the event: the rounds keep pointing at the tombstone, and
+reads filter on `events.deleted_at IS NULL`.
 
 ### `binders` · `binder_cards` (migration 12)
 

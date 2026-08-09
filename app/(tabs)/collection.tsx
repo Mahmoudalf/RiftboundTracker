@@ -289,7 +289,7 @@ export default function CollectionScreen() {
               pressed && styles.pressed,
             ]}
           >
-            <Icon name="filter" size={20} color={activeCount > 0 ? color.bg : color.text} />
+            <Icon name="filter" size={20} color={activeCount > 0 ? color.onAccent : color.text} />
             {activeCount > 0 ? <Text style={styles.filterCount}>{activeCount}</Text> : null}
           </Pressable>
         </View>
@@ -557,8 +557,8 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface,
     justifyContent: 'center',
   },
-  filterButtonActive: { backgroundColor: color.text, borderColor: color.text },
-  filterCount: { ...text.numeric, fontSize: 13, color: color.bg },
+  filterButtonActive: { backgroundColor: color.accent, borderColor: color.text },
+  filterCount: { ...text.numeric, fontSize: 13, color: color.onAccent },
   pressed: { opacity: 0.75 },
 
   domainRail: { gap: space[2], paddingRight: space[4] },

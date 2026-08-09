@@ -73,7 +73,7 @@ describe('matchHistory', () => {
     const oppChamp = seedCard({ id: 'yasuo-unit', name: 'Yasuo - Unforgiven', type: 'Unit' });
 
     logMatch({
-      deckId, deckVersionId: versionId, result: 'win', bestOf: 3, eventType: 'nexus-night',
+      deckId, deckVersionId: versionId, result: 'win', bestOf: 3, eventType: 'tournament',
       ...opponentFields(oppLegend), ...opponentChampionFields(oppChamp),
     });
 
@@ -87,7 +87,7 @@ describe('matchHistory', () => {
     expect(entry!.theirs.legend.name).toBe('Yasuo - Windrunner');
     expect(entry!.theirs.champion.name).toBe('Yasuo - Unforgiven');
     expect(entry!.match.bestOf).toBe(3);
-    expect(entry!.match.eventType).toBe('nexus-night');
+    expect(entry!.match.eventType).toBe('tournament');
   });
 
   /**

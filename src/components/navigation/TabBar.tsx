@@ -109,13 +109,13 @@ export function TabBar({ state, navigation }: TabBarProps) {
         <Icon
           name={tab.icon}
           size={23}
-          color={focused ? color.text : color.textFaint}
+          color={focused ? color.accent : color.textFaint}
           active={focused}
         />
         <Text
           style={[
             styles.label,
-            { color: focused ? color.text : color.textFaint },
+            { color: focused ? color.accent : color.textFaint },
           ]}
         >
           {tab.label}
@@ -144,7 +144,7 @@ export function TabBar({ state, navigation }: TabBarProps) {
             pressed && styles.actionPressed,
           ]}
         >
-          <Icon name="plus" size={26} color={color.bg} />
+          <Icon name="plus" size={26} color={color.onAccent} />
         </Pressable>
 
         {right.map(renderTab)}
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: radius.full,
-    backgroundColor: color.text,
+    backgroundColor: color.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -22,

@@ -1,10 +1,10 @@
 /** Types for the plain-JS palette that `tailwind.config.js` also consumes. */
 
 export interface DomainPaletteEntry {
-  print: string;
-  hue: number;
   base: string;
+  /** Derived: base lifted toward white, for fills that must carry text. */
   bright: string;
+  /** Derived: base sat down onto the shell, for chip and gradient fills. */
   dim: string;
 }
 
@@ -30,6 +30,9 @@ declare const palette: {
     danger: string;
     info: string;
   };
+  /** The single coral accent: primary action, active tab, current selection. */
+  accent: string;
+  onAccent: string;
   domains: Record<
     'Fury' | 'Calm' | 'Mind' | 'Body' | 'Chaos' | 'Order' | 'Colorless',
     DomainPaletteEntry

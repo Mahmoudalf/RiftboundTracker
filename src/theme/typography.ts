@@ -1,11 +1,12 @@
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
+  JetBrainsMono_400Regular,
+  JetBrainsMono_500Medium,
+  JetBrainsMono_700Bold,
+} from '@expo-google-fonts/jetbrains-mono';
 import {
+  SpaceGrotesk_400Regular,
   SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
   SpaceGrotesk_700Bold,
 } from '@expo-google-fonts/space-grotesk';
 import type { TextStyle } from 'react-native';
@@ -13,9 +14,15 @@ import type { TextStyle } from 'react-native';
 /**
  * Type system.
  *
- * Display is **Space Grotesk** — technical and slightly odd (that single-storey
- * g, the flat terminals) without reading as a stock "gamer" face. Body is
- * **Inter**, which holds up at the 12–13px a dense card list needs.
+ * **Space Grotesk** throughout the interface — technical and slightly odd (that
+ * single-storey g, the flat terminals) without reading as a stock "gamer" face.
+ * **JetBrains Mono** carries numbers and metadata, so records and counts align
+ * in a column and never re-flow as they update.
+ *
+ * Body was Inter until the Hi-Fi design (2026-08-09) specified one UI face. The
+ * old note said Inter held up better at 12–13px, which is true of Inter in
+ * general and was worth trading for a single voice; watch the dense card lists
+ * on a device before assuming it is settled.
  *
  * The third role is the signature: `meta` borrows the idiom printed along the
  * foot of every Riftbound card — `OGN • 007/298 • Greg Ghielmetti • ©2025RGI`.
@@ -25,12 +32,13 @@ import type { TextStyle } from 'react-native';
  */
 
 export const fonts = {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
+  SpaceGrotesk_400Regular,
   SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
   SpaceGrotesk_700Bold,
+  JetBrainsMono_400Regular,
+  JetBrainsMono_500Medium,
+  JetBrainsMono_700Bold,
 };
 
 /** Stats must never jitter as they update, so figures are always tabular. */
@@ -57,25 +65,25 @@ export const text = {
     lineHeight: 24,
   },
 
-  body: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 21 },
-  bodyMedium: { fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 21 },
-  small: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18 },
-  smallMedium: { fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 18 },
-  caption: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16 },
+  body: { fontFamily: 'SpaceGrotesk_400Regular', fontSize: 15, lineHeight: 21 },
+  bodyMedium: { fontFamily: 'SpaceGrotesk_500Medium', fontSize: 15, lineHeight: 21 },
+  small: { fontFamily: 'SpaceGrotesk_400Regular', fontSize: 13, lineHeight: 18 },
+  smallMedium: { fontFamily: 'SpaceGrotesk_500Medium', fontSize: 13, lineHeight: 18 },
+  caption: { fontFamily: 'SpaceGrotesk_400Regular', fontSize: 12, lineHeight: 16 },
 
   /** The card-footer idiom. Always uppercase — see `metaLine()`. */
   meta: {
-    fontFamily: 'SpaceGrotesk_500Medium',
-    fontSize: 11,
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 10.5,
     lineHeight: 15,
-    letterSpacing: 1.1,
+    letterSpacing: 0.95,
     textTransform: 'uppercase' as const,
   },
   microMeta: {
-    fontFamily: 'SpaceGrotesk_500Medium',
-    fontSize: 10,
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 9.5,
     lineHeight: 14,
-    letterSpacing: 0.8,
+    letterSpacing: 0.85,
     textTransform: 'uppercase' as const,
   },
 
@@ -96,8 +104,8 @@ export const text = {
   },
   /** Inline numbers inside prose — records, counts, percentages. */
   numeric: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
+    fontFamily: 'JetBrainsMono_700Bold',
+    fontSize: 14,
     lineHeight: 21,
     ...TABULAR,
   },

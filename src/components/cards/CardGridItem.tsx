@@ -101,6 +101,13 @@ export const CardGridItem = memo(function CardGridItem({
         style={[
           styles.frame,
           { width: frameWidth, height: frameHeight },
+          /*
+           * Two dims, deliberately different depths. `blocked` is heavier and
+           * always carries a reason underneath ("Foil only"); "none of this
+           * yet" is lighter and silent, because it describes almost every card
+           * in a new binder and a wall of labels would say nothing.
+           */
+          owned === 0 && !blocked ? styles.frameUnowned : null,
           blocked ? styles.frameBlocked : null,
         ]}
       >
@@ -235,6 +242,7 @@ const styles = StyleSheet.create({
   ownedNone: { backgroundColor: color.overlay },
   ownedFoil: { backgroundColor: color.info },
   frameBlocked: { opacity: 0.35 },
+  frameUnowned: { opacity: 0.6 },
   blocked: { ...text.microMeta, color: color.textMuted, fontSize: 9, paddingTop: 2 },
   ownedText: { ...text.numeric, fontSize: 12, color: color.bg },
   ownedTextNone: { color: color.textMuted },

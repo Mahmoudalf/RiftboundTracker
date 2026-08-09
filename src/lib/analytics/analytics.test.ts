@@ -180,12 +180,12 @@ describe('matchupSegments', () => {
 describe('styleSegments and bestOfSegments', () => {
   it('groups by match style', () => {
     const segments = styleSegments([
-      match({ result: 'win', eventType: 'nexus-night' }),
-      match({ result: 'loss', eventType: 'nexus-night' }),
+      match({ result: 'win', eventType: 'tournament' }),
+      match({ result: 'loss', eventType: 'tournament' }),
       match({ result: 'win', eventType: 'online' }),
     ]);
 
-    expect(segments[0]).toMatchObject({ key: 'nexus-night' });
+    expect(segments[0]).toMatchObject({ key: 'tournament' });
     expect(segments[0]!.rate.total).toBe(2);
   });
 

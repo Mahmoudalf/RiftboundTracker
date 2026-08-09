@@ -635,9 +635,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: color.border,
   },
-  poolChipActive: { backgroundColor: color.text, borderColor: color.text },
+  poolChipActive: { backgroundColor: color.accent, borderColor: color.text },
   poolLabel: { ...text.microMeta, color: color.textSecondary },
-  poolLabelActive: { color: color.bg },
+  poolLabelActive: { color: color.onAccent },
   zone: { gap: space[1] },
   zoneHeader: {
     flexDirection: 'row',
@@ -657,9 +657,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space[4],
     borderRadius: radius.full,
-    backgroundColor: color.text,
+    backgroundColor: color.accent,
   },
-  saveLabel: { ...text.smallMedium, color: color.bg },
+  saveLabel: { ...text.smallMedium, color: color.onAccent },
   pressed: { opacity: 0.75 },
   search: {
     ...text.small,

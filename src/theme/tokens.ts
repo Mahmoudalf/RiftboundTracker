@@ -6,21 +6,22 @@ import palette from './palette';
  *
  * Color literals live only in `palette.js`, which `tailwind.config.js` also
  * requires, so the utility classes and these values cannot drift apart.
- *
- * Contrast ratios in comments are measured against `color.surface` (#12141A).
  */
 
 export const color = {
   ...palette.neutral,
   ...palette.semantic,
+  accent: palette.accent,
+  onAccent: palette.onAccent,
   scrim: palette.scrim,
 } as const;
 
 /*
- * For reference, measured on #12141A:
- *   text 15.31:1 · textSecondary 7.10:1 · textMuted 5.30:1
- *   win 7.94:1 · loss 6.82:1
- * `textFaint` sits below AA by design — decorative only, never information.
+ * Measured on `surface` (#1B1B1E):
+ *   text 15.0:1 · textSecondary 10.5:1 · textMuted 6.5:1
+ *   win 7.4:1 · loss 4.0:1 · accent 4.6:1
+ * `textFaint` sits at 2.7:1 — below AA by design, decorative and structural
+ * only, never information.
  */
 
 /** 4pt base scale, matching Tailwind's default spacing. */
@@ -41,15 +42,27 @@ export const space = {
   16: 64,
 } as const;
 
+/**
+ * From the design's form spec: 14px cards, 22px pills, 4px tags, 2px bars.
+ *
+ * `full` stays 9999 for anything genuinely circular — a badge, an avatar. Use
+ * `pill` for the capsule shapes the design actually specifies, so a chip and a
+ * circle are not the same token pretending to agree.
+ */
 export const radius = {
   none: 0,
+  /** Tags. */
   sm: 4,
   md: 8,
   lg: 12,
   xl: 16,
   '2xl': 24,
-  /** Matches the printed card's corner. */
-  card: 10,
+  /** Cards, and the printed card's own corner. */
+  card: 14,
+  /** Chips, capsules, segmented controls. */
+  pill: 22,
+  /** Progress and win-rate bars. */
+  bar: 2,
   full: 9999,
 } as const;
 

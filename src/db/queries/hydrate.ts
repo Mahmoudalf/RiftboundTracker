@@ -11,8 +11,10 @@ import {
   type DeckVersionRow,
 } from '../schema/decks';
 import {
+  events,
   matchGames,
   matches,
+  type EventRow,
   type MatchGameRow,
   type MatchRow,
 } from '../schema/matches';
@@ -205,5 +207,12 @@ export function hydrateMatch(row: Record<string, unknown>): MatchRow {
 
 export function hydrateMatchGame(row: Record<string, unknown>): MatchGameRow {
   return hydrate<MatchGameRow>(row, matchGameColumns);
+}
+
+/** Events. `started_at`, `final_placement` and `event_type` are the multi-word ones. */
+const eventColumns: ColumnMapping[] = buildMapping(events);
+
+export function hydrateEvent(row: Record<string, unknown>): EventRow {
+  return hydrate<EventRow>(row, eventColumns);
 }
 

@@ -199,6 +199,63 @@ describe('probe: upgrading a device that already has a collection', () => {
   });
 });
 
+describe('probe: migration 14 repairs stored card names', () => {
+  /*
+   * Migration 12 stored the API's normalised search string in
+   * `binder_cards.card_name`. Every other table stores the display name, and
+   * `cardKey()` derives identity from the display form — so ownership could
+   * never have matched a deck. Migration 14 repairs it from the mirror.
+   */
+  it('rewrites a normalised name to the display name', () => {
+    const upgrading = createTestDatabase();
+    applyMigrationsUpTo(upgrading, MIGRATIONS, 13);
+    setTestConnection(upgrading);
+
+    upgrading.runSync(
+      `INSERT INTO cards
+         (id, riftbound_id, name, clean_name, collector_number, type, rarity,
+          domains, domain_key, tags, set_id, set_label, image_url, artist, orientation)
+       VALUES ('vi','ogn-vi-1','Vi - Piltover Enforcer (Signature)',
+               'Vi Piltover Enforcer Signature',1,'Unit','Rare',
+               '["Fury"]','Fury','[]','OGN','Origins','https://x/a.png','A','portrait')`
+    );
+    upgrading.runSync(
+      `INSERT INTO binders (id, name, sort_order, created_at, updated_at)
+       VALUES ('b1','B',0,'2026-01-01','2026-01-01')`
+    );
+    // Exactly what migration 12 would have written.
+    upgrading.runSync(
+      `INSERT INTO binder_cards
+         (id, binder_id, card_id, card_name, quantity, finish, created_at, updated_at)
+       VALUES ('r1','b1','vi','Vi Piltover Enforcer Signature',2,'standard','2026-01-01','2026-01-01')`
+    );
+    // A row whose printing has already left the library.
+    upgrading.runSync(
+      `INSERT INTO binder_cards
+         (id, binder_id, card_id, card_name, quantity, finish, created_at, updated_at)
+       VALUES ('r2','b1','ghost','Gone Card',1,'standard','2026-01-01','2026-01-01')`
+    );
+
+    applyMigrationsUpTo(upgrading, MIGRATIONS, 14);
+
+    const names = upgrading.getAllSync<{ id: string; card_name: string }>(
+      'SELECT id, card_name FROM binder_cards ORDER BY id'
+    );
+    expect(names).toEqual([
+      { id: 'r1', card_name: 'Vi - Piltover Enforcer (Signature)' },
+      // Unresolvable rows keep what they have: a slightly wrong name beats none.
+      { id: 'r2', card_name: 'Gone Card' },
+    ]);
+    // Quantities are untouched — this repairs a label, not a count.
+    expect(
+      upgrading.getFirstSync<{ n: number }>('SELECT SUM(quantity) AS n FROM binder_cards')!.n
+    ).toBe(3);
+
+    setTestConnection(null);
+    upgrading.close();
+  });
+});
+
 describe('probe: binders are independent', () => {
   it('removing a card from one binder leaves the other alone', () => {
     const a = createBinder({ name: 'A' });

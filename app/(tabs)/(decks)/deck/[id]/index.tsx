@@ -1,14 +1,25 @@
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Platform, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Platform,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
-import { DomainBadge } from '@/components/cards/DomainBadge';
 import { DeckSlotRow } from '@/components/decks/DeckSlotRow';
-import { LegalityBar } from '@/components/decks/LegalityBar';
 import { VersionCompareSheet } from '@/components/decks/VersionCompareSheet';
+import { VersionNodeDetail } from '@/components/decks/VersionNodeDetail';
 import { VersionTimeline, type TimelineNode } from '@/components/decks/VersionTimeline';
 import { MatchRow } from '@/components/matches/MatchRow';
 import { WinRateBar } from '@/components/stats/WinRateBar';
@@ -16,7 +27,8 @@ import { DetailsSheet } from '@/components/ui/DetailsSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
-import { queryCards } from '@/db/queries/cards';
+import { getCard, queryCards } from '@/db/queries/cards';
+import { deckCoverage, type DeckCoverage } from '@/db/queries/coverage';
 import {
   archiveDeck,
   compareVersions,
@@ -50,11 +62,14 @@ import {
   useToast,
 } from '@/features/matches/useToast';
 import { rateOf } from '@/lib/analytics/summary';
+import { isLandscapeCard } from '@/lib/card-art';
+import { baseName } from '@/lib/card-identity';
+import { cardImage } from '@/lib/cdn';
 import { DeckCodeError, encodeDeckList } from '@/lib/deck-code';
 import type { DeckDiff } from '@/lib/deck-diff';
 import { recordLine } from '@/lib/format';
 import { checkLegality, type DeckList, type DeckZone } from '@/lib/legality';
-import { deckGradient } from '@/theme/domains';
+import { deckGradient, domainColor, sortDomains } from '@/theme/domains';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
@@ -67,7 +82,10 @@ import { metaLine, text } from '@/theme/typography';
  * them something worse.
  */
 
-type Tab = 'overview' | 'list' | 'versions' | 'matches';
+type Tab = 'overview' | 'versions' | 'matches' | 'stats';
+
+/** The decklist's two shapes on the Overview tab. */
+type Preview = 'list' | 'gallery';
 
 /**
  * Versions drawn before the tail is folded behind a tap.
@@ -80,9 +98,34 @@ const VERSIONS_SHOWN = 30;
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
-  { key: 'list', label: 'List' },
   { key: 'versions', label: 'Versions' },
   { key: 'matches', label: 'Matches' },
+  { key: 'stats', label: 'Stats' },
+];
+
+/** The hero image's height, from the design. */
+const HERO_HEIGHT = 206;
+
+/** Deck-detail body padding, from the design's `padding:18px 20px 0`. */
+const BODY_PAD = 20;
+const GALLERY_COLUMNS = 3;
+const GALLERY_GAP = 13;
+/** 108/151 in the design — the printed card's proportion. */
+const GALLERY_ASPECT = 108 / 151;
+
+/**
+ * Zones as the gallery groups them.
+ *
+ * Legend and Champion are one section there rather than two: each holds a
+ * single card, and two consecutive one-card sections leave the pair stacked
+ * down the left edge with two headers and a lot of nothing beside them.
+ */
+const GALLERY_GROUPS: { zones: DeckZone[]; label: string }[] = [
+  { zones: ['legend', 'champion'], label: 'Legend & Champion' },
+  { zones: ['main'], label: 'Main deck' },
+  { zones: ['rune'], label: 'Runes' },
+  { zones: ['battlefield'], label: 'Battlefields' },
+  { zones: ['sideboard'], label: 'Sideboard' },
 ];
 
 const ZONE_ORDER: { zone: DeckZone; label: string; fixed?: boolean }[] = [
@@ -97,7 +140,27 @@ const ZONE_ORDER: { zone: DeckZone; label: string; fixed?: boolean }[] = [
   { zone: 'sideboard', label: 'Sideboard' },
 ];
 
+/**
+ * Drawn, not typed — the same reasoning as `Screen`'s. A chevron character is a
+ * font dependency for a control the user cannot proceed without.
+ */
+function BackChevron() {
+  return (
+    <Svg width={11} height={18} viewBox="0 0 11 18" fill="none">
+      <Path
+        d="M9.5 1.5L2 9l7.5 7.5"
+        stroke={color.text}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export default function DeckDetailScreen() {
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [tab, setTab] = useState<Tab>('overview');
   const [deck, setDeck] = useState<DeckRow | null>(null);
@@ -105,7 +168,11 @@ export default function DeckDetailScreen() {
   const [list, setList] = useState<DeckList>({ slots: [] });
   const [missing, setMissing] = useState<MissingCard[]>([]);
   const [matchCounts, setMatchCounts] = useState<Map<string, number>>(new Map());
+  const [coverage, setCoverage] = useState<DeckCoverage | null>(null);
+  const [legendArt, setLegendArt] = useState<string | null>(null);
   const [showAllVersions, setShowAllVersions] = useState(false);
+  const [expandedVersion, setExpandedVersion] = useState<string | null>(null);
+  const [preview, setPreview] = useState<Preview>('list');
   const [compare, setCompare] = useState<string[]>([]);
   const [compareMode, setCompareMode] = useState(false);
   /** Which details sheet is open — the deck's, or one version's. */
@@ -143,6 +210,10 @@ export default function DeckDetailScreen() {
     setMatchesByVersion(byVersion);
 
     setMatchCounts(counts);
+    setCoverage(deckCoverage(row.id));
+    // The Legend's art carries the hero. Null when the deck has no Legend or its
+    // printing has left the library — the header falls back to a domain plate.
+    setLegendArt(row.legendCardId ? (getCard(row.legendCardId)?.imageUrl ?? null) : null);
   }, [id]);
 
   useFocusEffect(load);
@@ -220,54 +291,22 @@ export default function DeckDetailScreen() {
       return;
     }
 
-    const options: Parameters<typeof Alert.alert>[2] = [{ text: 'Cancel', style: 'cancel' }];
+    setExpandedVersion((open) => (open === node.version.id ? null : node.version.id));
+  };
 
-    // Always offered, including on v1 — which is the version that could never
-    // be labelled before, because a label was only ever set at fork time and
-    // the first build never passes through a fork sheet.
-    options.push({
-      text: node.version.label ? 'Edit label & notes' : 'Add a label',
-      onPress: () => setEditingVersion(node.version),
-    });
-
-    if (!node.isCurrent) {
-      options.push({
-        text: `Make v${node.version.versionNumber} current`,
-        onPress: () => {
-          setCurrentVersion(id, node.version.id);
-          load();
-        },
-      });
+  const onDeleteVersion = (versionId: string) => {
+    try {
+      deleteVersion(versionId);
+      setExpandedVersion(null);
+      load();
+    } catch (err) {
+      Alert.alert(
+        'This version cannot be deleted',
+        err instanceof VersionHasMatchesError
+          ? 'It has matches logged against it, and those results only mean anything attached to the list that played them.'
+          : 'A deck has to keep at least one version.'
+      );
     }
-
-    if (!node.isCurrent && !node.version.lockedAt && versions.length > 1) {
-      options.push({
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          try {
-            deleteVersion(node.version.id);
-            load();
-          } catch (err) {
-            Alert.alert(
-              'This version cannot be deleted',
-              err instanceof VersionHasMatchesError
-                ? 'It has matches logged against it, and those results only mean anything attached to the list that played them.'
-                : 'A deck has to keep at least one version.'
-            );
-          }
-        },
-      });
-    }
-
-    Alert.alert(
-      `v${node.version.versionNumber}`,
-      node.version.label ??
-        (node.isCurrent
-          ? 'The version this deck currently points at.'
-          : 'This version is not the one the deck currently points at.'),
-      options
-    );
   };
 
   /** Long-press is a shortcut into compare mode with this node already picked. */
@@ -434,34 +473,106 @@ export default function DeckDetailScreen() {
 
   const [from, to] = deckGradient(deck.domains);
 
+  const totalCards = list.slots.reduce((n, slot) => n + slot.quantity, 0);
+  const cellWidth =
+    (windowWidth - BODY_PAD * 2 - GALLERY_GAP * (GALLERY_COLUMNS - 1)) / GALLERY_COLUMNS;
+
   return (
-    <Screen
-      title={deck.name}
-      meta={metaLine(
-        current ? `v${current.versionNumber}` : null,
-        versions.length > 1 ? `${versions.length} versions` : null,
-        legality.legal ? 'Legal' : 'Incomplete',
-        // Otherwise an archived deck is indistinguishable from a live one once
-        // you are inside it, and the only clue was that it left a list.
-        deck.archivedAt ? 'Archived' : null
-      )}
-      action={
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Edit deck"
-          onPress={() => router.push(`/deck/${id}/edit`)}
-          style={({ pressed }) => [styles.edit, pressed && styles.pressed]}
-        >
-          <Text style={styles.editLabel}>Edit</Text>
-        </Pressable>
-      }
-    >
-      <LinearGradient
-        colors={[from, to]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.accent}
-      />
+    <View style={styles.root}>
+      {/*
+        The hero runs under the status bar — the design's art bleeds to the top
+        edge, so this screen draws its own chrome rather than using `Screen`,
+        whose header starts below the inset.
+      */}
+      <View style={styles.hero}>
+        {legendArt ? (
+          <Image
+            source={cardImage(legendArt, 'full')}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            contentPosition={{ top: "14%", left: "50%" }}
+            cachePolicy="memory-disk"
+            accessible={false}
+          />
+        ) : (
+          <LinearGradient
+            colors={[from, to]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
+
+        {/* Top-down scrim so the controls stay legible over any art, and a
+            heavier foot so the title never fights a bright frame. */}
+        <LinearGradient
+          colors={['rgba(15,15,16,0.82)', 'rgba(15,15,16,0.10)', 'rgba(15,15,16,0.92)', color.bg]}
+          locations={[0, 0.36, 0.82, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+
+        <View style={[styles.heroControls, { top: insets.top + space[2] }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.heroCircle, pressed && styles.pressed]}
+          >
+            <BackChevron />
+          </Pressable>
+
+          <View style={styles.heroActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Copy this deck's code to the clipboard"
+              onPress={onExport}
+              style={({ pressed }) => [styles.heroPill, pressed && styles.pressed]}
+            >
+              <Text style={styles.heroPillLabel}>Share</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Edit deck"
+              onPress={() => router.push(`/deck/${id}/edit`)}
+              style={({ pressed }) => [styles.heroPill, pressed && styles.pressed]}
+            >
+              <Text style={styles.heroPillLabel}>Edit</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.heroTitle}>
+          <Text style={styles.heroName} numberOfLines={2} accessibilityRole="header">
+            {deck.name}
+          </Text>
+          <Text style={styles.heroMeta} numberOfLines={1}>
+            {metaLine(
+              current ? `v${current.versionNumber}` : null,
+              current?.label,
+              deck.archivedAt ? 'Archived' : 'Current'
+            )}
+          </Text>
+        </View>
+      </View>
+
+      {/* Identity, size and legality as chips — the design reads them as facts
+          in a row rather than as a bar with a verdict. */}
+      <View style={styles.chipRow}>
+        {sortDomains(deck.domains).map((domain) => (
+          <View key={domain} style={styles.chip}>
+            <View style={[styles.chipDot, { backgroundColor: domainColor(domain).base }]} />
+            <Text style={styles.chipLabel}>{domain}</Text>
+          </View>
+        ))}
+        <View style={styles.chip}>
+          <Text style={styles.chipLabel}>{totalCards} cards</Text>
+        </View>
+        <View style={[styles.chip, !legality.legal && styles.chipWarn]}>
+          <Text style={[styles.chipLabel, !legality.legal && styles.chipWarnLabel]}>
+            {legality.legal ? 'Legal' : '! Not legal'}
+          </Text>
+        </View>
+      </View>
 
       <View style={styles.tabs}>
         {TABS.map((t) => (
@@ -493,67 +604,205 @@ export default function DeckDetailScreen() {
 
         {tab === 'overview' ? (
           <View style={styles.overview}>
-            <View style={styles.identity}>
-              <DomainBadge domains={deck.domains} size="md" showLabel />
-            </View>
-
-            <LegalityBar result={legality} />
-
-            {legality.issues.length > 0 ? (
-              <View style={styles.issues}>
-                {legality.issues.map((issue) => (
-                  <Text key={`${issue.code}:${issue.message}`} style={styles.issue}>
-                    {issue.message}
+            {/*
+              A sentence, not a bar. The design leads with what is wrong and
+              what is fine — "one card short, everything else checks out" is
+              the thing a builder acts on; a row of counters makes them derive
+              it. The counts are still a tap away in the list below.
+            */}
+            {legality.legal ? null : (
+              <View style={styles.callout}>
+                <View style={styles.calloutMark}>
+                  <Text style={styles.calloutMarkLabel}>!</Text>
+                </View>
+                <View style={styles.calloutBody}>
+                  <Text style={styles.calloutTitle}>
+                    Not legal{legality.issues[0] ? ` — ${legality.issues[0].message}` : ''}
                   </Text>
-                ))}
+                  <Text style={styles.calloutNote}>
+                    {legality.issues.length > 1
+                      ? `${legality.issues.length - 1} more to fix.`
+                      : 'Everything else checks out.'}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+
+            {/*
+              What you own of this deck.
+              *
+              Copies are shared across decks the way physical cards are, so this
+              is what is left for this deck after older ones have taken theirs —
+              two decks each running three of a card you own three of do not
+              both report a full set. Advisory only: nothing here blocks saving,
+              logging, or tracking a deck you own none of, because playing
+              online is a perfectly good reason to have one.
+            */}
+            {coverage && coverage.required > 0 ? (
+              <View style={styles.coverage}>
+                <Text style={styles.sectionLabel}>In your collection</Text>
+                <Text
+                  style={[
+                    styles.coverageCount,
+                    coverage.owned < coverage.required && styles.coverageShort,
+                  ]}
+                >
+                  {coverage.owned}/{coverage.required} cards
+                </Text>
+                {coverage.shortfalls.length > 0 ? (
+                  <Text style={styles.hint}>
+                    Missing{' '}
+                    {coverage.shortfalls
+                      .slice(0, 4)
+                      .map((s) => `${s.need - s.have}× ${s.name}`)
+                      .join(', ')}
+                    {coverage.shortfalls.length > 4
+                      ? ` and ${coverage.shortfalls.length - 4} more`
+                      : ''}
+                    .
+                  </Text>
+                ) : null}
               </View>
             ) : null}
 
-            <View style={styles.versionBlock}>
-              <Text style={styles.sectionLabel}>Current version</Text>
-              <Text style={styles.versionMeta}>
-                {metaLine(
-                  current ? `v${current.versionNumber}` : null,
-                  current?.label,
-                  current?.lockedAt ? 'Locked — editing forks' : 'Editable in place',
-                  versions.length > 1 ? `${versions.length} versions` : null
-                )}
-              </Text>
-              <Text style={styles.hint}>
-                Editing a version that has matches logged against it creates a new one, so past
-                results always stay attached to the list that played them.
-              </Text>
-            </View>
-
             {deck.notes ? <Text style={styles.notes}>{deck.notes}</Text> : null}
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Rename this deck or edit its notes"
-              onPress={() => setEditingDeck(true)}
-              style={({ pressed }) => [styles.export, pressed && styles.pressed]}
-            >
-              <Text style={styles.exportLabel}>Deck details</Text>
-            </Pressable>
+            {/*
+              Deck preview. Rows read the list; gallery reads the deck — which
+              cards you own the art of, and how the thing looks laid out. Two
+              answers to different questions, so it is a toggle rather than a
+              replacement.
+            */}
+            <View style={styles.previewHeader}>
+              <Text style={styles.sectionLabel}>Deck preview</Text>
+              <View style={styles.segmented}>
+                {(['list', 'gallery'] as const).map((mode) => (
+                  <Pressable
+                    key={mode}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: preview === mode }}
+                    onPress={() => setPreview(mode)}
+                    style={({ pressed }) => [
+                      styles.segment,
+                      preview === mode && styles.segmentOn,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text
+                      style={[styles.segmentLabel, preview === mode && styles.segmentLabelOn]}
+                    >
+                      {mode === 'list' ? 'List' : 'Gallery'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Copy this deck's code to the clipboard"
-              onPress={onExport}
-              style={({ pressed }) => [styles.export, pressed && styles.pressed]}
-            >
-              {/* Named for what one tap does. Sharing is offered in the toast
-                  that follows, so the label is not promising the wrong thing. */}
-              <Text style={styles.exportLabel}>Copy deck code</Text>
-            </Pressable>
+            {(preview === 'gallery'
+              ? GALLERY_GROUPS.map((g) => ({
+                  key: g.zones.join('+'),
+                  label: g.label,
+                  zones: g.zones,
+                  fixed: false,
+                }))
+              : ZONE_ORDER.map((z) => ({
+                  key: z.zone,
+                  label: z.label,
+                  zones: [z.zone],
+                  fixed: z.fixed ?? false,
+                }))
+            ).map(({ key, label, zones, fixed }) => {
+              const slots = list.slots
+                .filter((s) => zones.includes(s.zone))
+                .sort((a, b) => (a.card.energy ?? 99) - (b.card.energy ?? 99));
+              if (slots.length === 0) return null;
+              const count = slots.reduce((n, s) => n + s.quantity, 0);
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={onDelete}
-              style={({ pressed }) => [styles.delete, pressed && styles.pressed]}
-            >
-              <Text style={styles.deleteLabel}>Delete deck</Text>
-            </Pressable>
+              return (
+                <View key={key} style={styles.zone}>
+                  <View style={styles.zoneHeader}>
+                    <Text style={styles.zoneLabel}>{label}</Text>
+                    <Text style={styles.zoneCount}>{count}</Text>
+                  </View>
+
+                  {preview === 'list' ? (
+                    slots.map((slot) => (
+                      <DeckSlotRow
+                        key={`${slot.zone}:${slot.card.id}`}
+                        slot={slot}
+                        fixed={fixed}
+                        onAdjust={() => undefined}
+                        onPress={() => router.push(`/card/${slot.card.id}`)}
+                      />
+                    ))
+                  ) : (
+                    <View style={styles.gallery}>
+                      {slots.map((slot) => (
+                        <Pressable
+                          key={`${slot.zone}:${slot.card.id}`}
+                          accessibilityRole="imagebutton"
+                          accessibilityLabel={`${baseName(slot.card.name)}, ${slot.quantity} in deck`}
+                          onPress={() => router.push(`/card/${slot.card.id}`)}
+                          style={({ pressed }) => [
+                            styles.galleryCell,
+                            { width: cellWidth },
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.galleryArt,
+                              {
+                                width: cellWidth,
+                                height: isLandscapeCard(slot.card)
+                                  ? cellWidth * GALLERY_ASPECT
+                                  : cellWidth / GALLERY_ASPECT,
+                              },
+                            ]}
+                          >
+                            <Image
+                              source={cardImage(slot.card.imageUrl, 'thumb')}
+                              style={StyleSheet.absoluteFill}
+                              contentFit="cover"
+                              cachePolicy="memory-disk"
+                              accessible={false}
+                            />
+                            {slot.quantity > 1 ? (
+                              <View style={styles.galleryCount}>
+                                <Text style={styles.galleryCountLabel}>{slot.quantity}</Text>
+                              </View>
+                            ) : null}
+                          </View>
+                          <Text style={styles.galleryName} numberOfLines={2}>
+                            {baseName(slot.card.name)}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+
+            {/* Secondary actions, after the deck rather than in front of it. */}
+            <View style={styles.footActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Rename this deck or edit its notes"
+                onPress={() => setEditingDeck(true)}
+                style={({ pressed }) => [styles.footAction, pressed && styles.pressed]}
+              >
+                <Text style={styles.footActionLabel}>Deck details</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={onDelete}
+                style={({ pressed }) => [styles.footAction, pressed && styles.pressed]}
+              >
+                <Text style={styles.deleteLabel}>Delete deck</Text>
+              </Pressable>
+            </View>
           </View>
         ) : tab === 'matches' ? (
           <View style={styles.overview}>
@@ -564,33 +813,6 @@ export default function DeckDetailScreen() {
               </Text>
             ) : (
               <>
-                {/* The rate lives in the bar, which cannot render one without
-                    its sample size and interval. The line above is a record —
-                    a fact, not an estimate. */}
-                <WinRateBar rate={rateOf(matches)} />
-
-                {versionPerformance.length > 1 ? (
-                  <View style={styles.versionBlock}>
-                    <Text style={styles.sectionLabel}>By version</Text>
-                    {versionPerformance.map((stat) => (
-                      <WinRateBar
-                        key={stat.versionIds.join('+')}
-                        rate={stat.rate}
-                        label={versionStatLabel(stat)}
-                        sublabel={
-                          stat.pooled
-                            ? 'Same cards, different printings — pooled'
-                            : (stat.label ?? undefined)
-                        }
-                        compact
-                      />
-                    ))}
-                    <Text style={styles.hint}>
-                      Use Compare in the Versions tab to see the cards behind the difference.
-                    </Text>
-                  </View>
-                ) : null}
-
                 <Text style={styles.sectionLabel}>
                   {metaLine(
                     recordLine(record.wins, record.losses, record.draws),
@@ -651,6 +873,30 @@ export default function DeckDetailScreen() {
               nodes={visibleNodes}
               selectedIds={compare}
               selecting={compareMode}
+              expandedId={compareMode ? null : expandedVersion}
+              renderDetail={(node) => (
+                <VersionNodeDetail
+                  diff={node.diff}
+                  matchCount={node.matchCount}
+                  isCurrent={node.isCurrent}
+                  canDelete={
+                    !node.isCurrent && !node.version.lockedAt && versions.length > 1
+                  }
+                  onOpen={() => {
+                    setCurrentVersion(id, node.version.id);
+                    setExpandedVersion(null);
+                    load();
+                  }}
+                  onFork={() => {
+                    // Editing forks from whichever version the deck points at,
+                    // so making it current *is* forking from here.
+                    setCurrentVersion(id, node.version.id);
+                    router.push(`/deck/${id}/edit`);
+                  }}
+                  onRename={() => setEditingVersion(node.version)}
+                  onDelete={() => onDeleteVersion(node.version.id)}
+                />
+              )}
               onPress={onVersionPress}
               onLongPress={onVersionLongPress}
             />
@@ -675,33 +921,45 @@ export default function DeckDetailScreen() {
               </Text>
             )}
           </View>
-        ) : (
-          ZONE_ORDER.map(({ zone, label, fixed }) => {
-            const slots = list.slots
-              .filter((s) => s.zone === zone)
-              .sort((a, b) => (a.card.energy ?? 99) - (b.card.energy ?? 99));
-            if (slots.length === 0) return null;
-            const count = slots.reduce((n, s) => n + s.quantity, 0);
+        ) : tab === 'stats' ? (
+          <View style={styles.overview}>
+            {matches.length === 0 ? (
+              <Text style={styles.hint}>
+                Nothing to measure yet. Log a match and the record, the interval, and the
+                per-version breakdown all appear here.
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.sectionLabel}>Record · all versions</Text>
+                {/* The rate lives in the bar, which cannot render one without
+                    its sample size and interval. */}
+                <WinRateBar rate={rateOf(matches)} />
 
-            return (
-              <View key={zone} style={styles.zone}>
-                <View style={styles.zoneHeader}>
-                  <Text style={styles.zoneLabel}>{label}</Text>
-                  <Text style={styles.zoneCount}>{count}</Text>
-                </View>
-                {slots.map((slot) => (
-                  <DeckSlotRow
-                    key={`${slot.zone}:${slot.card.id}`}
-                    slot={slot}
-                    fixed={fixed}
-                    onAdjust={() => undefined}
-                    onPress={() => router.push(`/card/${slot.card.id}`)}
-                  />
-                ))}
-              </View>
-            );
-          })
-        )}
+                {versionPerformance.length > 1 ? (
+                  <View style={styles.versionBlock}>
+                    <Text style={styles.sectionLabel}>By version</Text>
+                    {versionPerformance.map((stat) => (
+                      <WinRateBar
+                        key={stat.versionIds.join('+')}
+                        rate={stat.rate}
+                        label={versionStatLabel(stat)}
+                        sublabel={
+                          stat.pooled
+                            ? 'Same cards, different printings — pooled'
+                            : (stat.label ?? undefined)
+                        }
+                        compact
+                      />
+                    ))}
+                    <Text style={styles.hint}>
+                      Use Compare in the Versions tab to see the cards behind the difference.
+                    </Text>
+                  </View>
+                ) : null}
+              </>
+            )}
+          </View>
+        ) : null}
       </ScrollView>
 
       <VersionCompareSheet
@@ -745,23 +1003,172 @@ export default function DeckDetailScreen() {
         onSave={onSaveVersionDetails}
       />
 
-    </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  accent: { height: 3, borderRadius: radius.full, marginBottom: space[4] },
-  tabs: { flexDirection: 'row', gap: space[1], marginBottom: space[4] },
-  tab: {
-    paddingHorizontal: space[4],
-    minHeight: 34,
-    justifyContent: 'center',
-    borderRadius: radius.full,
+  root: { flex: 1, backgroundColor: color.bg },
+
+  hero: { height: HERO_HEIGHT, overflow: 'hidden' },
+  heroControls: {
+    position: 'absolute',
+    left: space[4],
+    right: space[4],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  tabActive: { backgroundColor: color.raised },
-  tabLabel: { ...text.smallMedium, color: color.textMuted },
+  heroCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(15,15,16,0.62)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroActions: { flexDirection: 'row', gap: space[2] },
+  heroPill: {
+    height: 36,
+    paddingHorizontal: space[4],
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(15,15,16,0.62)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroPillLabel: { ...text.smallMedium, color: color.text },
+  heroTitle: {
+    position: 'absolute',
+    left: space[4],
+    right: space[4],
+    bottom: space[3],
+    gap: space[1],
+  },
+  heroName: { ...text.title, fontSize: 23, color: color.text },
+  heroMeta: { ...text.microMeta, color: color.textSecondary },
+
+  chipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: space[2],
+    // padding:14px 20px 16px
+    paddingTop: 14,
+    paddingHorizontal: space[5],
+    paddingBottom: space[4],
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[1.5],
+    height: 28,
+    paddingHorizontal: space[3],
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: color.border,
+  },
+  chipDot: { width: 7, height: 7, borderRadius: 2 },
+  chipLabel: { ...text.microMeta, color: color.textMuted },
+  chipWarn: { borderColor: 'rgba(217,147,46,0.5)' },
+  chipWarnLabel: { color: color.warning },
+
+  callout: {
+    flexDirection: 'row',
+    gap: space[3],
+    padding: space[3],
+    borderRadius: radius.card,
+    backgroundColor: color.surface,
+  },
+  calloutMark: {
+    width: 22,
+    height: 22,
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(217,147,46,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calloutMarkLabel: { ...text.microMeta, color: color.warning },
+  calloutBody: { flex: 1, gap: space[0.5] },
+  calloutTitle: { ...text.smallMedium, color: color.text },
+  calloutNote: { ...text.caption, color: color.textMuted },
+
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space[3],
+  },
+  segmented: {
+    flexDirection: 'row',
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: color.border,
+  },
+  segment: { height: 32, paddingHorizontal: space[4], justifyContent: 'center' },
+  segmentOn: { backgroundColor: color.accent },
+  segmentLabel: { ...text.smallMedium, fontSize: 11, color: color.textMuted },
+  segmentLabelOn: { color: color.onAccent },
+
+  gallery: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: GALLERY_GAP,
+    rowGap: space[4],
+    paddingTop: 14,
+  },
+  galleryCell: { gap: space[1] },
+  galleryArt: {
+    borderRadius: 6,
+    overflow: 'hidden',
+    backgroundColor: color.surface,
+  },
+  galleryCount: {
+    position: 'absolute',
+    top: space[1],
+    right: space[1],
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: space[1],
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(15,15,16,0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  galleryCountLabel: { ...text.numeric, fontSize: 11, color: color.text },
+  galleryName: { ...text.caption, fontSize: 10.5, color: color.textMuted },
+
+  tabs: {
+    flexDirection: 'row',
+    paddingHorizontal: space[5],
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  tab: {
+    flex: 1,
+    // padding:13px 0 14px
+    paddingTop: 13,
+    paddingBottom: 14,
+    alignItems: 'center',
+    // The design marks the active tab with a rule under it, not a filled pill.
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+    marginBottom: -1,
+  },
+  tabActive: { borderBottomColor: color.accent },
+  tabLabel: {
+    fontFamily: 'SpaceGrotesk_600SemiBold',
+    fontSize: 12,
+    color: color.textMuted,
+    textAlign: 'center',
+  },
   tabLabelActive: { color: color.text },
-  content: { paddingBottom: space[16], gap: space[5] },
+  content: {
+    paddingHorizontal: space[5],
+    paddingTop: space[4],
+    paddingBottom: space[16],
+    gap: space[5],
+  },
   overview: { gap: space[5] },
   compareBar: {
     flexDirection: 'row',
@@ -778,9 +1185,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: color.border,
   },
-  compareButtonActive: { backgroundColor: color.text, borderColor: color.text },
+  compareButtonActive: { backgroundColor: color.accent, borderColor: color.text },
   compareButtonLabel: { ...text.smallMedium, color: color.text },
-  compareButtonLabelActive: { color: color.bg },
+  compareButtonLabelActive: { color: color.onAccent },
   showAll: {
     minHeight: 44,
     alignItems: 'center',
@@ -794,6 +1201,20 @@ const styles = StyleSheet.create({
   issues: { gap: space[1] },
   issue: { ...text.small, color: color.warning },
   notes: { ...text.small, color: color.textSecondary },
+  coverage: { gap: space[1] },
+  footActions: { flexDirection: 'row', gap: space[2], paddingTop: space[2] },
+  footAction: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: color.border,
+  },
+  footActionLabel: { ...text.smallMedium, color: color.textSecondary },
+  coverageCount: { ...text.numeric, fontSize: 20, color: color.text },
+  coverageShort: { color: color.warning },
   warning: { ...text.small, color: color.warning },
   sectionLabel: { ...text.meta, color: color.textSecondary },
   versionBlock: { gap: space[2] },
@@ -815,19 +1236,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space[4],
     borderRadius: radius.full,
-    backgroundColor: color.text,
+    backgroundColor: color.accent,
   },
-  editLabel: { ...text.smallMedium, color: color.bg },
-  export: {
-    minHeight: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: color.border,
-  },
-  exportLabel: { ...text.smallMedium, color: color.text },
-  delete: { minHeight: 44, justifyContent: 'center' },
-  deleteLabel: { ...text.bodyMedium, color: color.danger },
+  editLabel: { ...text.smallMedium, color: color.onAccent },
+  deleteLabel: { ...text.smallMedium, color: color.danger },
   pressed: { opacity: 0.8 },
 });

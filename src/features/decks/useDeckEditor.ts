@@ -26,7 +26,6 @@ interface DeckEditorState {
   name: string;
   slots: DeckSlot[];
   /** The list as loaded, for the no-op check on save. */
-  baseline: string;
   /**
    * `zone:cardId` for every slot the editor was handed when it opened.
    *
@@ -65,23 +64,6 @@ interface DeckEditorState {
   quantityOf: (cardId: string, zone: DeckZone) => number;
   list: () => DeckList;
   legality: () => LegalityResult;
-  /** True when the draft differs from what was loaded. */
-  isDirty: () => boolean;
-}
-
-/**
- * Canonical serialisation of a decklist, used for the no-op check.
- *
- * Sorted so that reordering slots — which the editor does whenever a card is
- * removed and re-added — is not mistaken for a change. Opening the editor and
- * backing out must never produce a new version.
- */
-function fingerprint(slots: readonly DeckSlot[]): string {
-  return slots
-    .filter((s) => s.quantity > 0)
-    .map((s) => `${s.zone}:${s.card.id}:${s.quantity}`)
-    .sort()
-    .join('|');
 }
 
 const EMPTY = {
@@ -89,7 +71,6 @@ const EMPTY = {
   versionId: null,
   name: '',
   slots: [] as DeckSlot[],
-  baseline: '',
   loadedKeys: [] as string[],
 };
 
@@ -132,7 +113,13 @@ export const useDeckEditor = create<DeckEditorState>((set, get) => ({
       versionId,
       name,
       slots: list.slots.map((s) => ({ ...s })),
-      baseline: fingerprint(list.slots),
+      /*
+       * What the editor was handed at load, for `reconcileWithStored`. There
+       * used to be a `baseline` fingerprint here too, feeding an `isDirty()`
+       * nothing called — the editor diffs against the database at save time
+       * instead, so a second answer to "has this changed" was one more thing
+       * that could disagree.
+       */
       loadedKeys: list.slots.map(slotKey),
     }),
 
@@ -140,8 +127,6 @@ export const useDeckEditor = create<DeckEditorState>((set, get) => ({
     set({
       ...EMPTY,
       slots: [{ card: legend, zone: 'legend', quantity: 1 }],
-      // No baseline: a brand-new deck is dirty from its first card.
-      baseline: '',
     }),
 
   reset: () => set({ ...EMPTY }),
@@ -193,5 +178,4 @@ export const useDeckEditor = create<DeckEditorState>((set, get) => ({
 
   legality: () => checkLegality({ slots: get().slots }),
 
-  isDirty: () => fingerprint(get().slots) !== get().baseline,
 }));

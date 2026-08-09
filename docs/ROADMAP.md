@@ -429,6 +429,12 @@ removed with M4:
 - [x] **Call `lockVersion()` on the first match** — done inside `logMatch`, in the same transaction as the insert
 - [x] **Remove the M3 scaffolding**: the `__DEV__` "Simulate a match (lock)" action, the Profile
       self-check (`src/features/decks/version-selfcheck.ts`), and the `[editor]` / `[compare]` logs
+
+      ⚠️ **This tick was wrong for five milestones.** The self-check survived until the final gap
+      sweep — 341 lines, still wired into Profile, still in the *production* bundle because the
+      `__DEV__` guard hid the button while the top-level import kept the module in the graph. Its
+      own comment said "TEMPORARY — remove with M4". Ticking a checklist is not evidence that the
+      code is gone; searching the shipped bundle is
 - [x] **Re-check `versionMatchCounts()`** against the real `matches` table — it currently returns an
       empty map by design, and every "No matches yet" in the timeline depends on that being right
 - [x] ~~**Wire `match_games`**~~ — **rescoped out of M4.** The sheet was simplified to result,
@@ -547,14 +553,71 @@ In priority order — each is independently shippable.
 
       8,000 is past what is physically reachable — the library holds 1,451 distinct cards, so no
       binder can exceed that many rows. The realistic worst case sits nearer the 2,000-row line
-- [ ] **Collection tracker — pass 2**: ownership in the deck builder ("2 of 3 owned" on a tile) and a
-      missing-cards summary on deck detail. This is the payoff for cataloguing a collection, and
-      until it ships the collection only talks to itself
+- [x] **Collection tracker — pass 2.** Deck overview carries an **`44/59` in your collection** count
+      with the cards it is short of. Copies are **allocated across decks**, because physical cards
+      are: three copies cannot be sleeved in two decks at once, so a deck reports what is left after
+      older decks have taken theirs (`src/db/queries/coverage.ts`). Rules settled with the user:
+      a foil satisfies a slot, a different printing satisfies a slot (matched on `cardKey()`, the
+      same printing-collapsed identity the 3-copy limit uses), archived decks return their copies to
+      the pool, and **nothing is ever blocked** — a deck you own none of still saves, logs and
+      tracks, because playing online is a good reason to have one.
+
+      | Finding | |
+      | --- | --- |
+      | **`binder_cards.card_name` stored the wrong name.** Migration 12 wrote the API's normalised search string (`Vi Piltover Enforcer Signature`) where every other table stores the display name (`Vi - Piltover Enforcer (Signature)`). Ownership could never have matched a deck — `cardKey()` derives identity from the display form — and the missing-from-library banner had been rendering the wrong form since it shipped | Fixed at the write; **migration 14** repairs existing rows from the mirror, leaving unresolvable ones alone |
+      | **Allocation order was non-deterministic.** `created_at` is millisecond resolution, so two decks made in quick succession tie, and the tie-break fell to a random uuid — making the numbers a user reads arbitrary | Tie-break on `rowid`, which is insertion order and cannot tie |
+
+      Measured: `deckCoverage` is linear in **deck count**, not version count — 0.4 ms at 5 decks,
+      1.1 ms at 20, 2.5 ms at 50. Deck detail's whole focus cost went 32 → 38 ms at 200 versions.
+
+      Still open from pass 2's original scope: **per-tile "own N" badges in the builder**. Left out
+      deliberately — a tile shows a card, and coverage is a deck-level allocation, so the two want
+      different numbers and that deserves its own decision
 - [ ] **Goldfish** — draw sample opening hands from a version, mulligan simulation
-- [ ] **Event mode** — group matches into tournaments with rounds and final placement.
-      The `events` table and `matches.event_id` already exist (migration 6) and **nothing can write
-      either**: M4 records only `event_type`, the enum. Creating, listing and attaching events is
-      this milestone's work, and until it lands `event_id` is null on every row by design
+- [x] **Event mode.** `src/db/queries/events.ts`, an Events segment on Stats, `/event/[id]`, and an
+      optional event picker in step 1 of the log flow. **This closes gap 11** — `events` and
+      `matches.event_id` had shipped since migration 6 with nothing able to write either.
+
+      The distinction the feature rests on: `matches.event_type` is a *category* ("a Nexus
+      Night"); an event is the *instance* ("the Nexus Night on the 9th"), and carries the one fact
+      a tournament produces that no individual round contains — where you placed.
+
+      Decisions worth keeping:
+
+      - **Only organised styles are offered an event.** `casual`, `online` and `testing` are things
+        you do, not places you go, so the fast path stays exactly as long as it was
+      - **Deleting an event leaves every match untouched.** The rounds were played; detaching them
+        would rewrite history to tidy a label. The link survives on the tombstone, as a deleted
+        binder keeps its cards, and reads filter on `events.deleted_at IS NULL`
+      - **An event reads forwards**, round 1 first — a match list is a history you scan backwards,
+        an event is a day you replay
+      - **"Log another" keeps the event**, because you are still at it
+
+      **Match style and event style split (migration 15).** The original list of seven mixed two
+      questions: Skirmish, Nexus Night and Locals are not alternatives to Tournament, they *are*
+      tournaments. Kept as siblings, "how do I do in tournaments" could not be answered without
+      knowing which three of the seven counted.
+
+      - **Match style** (`matches.event_type`): Casual · Online · Tournament · Testing
+      - **Event style** (`events.event_type`): Nexus Night · Skirmish · Locals · Regional
+        Qualifier · Regional Final
+      - **A Tournament match must name an event.** The only place the app stops short of saving,
+        and narrowly: the style says an organised event happened, so there is one to name. One tap
+        to a different style clears it, which is why it is a missing answer rather than a judgement
+
+      **The migration loses the finer label on existing matches, knowingly.** A match logged as
+      `nexus-night` becomes `tournament`; the tier now lives on an event, and no event exists for a
+      match logged before events did. The alternative was inventing one event per style spanning
+      months of unrelated nights, producing a record for a day that never happened. Losing a label
+      beats fabricating an occasion.
+
+      **Events are not rewritten.** Any created before the split keep whatever style they hold, and
+      `eventStyleLabel` renders an unrecognised value rather than blanking it. Only the picker is
+      narrowed — nothing new is written outside the vocabulary, nothing old is rewritten to fit it.
+
+      Cross-feature probe worth recording: deleting a *deck* soft-deletes its matches (an earlier
+      audit fix), and an event holding those rounds now agrees — otherwise the same matches would
+      be gone from one screen and present on another
 
 Import lands first: it's the fastest path from install to a user who has something to track.
 
@@ -591,6 +654,72 @@ signed-out user who signs in keeps every deck and match they already had.
 
 ---
 
+## Hi-Fi design — foundation landed (2026-08-09)
+
+From `Riftbound Hi-Fi.dc.html` in the Claude Design project, read through the DesignSync MCP.
+The **visual foundation** is implemented; the **screen layouts are not**.
+
+### Done
+
+| Layer | Change |
+| --- | --- |
+| Palette | Charcoal base `#141416` / `#1B1B1E` / `#232326`, hairlines at 8% white, text ramp `#F5F5F6 → #C9C9CD → #9C9CA1 → #67676B`, win/loss/draw `#46C77E` / `#C7433D` / `#86868A`, warning `#D9932E` |
+| Accent | A single coral `#FF4B4B` with `onAccent` `#1A0605`, applied to primary buttons, the active tab, current selection, and the log button — **and nothing else**, which is what the design asks for |
+| Type | Space Grotesk throughout the UI; **JetBrains Mono** for numbers and metadata. Inter removed from the tree entirely |
+| Radii | Cards 14, pills 22, tags 4, bars 2 — `radius.pill` and `radius.bar` are new tokens so a chip and a circle stop sharing one |
+| Domains | The design set (`Fury #C25B4A`, `Calm #4C86B0`, `Mind #8A6FD1`, `Body #5DA37A`, `Chaos #B15CA0`, `Order #B69A4C`), with `bright`/`dim` **derived** so a corrected base cannot leave a stale tint behind it |
+
+Two documented decisions were deliberately overridden and are worth knowing:
+
+- The domain colours were **sampled from Riot’s Basic Rune card art** in M0 and re-derived in
+  OKLCH. The design replaces them with a desaturated set built to sit on charcoal. Fidelity to the
+  print colour loses to legibility on the surface they actually appear on.
+- Body text was **Inter**, chosen in M0 because it holds up at 12–13px in a dense list. The design
+  specifies one UI face. Worth looking at the deck and card lists on a device before calling it
+  settled.
+
+### Screens rebuilt
+
+| Screen | Now |
+| --- | --- |
+| Deck list | 104px cards with the Legend art bleeding in from the left across a long fade. Art is joined in `listDecks` — a lookup inside the card component would be one query per frame per deck |
+| Deck detail | A 206px hero with the art running under the status bar, translucent Back / Share / Edit, a chip row, and four tabs — **Overview · Versions · Matches · Stats**. The decklist moved into Overview behind a **List / Gallery** toggle; legality leads with a sentence rather than a bar |
+| Match log | The matchup as two mirrored cards with a VS rule, mono section labels, 52px select fields, and **Continue → review sheet → Finalize**. Nothing saves on the result tap any more |
+
+### The shared vocabulary
+
+This is why a recolour alone left every screen still looking like the old app:
+the design is assembled from shapes the app did not have. They exist once now,
+and the remaining screens are assembly rather than invention.
+
+- `ui/Field.tsx` — `SectionLabel`, `SelectField` (52px, translucent, opens **in
+  place** rather than as a modal), `OptionRow`, `ChoiceRow`
+- `ui/Sheet.tsx` — bottom sheet with grabber, title, subtitle and pinned
+  actions, plus `SheetRow` for read-back lines
+- `matches/MatchupCard.tsx` — one side of a matchup, mirrored for the opponent
+
+### Not done — screen layouts
+
+Every one of these is a layout change the design specifies and the app does not have:
+
+| Screen | What the design adds |
+| --- | --- |
+| Deck detail | Legend art in the header, cut at 100° with a long fade. A **Stats** tab (the app puts stats on Overview). A **List / Gallery** toggle for the decklist. Version actions as buttons — *Open this list*, *Fork from here*, *Compare* — instead of an `Alert` action sheet |
+| Deck legality | A sentence, not a bar: *"Not legal — Main deck 38/39 · One card short. Everything else checks out."* |
+| Deck editor | A custom *Discard and continue / Stay here* sheet where the app uses `Alert` |
+| Match log | **Continue raises a review sheet** before saving — *Review before saving*, then *Finalize* or *Log next round*. The app saves on the result tap, with Undo in the toast. This is a real flow change, not a restyle |
+| Analytics | "Findings first, then one breakdown at a time" — a different structure from the current `AnalyticsPanel` |
+| Card gallery | A foil glow (`foilSweep`) on foil printings |
+
+### Design gaps to resolve
+
+- The design predates **event mode**: its Stats screen has *Match history · Analytics*, with no
+  Events tab. The app now has three.
+- No spec for the **collection coverage counter** on deck overview (`44/59 in your collection`),
+  which also postdates it.
+- Progress fills (`progressFill`, `progressSegmentDone`) were left white: the design does not say
+  whether progress counts as "current state" and so earns the accent.
+
 ## Known gaps
 
 Found on a device, not yet fixed. Each is a real defect or a real omission — none is a
@@ -608,8 +737,9 @@ Found on a device, not yet fixed. Each is a real defect or a real omission — n
 | 6 | ~~**A version label can only ever be set at fork time**~~ — **closed.** Tapping any version in the timeline now offers *Add a label* / *Edit label & notes*, v1 included. Notes render on the timeline node, or the field would have been write-only — which is how half this screen's text became unreachable in the first place | Unreachable-code audit | Closed |
 | 7 | ~~**Deck rename, notes, and archive are unreachable**~~ — **closed.** *Deck details* on the deck overview edits name and notes and archives; the Decks tab grew a **Show N archived** toggle that doubles as the divider, and deck detail carries an "Archived" chip. `archiveDeck` already took a boolean, so restoring came free | Unreachable-code audit | Closed |
 | 8 | ~~**The editor never mentions unresolvable cards**~~ — **closed.** The editor carries the same banner deck detail has, naming each card and its count. It reports the shortfall from **countable zones only** — `missingCards` also returns the Legend and Champion, which appear in no total, so summing everything would have claimed the main deck was a card short when it was the Legend's printing that vanished | Unreachable-code audit | Closed |
-| 9 | **Dead code:** `useDeckEditor.isDirty()`, unused since the editor began diffing against the database. `missingCardCount()` was the other half and is now deleted | Unreachable-code audit | Low |
-| 10 | **15 moderate `npm audit` advisories**, all in dev tooling (`@expo/cli`, `@expo/config*`, `@esbuild-kit/*`) — transitive, not in the app bundle. Recorded so it is a decision rather than an oversight | Post-move `npm ci` | Low |
+| 9 | ~~**Dead code:** `useDeckEditor.isDirty()`~~ — **closed.** It dragged two more with it: `baseline` existed only to feed it, and `fingerprint()` only to compute `baseline`. The editor diffs against the database at save time, so a second answer to "has this changed" was one more thing that could disagree | Unreachable-code audit | Closed |
+| 10 | ~~**15 moderate `npm audit` advisories, all dev tooling**~~ — **re-measured; the entry was stale and understated.** It is **26 (12 moderate, 14 high)** and no longer "all dev tooling" by name — `react-native`, `expo` and `react-native-reanimated` are listed. But only **four root advisories** exist; the other 22 are transitive echoes: `esbuild` (dev-server request forgery), `image-size` ×2 (DoS parsing ICNS/JXL/HEIF), `uuid` (buffer bounds). **None reaches the app** — verified by searching the full dev bundle's module graph for `node_modules/uuid`, `node_modules/image-size` and `node_modules/esbuild`: zero references each. **Still not fixed, and now for a stated reason:** every remedy npm proposes is a *downgrade* — `expo@53` (on 57), `react-native@0.72.17` (on 0.86.2), `drizzle-kit@0.18.1`. `npm audit fix --force` would roll the project back three SDK majors. `npx expo-doctor` passes 20/20, which is the check that actually describes this tree's health | Post-move `npm ci`; re-measured in the final gap sweep | Low — decided, not deferred |
+| 21 | ~~**M3 dev scaffolding was still shipping**~~ — **closed.** `version-selfcheck.ts` (341 lines, creates and hard-deletes a deck in the user's real database) plus its Profile block survived the M4 cleanup that ticked it off as done, and its own comment read "TEMPORARY — remove with M4". The `__DEV__` guard hid the button but the module was imported at top level, so it was in the **production Hermes bundle** — confirmed by finding its button string there. It also used `✓`/`✗`, the Unicode glyphs M1 banned for rendering as tofu. Deleted | Final gap sweep | Closed — a checklist tick is not evidence |
 | 11 | **`events` and `matches.event_id` are shipped but unwritable.** Migration 6 created the table; nothing can create an event, so `event_id` is null on every row. M4 records `event_type` (the enum) only — event *grouping* is M6, where it is now written into the checklist | M4 data-layer audit | Low — scoped, not forgotten |
 | 12 | **`match_games` is shipped but unwritten.** Rescoped: its consumer is now *In-depth match logging* in M6, not M4's sheet, after the log flow was simplified to result / opponent Legend / their Champion / best-of / match style / note | M4 data-layer audit | Low — deferred deliberately, owner recorded |
 | 13 | ~~On-play / on-draw not captured~~ — **closed.** Restored to the log sheet as a single three-option row during the post-M5 audit; the analytics split fills in as matches are logged | M4 sheet simplification | Closed |

@@ -28,6 +28,15 @@ export interface DeckSummary {
   /** The version the deck currently points at. Null only if data is corrupt. */
   version: DeckVersionRow | null;
   versionCount: number;
+  /**
+   * The Legend's art, for the card in the list.
+   *
+   * Joined here rather than fetched per row: a deck list renders every deck, and
+   * a lookup inside the card component is one query per frame per deck. Null
+   * when the deck has no Legend, or when its printing has left the library —
+   * the card falls back to a plate rather than a broken image.
+   */
+  legendImageUrl: string | null;
 }
 
 export interface CreateDeckInput {
@@ -54,8 +63,10 @@ export function listDecks(includeArchived = false): DeckSummary[] {
   const rows = conn().getAllSync<Record<string, unknown>>(
     `SELECT d.*,
             (SELECT COUNT(*) FROM deck_versions v
-              WHERE v.deck_id = d.id AND v.deleted_at IS NULL) AS version_count
+              WHERE v.deck_id = d.id AND v.deleted_at IS NULL) AS version_count,
+            c.image_url AS legend_image_url
        FROM decks d
+       LEFT JOIN cards c ON c.id = d.legend_card_id
       WHERE d.deleted_at IS NULL
         ${includeArchived ? '' : 'AND d.archived_at IS NULL'}
       ORDER BY d.updated_at DESC`
@@ -67,6 +78,7 @@ export function listDecks(includeArchived = false): DeckSummary[] {
       deck,
       version: deck.currentVersionId ? getVersion(deck.currentVersionId) : null,
       versionCount: Number(row.version_count ?? 0),
+      legendImageUrl: row.legend_image_url ? String(row.legend_image_url) : null,
     };
   });
 }

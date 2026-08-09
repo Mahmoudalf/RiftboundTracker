@@ -1,3 +1,4 @@
+import type React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
@@ -39,6 +40,10 @@ interface VersionTimelineProps {
   selectedIds: string[];
   /** Compare mode: a tap picks rather than opening the version's actions. */
   selecting: boolean;
+  /** The version expanded in place, if any. */
+  expandedId?: string | null;
+  /** Rendered under the expanded node — its full change list and actions. */
+  renderDetail?: (node: TimelineNode) => React.ReactNode;
   onPress: (node: TimelineNode) => void;
   onLongPress: (node: TimelineNode) => void;
 }
@@ -53,6 +58,8 @@ export function VersionTimeline({
   nodes,
   selectedIds,
   selecting,
+  expandedId,
+  renderDetail,
   onPress,
   onLongPress,
 }: VersionTimelineProps) {
@@ -145,7 +152,11 @@ export function VersionTimeline({
                 </Text>
               ) : null}
 
-              {node.diff ? (
+              {/* Collapsed shows the chips; open replaces them with the full
+                  list, in place. */}
+              {expandedId === version.id && renderDetail ? (
+                renderDetail(node)
+              ) : node.diff ? (
                 <DeckDiffView diff={node.diff} limit={6} emptyMessage="No card changes" />
               ) : null}
             </Pressable>
@@ -167,7 +178,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: color.textMuted,
   },
-  dotCurrent: { backgroundColor: color.text, borderColor: color.text },
+  dotCurrent: { backgroundColor: color.accent, borderColor: color.accent },
   line: { flex: 1, width: 1, backgroundColor: color.borderSubtle, marginTop: space[1] },
   node: {
     flex: 1,

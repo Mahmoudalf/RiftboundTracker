@@ -231,7 +231,18 @@ function setCardQuantity(
       newId(),
       binderId,
       card.id,
-      card.cleanName || card.name,
+      /*
+       * `name`, not `cleanName`.
+       *
+       * `cleanName` is the API's normalised search string — "Vi Piltover
+       * Enforcer Signature" where `name` is "Vi - Piltover Enforcer
+       * (Signature)". It is not a display name, so the missing-from-library
+       * banner was rendering the wrong form; and `cardKey()` strips a
+       * parenthesised printing suffix from `name`, so a `cleanName` here could
+       * never match the `name` that `deck_version_cards` stores. Ownership
+       * matching would have missed essentially every card.
+       */
+      card.name,
       card.riftboundId,
       quantity,
       finish,

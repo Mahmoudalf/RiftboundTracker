@@ -31,6 +31,9 @@ export interface MatchGameInput {
   /** Card ids thrown back. Null means not recorded. */
   mulliganed?: string[] | null;
   battlefields?: string[] | null;
+  /** This game's Battlefields, told apart. */
+  battlefieldCardId?: string | null;
+  oppBattlefieldCardId?: string | null;
   notes?: string | null;
 }
 
@@ -91,8 +94,9 @@ export function saveMatchGames(matchId: string, games: readonly MatchGameInput[]
         `INSERT INTO match_games
            (id, match_id, game_number, result, on_play,
             score_for, score_against, champion_turn, opp_champion_turn,
-            opening_hand, mulliganed, battlefields, notes)
-         VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?)`,
+            opening_hand, mulliganed, battlefields,
+            battlefield_card_id, opp_battlefield_card_id, notes)
+         VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?)`,
         [
           newId(),
           matchId,
@@ -106,6 +110,8 @@ export function saveMatchGames(matchId: string, games: readonly MatchGameInput[]
           json(game.openingHand),
           json(game.mulliganed),
           json(game.battlefields),
+          game.battlefieldCardId ?? null,
+          game.oppBattlefieldCardId ?? null,
           game.notes ?? null,
         ]
       );

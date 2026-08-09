@@ -82,9 +82,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space[5],
   },
-  primary: { backgroundColor: color.text },
+  primary: { backgroundColor: color.accent },
   secondary: { borderWidth: 1, borderColor: color.border },
   pressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
-  primaryLabel: { ...text.bodyMedium, color: color.bg },
+  primaryLabel: { ...text.bodyMedium, color: color.onAccent },
   secondaryLabel: { ...text.bodyMedium, color: color.text },
 });

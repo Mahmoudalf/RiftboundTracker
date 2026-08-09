@@ -128,9 +128,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space[4],
     borderRadius: radius.full,
-    backgroundColor: color.text,
+    backgroundColor: color.accent,
   },
-  newLabel: { ...text.smallMedium, color: color.bg },
+  newLabel: { ...text.smallMedium, color: color.onAccent },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   importButton: {
     minHeight: 36,

@@ -185,9 +185,9 @@ const styles = StyleSheet.create({
     borderColor: color.border,
     backgroundColor: color.surface,
   },
-  triggerActive: { backgroundColor: color.text, borderColor: color.text },
+  triggerActive: { backgroundColor: color.accent, borderColor: color.text },
   triggerLabel: { ...text.smallMedium, color: color.text, flexShrink: 1 },
-  triggerLabelActive: { color: color.bg },
+  triggerLabelActive: { color: color.onAccent },
   scrim: { flex: 1, backgroundColor: color.scrim },
   sheet: {
     position: 'absolute',

@@ -27,24 +27,40 @@ export type MatchResult = (typeof MATCH_RESULTS)[number];
 /**
  * How the match was played — "match style" in the UI.
  *
- * Riftbound's organised-play tiers are part of this vocabulary, not just
- * generic formality levels: a Nexus Night result and a kitchen-table game are
- * different evidence about a deck, and lumping both into "casual" would make
- * the distinction unrecoverable later.
+ * This used to be a flat list of seven that mixed two different questions.
+ * Skirmish, Nexus Night and Locals are not alternatives to Tournament — they
+ * *are* tournaments, so listing them as siblings made the vocabulary claim
+ * something false and made "how do I do in tournaments" unanswerable without
+ * knowing which three of the seven counted.
  *
- * The column stays `event_type` — renaming it would be a migration for no gain,
- * and it is still what groups matches into an event in M6.
+ * They moved to `EVENT_STYLES` below, one level down, where they describe the
+ * tier of a specific event. `testing` stays here because goldfishing is not a
+ * casual game against a person.
+ *
+ * The column stays `event_type`; renaming it would be a migration for no gain.
  */
-export const EVENT_TYPES = [
-  'casual',
-  'skirmish',
+export const MATCH_STYLES = ['casual', 'online', 'tournament', 'testing'] as const;
+export type MatchStyle = (typeof MATCH_STYLES)[number];
+
+/**
+ * The tier of an organised event — `events.event_type`.
+ *
+ * Only reachable through an event, because that is the only place the question
+ * has an answer: a tournament round belongs to a tournament, and the tier is a
+ * property of the day rather than of the round.
+ *
+ * Rows written before this split may hold a value that is no longer offered.
+ * Readers must tolerate that (`eventStyleLabel` does) rather than assume
+ * membership — the alternative is rewriting history to fit a newer vocabulary.
+ */
+export const EVENT_STYLES = [
   'nexus-night',
+  'skirmish',
   'locals',
-  'tournament',
-  'online',
-  'testing',
+  'regional-qualifier',
+  'regional-final',
 ] as const;
-export type EventType = (typeof EVENT_TYPES)[number];
+export type EventStyle = (typeof EVENT_STYLES)[number];
 
 /** Match format. Null when it was not recorded. */
 export const BEST_OF_OPTIONS = [1, 3, 5] as const;
@@ -55,7 +71,8 @@ export const events = sqliteTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     format: text('format').notNull().default('constructed'),
-    eventType: text('event_type').$type<EventType>().notNull().default('tournament'),
+    /** The tier: Nexus Night, Skirmish, Locals, Regional Qualifier or Final. */
+    eventType: text('event_type').$type<EventStyle>().notNull().default('nexus-night'),
     startedAt: text('started_at').notNull(),
     location: text('location'),
     rounds: integer('rounds'),
@@ -123,7 +140,7 @@ export const matches = sqliteTable(
     oppLabel: text('opp_label'),
 
     eventId: text('event_id'),
-    eventType: text('event_type').$type<EventType>().notNull().default('casual'),
+    eventType: text('event_type').$type<MatchStyle>().notNull().default('casual'),
 
     mulligans: integer('mulligans'),
     durationSeconds: integer('duration_seconds'),
@@ -166,6 +183,10 @@ export const matchGames = sqliteTable(
     openingHand: text('opening_hand', { mode: 'json' }).$type<string[]>(),
     mulliganed: text('mulliganed', { mode: 'json' }).$type<string[]>(),
     battlefields: text('battlefields', { mode: 'json' }).$type<string[]>(),
+
+    /** This game's Battlefields, kept apart — see migration 16. */
+    battlefieldCardId: text('battlefield_card_id'),
+    oppBattlefieldCardId: text('opp_battlefield_card_id'),
 
     notes: text('notes'),
   },

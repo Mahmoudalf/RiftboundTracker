@@ -477,9 +477,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: color.text,
+    backgroundColor: color.accent,
   },
-  primaryLabel: { ...text.bodyMedium, color: color.bg },
+  primaryLabel: { ...text.bodyMedium, color: color.onAccent },
   secondary: {
     minHeight: 48,
     paddingHorizontal: space[5],
