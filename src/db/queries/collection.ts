@@ -141,6 +141,34 @@ export function binderQuantities(binderId: string): Map<string, FinishCounts> {
 }
 
 /**
+ * The same split, across every binder at once.
+ *
+ * The Gallery shows what you own without belonging to any one binder, and it
+ * has to know about foils for the same reason a binder does — a foil is shown
+ * on the card rather than counted in a number, so "do I have one" is a question
+ * the tile answers visually or not at all.
+ */
+export function ownedFinishes(): Map<string, FinishCounts> {
+  const rows = conn().getAllSync<{ card_id: string; finish: string; n: number }>(
+    `SELECT bc.card_id, bc.finish, SUM(bc.quantity) AS n
+       FROM binder_cards bc
+       JOIN binders b ON b.id = bc.binder_id AND b.deleted_at IS NULL
+      GROUP BY bc.card_id, bc.finish`
+  );
+
+  const counts = new Map<string, FinishCounts>();
+  for (const row of rows) {
+    const entry = counts.get(row.card_id) ?? { standard: 0, foil: 0, total: 0 };
+    const n = Number(row.n);
+    if (row.finish === 'foil') entry.foil += n;
+    else entry.standard += n;
+    entry.total += n;
+    counts.set(row.card_id, entry);
+  }
+  return counts;
+}
+
+/**
  * Cards in a binder that the card library cannot currently resolve.
  *
  * These are real cards the player owns whose printing has left the mirror. The
@@ -173,6 +201,81 @@ export function ownedCounts(): Map<string, number> {
       GROUP BY bc.card_id`
   );
   return new Map(rows.map((r) => [r.card_id, Number(r.n)]));
+}
+
+export interface SetCompletion {
+  setId: string;
+  label: string;
+  /** Distinct cards owned. Copies do not move this — a playset is still one card. */
+  owned: number;
+  total: number;
+}
+
+/**
+ * How much of each set you hold, by distinct card.
+ *
+ * Distinct rather than copies, because that is what "completion" means to a
+ * collector: three Statikk Shocks are one card of the set collected, and a
+ * copies-based bar would read 300% for someone with a full playset.
+ *
+ * Sets with nothing owned are kept. A set at 0 is the most useful bar on the
+ * screen — it is the one you have not started.
+ */
+export function setCompletion(): SetCompletion[] {
+  return conn()
+    .getAllSync<{ set_id: string; label: string | null; owned: number; total: number }>(
+      `SELECT c.set_id,
+              MAX(c.set_label) AS label,
+              COUNT(*) AS total,
+              SUM(CASE WHEN o.card_id IS NULL THEN 0 ELSE 1 END) AS owned
+         FROM cards c
+         LEFT JOIN (
+              SELECT bc.card_id
+                FROM binder_cards bc
+                JOIN binders b ON b.id = bc.binder_id AND b.deleted_at IS NULL
+               GROUP BY bc.card_id
+              HAVING SUM(bc.quantity) > 0
+         ) o ON o.card_id = c.id
+        GROUP BY c.set_id
+        ORDER BY total DESC, c.set_id ASC`
+    )
+    .map((row) => ({
+      setId: row.set_id,
+      label: row.label ?? row.set_id,
+      owned: Number(row.owned),
+      total: Number(row.total),
+    }));
+}
+
+/** The synthetic set id the promotional sets are folded into. */
+export const PROMO_SET_ID = '__promo';
+
+/**
+ * Promotional sets are one line, not four.
+ *
+ * Organized Play, Judge and general promos are handfuls of cards handed out at
+ * events — three separate bars gave *Judge Promotional Cards*, all three of
+ * them, the same full-width row as Origins with its 352, and together they
+ * pushed the binders off the screen.
+ *
+ * Matched on the label rather than a list of ids, so a promo set added next
+ * year folds in without a code change. The trade is that it is English-shaped;
+ * the card API only speaks English, so nothing is lost today.
+ */
+export function collapsePromotional(sets: readonly SetCompletion[]): SetCompletion[] {
+  const promos = sets.filter((s) => /promotional/i.test(s.label));
+  if (promos.length < 2) return [...sets];
+
+  const rest = sets.filter((s) => !/promotional/i.test(s.label));
+  return [
+    ...rest,
+    {
+      setId: PROMO_SET_ID,
+      label: 'Promotional',
+      owned: promos.reduce((n, s) => n + s.owned, 0),
+      total: promos.reduce((n, s) => n + s.total, 0),
+    },
+  ];
 }
 
 /**

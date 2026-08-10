@@ -650,19 +650,9 @@ export default function DeckDetailScreen() {
                 >
                   {coverage.owned}/{coverage.required} cards
                 </Text>
-                {coverage.shortfalls.length > 0 ? (
-                  <Text style={styles.hint}>
-                    Missing{' '}
-                    {coverage.shortfalls
-                      .slice(0, 4)
-                      .map((s) => `${s.need - s.have}× ${s.name}`)
-                      .join(', ')}
-                    {coverage.shortfalls.length > 4
-                      ? ` and ${coverage.shortfalls.length - 4} more`
-                      : ''}
-                    .
-                  </Text>
-                ) : null}
+                {/* The fraction, not a shopping list. Naming four cards and
+                    "and 6 more" is longer, truncated, and says less than
+                    "44/59" already does. */}
               </View>
             ) : null}
 
@@ -732,7 +722,6 @@ export default function DeckDetailScreen() {
                         key={`${slot.zone}:${slot.card.id}`}
                         slot={slot}
                         fixed={fixed}
-                        onAdjust={() => undefined}
                         onPress={() => router.push(`/card/${slot.card.id}`)}
                       />
                     ))
@@ -786,6 +775,19 @@ export default function DeckDetailScreen() {
             })}
 
             {/* Secondary actions, after the deck rather than in front of it. */}
+            {/* Goldfishing belongs beside the deck it draws from — it is a
+                question about this list, asked before taking it anywhere. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Draw a test hand from this version"
+              onPress={() =>
+                deck.currentVersionId && router.push(`/goldfish/${deck.currentVersionId}`)
+              }
+              style={({ pressed }) => [styles.footAction, pressed && styles.pressed]}
+            >
+              <Text style={styles.footActionLabel}>Draw a test hand</Text>
+            </Pressable>
+
             <View style={styles.footActions}>
               <Pressable
                 accessibilityRole="button"

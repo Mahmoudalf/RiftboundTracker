@@ -15,7 +15,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { toCardRow } from '../src/api/riftcodex/mapper';
+import { dropStaleDuplicates, toCardRow } from '../src/api/riftcodex/mapper';
 import { cardSchema, paginated } from '../src/api/riftcodex/schemas';
 
 const BASE_URL = 'https://api.riftcodex.com';
@@ -37,21 +37,29 @@ async function main() {
   console.log('Fetching card database from Riftcodex...');
 
   const first = await fetchPage(1);
-  const rows = first.items.map(toCardRow);
+  const collected = [...first.items];
   let skipped = 0;
 
   // Sequential paging — this is a small fan-run API, not a CDN.
   for (let page = 2; page <= first.pages; page++) {
     process.stdout.write(`\r  page ${page}/${first.pages}`);
     const res = await fetchPage(page);
-    for (const card of res.items) {
-      try {
-        rows.push(toCardRow(card));
-      } catch (err) {
-        // One malformed card must not fail the whole snapshot.
-        skipped++;
-        console.warn(`\n  skipped ${card.id}: ${String(err)}`);
-      }
+    collected.push(...res.items);
+  }
+
+  // Deduplicated across the whole response, not per page: a stale twin and the
+  // row it duplicates can land on different pages.
+  const deduped = dropStaleDuplicates(collected);
+  console.log(`\n  dropped ${collected.length - deduped.length} duplicate rows`);
+
+  const rows = [];
+  for (const card of deduped) {
+    try {
+      rows.push(toCardRow(card));
+    } catch (err) {
+      // One malformed card must not fail the whole snapshot.
+      skipped++;
+      console.warn(`\n  skipped ${card.id}: ${String(err)}`);
     }
   }
   process.stdout.write('\n');

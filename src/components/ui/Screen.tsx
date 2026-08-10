@@ -89,7 +89,15 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.bg },
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    /*
+     * Top-aligned, not bottom.
+     *
+     * `flex-end` lined the back control up with the *last* line of the header
+     * text, so on any screen with a meta line the chevron sat beside the
+     * metadata rather than beside the title — visibly adrift, and pointing at
+     * the wrong thing.
+     */
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingHorizontal: space[4],
     paddingTop: space[3],
@@ -98,12 +106,11 @@ const styles = StyleSheet.create({
   },
   back: {
     width: 32,
-    height: 32,
+    // The title's own line height, so the chevron centres on the title whether
+    // or not a meta line follows it.
+    height: 36,
     alignItems: 'flex-start',
     justifyContent: 'center',
-    // Nudged up so the chevron sits on the title's cap height rather than on
-    // its baseline, which the row's flex-end alignment would otherwise do.
-    marginBottom: space[1],
   },
   backPressed: { opacity: 0.6 },
   headerText: { flex: 1, gap: space[1] },

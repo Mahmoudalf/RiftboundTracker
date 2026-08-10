@@ -275,7 +275,8 @@ The core mechanic. Correctness here determines whether every number in the app i
 
 - [x] `src/lib/deck-diff.ts` — pure diff engine + `suggestLabelFromDiff()`
 - [x] `locked_at` set on first match (`lockVersion()`, called by M4's logger)
-- [x] Fork-on-save for locked versions; amend-in-place for unlocked
+- [x] ~~Fork-on-save for locked versions; amend-in-place for unlocked~~ → **fork on every real
+      change**, played or not (see below)
 - [x] **No-op guard** — identical save creates nothing
 - [x] Amend escape hatch behind a consequence-stating confirm
 - [x] Editor banner on locked versions
@@ -287,6 +288,26 @@ The core mechanic. Correctness here determines whether every number in the app i
 save creates no version, and that a version with matches is never silently mutated. ✅ — all five
 asserted directly against real SQLite in `decks.test.ts`, reading the database back rather than
 trusting the return value.
+
+### The rule changed: every edit is a version (2026-08-10)
+
+Amend-in-place for unplayed versions is gone. It was defensible — a version nobody had played
+reads like a draft still being written — but a version records what the deck *was*, and swapping
+ten cards makes it a different deck whether or not it has been played. Calling that still-v1 lost
+the only history the app exists to keep.
+
+What holds the line is the **no-op guard**, not the lock: a save that changes nothing still writes
+nothing, so opening the editor and backing out cannot spend a version number. Amending survives
+only as the escape hatch, confirmed by name.
+
+The change broke **27 tests across six files**, every one of them encoding the old rule — most by
+reading back the version they passed in, which is now deliberately untouched. They were worked
+through individually rather than bulk-edited; where a test named the old behaviour outright it was
+rewritten to assert the new one instead of renamed around a stale assertion.
+
+It also emptied two members of `SaveOutcome`. `amended` and `reprinted` described an in-place write
+to an unplayed version, which nothing can now produce, so both are deleted along with their toast
+lines — the only write that is not a fork is the escape hatch.
 
 ### One entry point
 
@@ -573,7 +594,20 @@ In priority order — each is independently shippable.
       Still open from pass 2's original scope: **per-tile "own N" badges in the builder**. Left out
       deliberately — a tile shows a card, and coverage is a deck-level allocation, so the two want
       different numbers and that deserves its own decision
-- [ ] **Goldfish** — draw sample opening hands from a version, mulligan simulation
+- [x] **Goldfish** — `/goldfish/[versionId]`, reached from deck overview. `src/lib/goldfish.ts` is
+      pure, seeded and separately tested (11 probes). Rules taken from the official Core Rules:
+      **4-card opening hand**, **one** mulligan recycling up to **2** to the *bottom* of the main
+      deck, **2 Runes channelled per turn** (3 on turn 1 when on the draw) and 1 card drawn.
+
+      Two decisions worth knowing. Recycled cards go to the **bottom, not out** — a simulator that
+      discarded them would quietly make every deck look more consistent than it is. And the seed is
+      the hand: any opener can be re-drawn by its number, which is what lets a test pin one.
+
+      **The Champion is deliberately not in the shuffled deck.** It occupies a main-deck slot in the
+      rules but lives in its own zone in `DeckList`, so including it would shuffle a card the list
+      does not say is there. Excluding it leaves the deck one short. Both are wrong; this is the
+      wrong that does not change the odds of everything else. Worth revisiting if the data model
+      ever folds the Champion into `main`
 - [x] **Event mode.** `src/db/queries/events.ts`, an Events segment on Stats, `/event/[id]`, and an
       optional event picker in step 1 of the log flow. **This closes gap 11** — `events` and
       `matches.event_id` had shipped since migration 6 with nothing able to write either.
@@ -684,7 +718,16 @@ Two documented decisions were deliberately overridden and are worth knowing:
 | --- | --- |
 | Deck list | 104px cards with the Legend art bleeding in from the left across a long fade. Art is joined in `listDecks` — a lookup inside the card component would be one query per frame per deck |
 | Deck detail | A 206px hero with the art running under the status bar, translucent Back / Share / Edit, a chip row, and four tabs — **Overview · Versions · Matches · Stats**. The decklist moved into Overview behind a **List / Gallery** toggle; legality leads with a sentence rather than a bar |
-| Match log | The matchup as two mirrored cards with a VS rule, mono section labels, 52px select fields, and **Continue → review sheet → Finalize**. Nothing saves on the result tap any more |
+| Match log | The matchup as two mirrored cards with a VS rule, mono section labels, 52px select fields, and **Continue → review sheet → Finalize**. Nothing saves on the result tap any more. Logging is **per game**: a card per game asking turn order, both Battlefields and who won, revealed one at a time and withdrawn once the match is settled — a Bo3 at 2–0 never shows a third. The match result is **derived, never asked** (`lib/match-progress`), and game 1's answers mirror onto the match columns so the existing splits keep working |
+
+**Collection**, split in two, because browsing 1,451 cards and reviewing a collection are different
+activities that only happened to share a grid — and sharing it meant the collection had no summary
+at all, just a filter over the library:
+
+| Screen | Now |
+| --- | --- |
+| Collection (tab) | Copies held and `N of 1,451 cards`, set-completion bars (distinct cards, promo sets collapsed to one line, top three with the rest behind an expander), then the binder list — Gallery bordered with a `DEFAULT` tag, your binders plain |
+| Binder / Gallery | `/binder/gallery` is the library, every other id a binder. Search, `Set · All` and `Sort · Name` fields that expand in place, six domain chips, then the grid. Copies are a badge in the tile's corner; foils are the design's animated `foilSweep` on the art. Tapping a card opens the standard/foil split, which is the only place the two are told apart. Unowned cards are **not** dimmed — the gallery is a reference you skim |
 
 ### The shared vocabulary
 
@@ -707,9 +750,7 @@ Every one of these is a layout change the design specifies and the app does not 
 | Deck detail | Legend art in the header, cut at 100° with a long fade. A **Stats** tab (the app puts stats on Overview). A **List / Gallery** toggle for the decklist. Version actions as buttons — *Open this list*, *Fork from here*, *Compare* — instead of an `Alert` action sheet |
 | Deck legality | A sentence, not a bar: *"Not legal — Main deck 38/39 · One card short. Everything else checks out."* |
 | Deck editor | A custom *Discard and continue / Stay here* sheet where the app uses `Alert` |
-| Match log | **Continue raises a review sheet** before saving — *Review before saving*, then *Finalize* or *Log next round*. The app saves on the result tap, with Undo in the toast. This is a real flow change, not a restyle |
 | Analytics | "Findings first, then one breakdown at a time" — a different structure from the current `AnalyticsPanel` |
-| Card gallery | A foil glow (`foilSweep`) on foil printings |
 
 ### Design gaps to resolve
 
@@ -740,8 +781,8 @@ Found on a device, not yet fixed. Each is a real defect or a real omission — n
 | 9 | ~~**Dead code:** `useDeckEditor.isDirty()`~~ — **closed.** It dragged two more with it: `baseline` existed only to feed it, and `fingerprint()` only to compute `baseline`. The editor diffs against the database at save time, so a second answer to "has this changed" was one more thing that could disagree | Unreachable-code audit | Closed |
 | 10 | ~~**15 moderate `npm audit` advisories, all dev tooling**~~ — **re-measured; the entry was stale and understated.** It is **26 (12 moderate, 14 high)** and no longer "all dev tooling" by name — `react-native`, `expo` and `react-native-reanimated` are listed. But only **four root advisories** exist; the other 22 are transitive echoes: `esbuild` (dev-server request forgery), `image-size` ×2 (DoS parsing ICNS/JXL/HEIF), `uuid` (buffer bounds). **None reaches the app** — verified by searching the full dev bundle's module graph for `node_modules/uuid`, `node_modules/image-size` and `node_modules/esbuild`: zero references each. **Still not fixed, and now for a stated reason:** every remedy npm proposes is a *downgrade* — `expo@53` (on 57), `react-native@0.72.17` (on 0.86.2), `drizzle-kit@0.18.1`. `npm audit fix --force` would roll the project back three SDK majors. `npx expo-doctor` passes 20/20, which is the check that actually describes this tree's health | Post-move `npm ci`; re-measured in the final gap sweep | Low — decided, not deferred |
 | 21 | ~~**M3 dev scaffolding was still shipping**~~ — **closed.** `version-selfcheck.ts` (341 lines, creates and hard-deletes a deck in the user's real database) plus its Profile block survived the M4 cleanup that ticked it off as done, and its own comment read "TEMPORARY — remove with M4". The `__DEV__` guard hid the button but the module was imported at top level, so it was in the **production Hermes bundle** — confirmed by finding its button string there. It also used `✓`/`✗`, the Unicode glyphs M1 banned for rendering as tofu. Deleted | Final gap sweep | Closed — a checklist tick is not evidence |
-| 11 | **`events` and `matches.event_id` are shipped but unwritable.** Migration 6 created the table; nothing can create an event, so `event_id` is null on every row. M4 records `event_type` (the enum) only — event *grouping* is M6, where it is now written into the checklist | M4 data-layer audit | Low — scoped, not forgotten |
-| 12 | **`match_games` is shipped but unwritten.** Rescoped: its consumer is now *In-depth match logging* in M6, not M4's sheet, after the log flow was simplified to result / opponent Legend / their Champion / best-of / match style / note | M4 data-layer audit | Low — deferred deliberately, owner recorded |
+| 11 | ~~**`events` and `matches.event_id` are shipped but unwritable**~~ — **closed.** M6 event mode writes both: an event is created from the log flow, rounds attach to it, and the taxonomy was corrected on the way — match style (Casual / Online / Tournament / Testing) is a separate question from event style (Nexus Night / Skirmish / Locals / Regional Qualifier / Regional Final), which only opens under Tournament | M4 data-layer audit | Closed |
+| 12 | ~~**`match_games` is shipped but unwritten**~~ — **closed.** Per-game logging writes it: a card per game asking turn order, both Battlefields and who won, revealed one at a time and withdrawn once the match is settled. Migration 16 added `battlefield_card_id` / `opp_battlefield_card_id` so the two sides can be told apart, and the match result became **derived** from the games rather than asked for | M4 data-layer audit | Closed |
 | 13 | ~~On-play / on-draw not captured~~ — **closed.** Restored to the log sheet as a single three-option row during the post-M5 audit; the analytics split fills in as matches are logged | M4 sheet simplification | Closed |
 
 | 14 | ~~**The recent-opponent rail is gone**~~ — **closed.** Restored above the Legend field in step 4 of the log flow, not inside the picker: a shortcut you have to open something to reach is not a shortcut. Read once on mount, so logging four rounds of an event does not reshuffle the rail between them. Four probes were written against `recentOpponents()` when it finally got a consumer — undone matches, deleted matches, a printing leaving the library mid-event, and the limit — and **all four passed unchanged**. The query was correct; only its reachability was the defect | Post-gap-1 audit | Closed |
@@ -809,3 +850,67 @@ Deliberately deferred — revisit after launch with real usage data.
 - Deck sharing between users
 - Sideboard / tech-card tracking as a first-class concept
 - Widgets and watch app for ultra-fast logging
+
+### Known issues, parked
+
+- **The leave prompt only fires from Cancel**, not the hardware back gesture or an edge swipe. A
+  real navigation guard needs `usePreventRemove` from `@react-navigation/native`, which is **not a
+  declared dependency** — importing it is the phantom-dependency bug from M0. Worth adding the
+  dependency deliberately rather than smuggling it in through hoisting
+- **Inline version expansion on deck detail is unverified.** Implemented during the Hi-Fi pass and
+  never confirmed against a device screenshot — the only item from the original FIX FIRST list still
+  unconfirmed
+- **The card gallery's unowned tiles no longer dim**, which was deliberate, but nothing replaced the
+  signal for the *binder* case where you are filing and want to see what is still at zero. Watch
+  whether the count badge alone is enough
+
+### Design gaps — raise with the design, do not invent
+
+The Hi-Fi design predates several things the app now has. Each of these is a decision for the design
+to make, not for the implementation to guess:
+
+- **No Events tab.** The design's Stats screen has *Match history · Analytics*; the app has three
+  segments because M6 shipped event mode. **This blocks the Stats rebuild** — there is no drawn
+  answer for where events live
+- **No spec for the collection coverage counter** (`44/59 in your collection`) on deck overview
+- **Gallery is drawn as filable**, but ownership lives only in binders, so `/binder/gallery` is
+  read-only. Either the design gains a default binder or the read-only treatment becomes the spec
+- **Progress fills were left white** — the design does not say whether progress counts as "current
+  state" and so earns the accent
+
+### Opening the deck editor takes about half a second
+
+Reported from a device, **cause not yet measured** — and deliberately not guessed at. Ruled out
+already: the data reads. A query across the whole 1,451-card library measured **4.18 ms** during M1
+hardening and hydration **0.79 ms**, so the five small reads the editor mount performs cannot
+account for it. Caching the deck or seeding it would buy back single-digit milliseconds and add a
+cache that can disagree with the database — which in this app means an editor opening on a stale
+list and forking a version from it.
+
+Two candidates worth measuring, in order of suspicion:
+
+- **First-render cost.** The editor list view is a plain ScrollView mapping over its candidates, so
+  the Main tab mounts up to ~900 rows, each with an image, before the first frame. The gallery view
+  goes through FlashList and is virtualised; the list view is not. This is a regression introduced
+  with the one-list-per-zone rebuild — the old editor opened on the deck own ~57 slots
+- **The navigation transition.** A stack push animates for roughly 300 ms by default, which is not
+  a delay before the screen arrives so much as the screen arriving slowly
+
+The instrument already exists: `features/matches/timing.ts` produces the
+`[timing] + pressed -> sheet ready: 86 ms` line. The same marks around the Edit tap would separate
+tap -> mounted, mounted -> loaded, loaded -> painted in a single run.
+
+### Deviations from the Hi-Fi design, parked rather than fixed
+
+Both are in the match log's game cards (`src/components/matches/GameCard.tsx`), where the
+same notes are recorded in the file header.
+
+- **Their Battlefield opens the card picker instead of expanding an inline search list.** The
+  design draws a search box and a short filtered list inside the game card. Its list is a mock
+  with six entries; the real one is every Battlefield in the library, so the honest version is a
+  scrolling list nested inside the form's own scroll. The picker sheet already has the search the
+  design is asking for. Revisit if the inline list can be capped short enough not to scroll —
+  a handful of results and no inner scroll view would match the design without the trap
+- **Game cards are titled "Game 1 / Game 2", not the design's "Match 1 / Match 2".** Inside a
+  match log, "Match 2" names the wrong thing. Worth confirming with the design which was meant
+  before changing either side

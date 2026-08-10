@@ -20,10 +20,6 @@ export function saveMessage(result: SaveResult): string {
   switch (result.outcome) {
     case 'no-op':
       return 'No changes to save';
-    case 'amended':
-      return `${v} updated · no matches on it yet, so no new version`;
-    case 'reprinted':
-      return `${v} updated · same cards, different printing`;
     case 'forked':
       return `Saved as ${v} · your earlier version is untouched`;
     case 'amended-locked':

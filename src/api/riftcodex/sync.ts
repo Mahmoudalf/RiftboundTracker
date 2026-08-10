@@ -4,7 +4,8 @@ import { cardColumns, toBindValue } from '@/db/queries/hydrate';
 import type { NewCardRow } from '@/db/schema/cards';
 
 import { MAX_PAGE_SIZE, riftcodex, RiftcodexError } from './client';
-import { toCardRow, toSetRow } from './mapper';
+import { dropStaleDuplicates, toCardRow, toSetRow } from './mapper';
+import type { ApiCard } from './schemas';
 
 /**
  * Card mirror sync.
@@ -194,25 +195,41 @@ export async function syncCards(
 
     let page = 1;
     let pages = 1;
-    let written = 0;
+    let total = 0;
+    /*
+     * Collected across every page before anything is written.
+     *
+     * `dropStaleDuplicates` compares each row against its twin, and a pair can
+     * straddle a page boundary — de-duplicating a page at a time would let the
+     * split ones through. The whole response is ~1.8 MB, which is what the
+     * bundled seed already holds in memory on first launch.
+     */
+    const collected: ApiCard[] = [];
 
     // Sequential, never parallel — see the note at the top of this file.
     do {
       const res = await riftcodex.cards({ page, size: MAX_PAGE_SIZE }, signal);
       pages = res.pages;
-
-      const rows = res.items.map(toCardRow);
-      written += upsertCards(rows);
+      total = res.total;
+      collected.push(...res.items);
 
       report({
         phase: 'downloading',
         progress: pages > 0 ? page / pages : null,
-        cardsWritten: written,
-        message: `Downloading cards (${written}/${res.total})`,
+        cardsWritten: 0,
+        message: `Downloading cards (${collected.length}/${res.total})`,
       });
 
       page++;
     } while (page <= pages);
+
+    const written = upsertCards(dropStaleDuplicates(collected).map(toCardRow));
+    report({
+      phase: 'downloading',
+      progress: 1,
+      cardsWritten: written,
+      message: `Downloading cards (${written}/${total})`,
+    });
 
     report({ phase: 'writing', progress: 1, cardsWritten: written, message: 'Building search index' });
     rebuildSearchIndex(sqlite);

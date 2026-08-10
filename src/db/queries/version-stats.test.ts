@@ -75,15 +75,19 @@ describe('versionStats', () => {
       ],
     });
 
-    saveDeckEdit(versionId, list(a));
-    logMatch({ deckId, deckVersionId: versionId, result: 'win' });
-    const v2 = saveDeckEdit(versionId, list(b)).versionId;
+    // The build edit is a version of its own now, so matches attach to it.
+    const v1 = saveDeckEdit(versionId, list(a)).versionId;
+    logMatch({ deckId, deckVersionId: v1, result: 'win' });
+    const v2 = saveDeckEdit(v1, list(b)).versionId;
     logMatch({ deckId, deckVersionId: v2, result: 'loss' });
 
     const stats = versionStats(deckId);
-    expect(stats).toHaveLength(2);
+    // Three versions now: the seeded v1, plus one per edit. v1 was never
+    // played, and still gets a row — a version with no matches is a real
+    // version with no matches.
+    expect(stats).toHaveLength(3);
     // Newest first, matching the timeline.
-    expect(versionStatLabel(stats[0]!)).toBe('v2');
+    expect(versionStatLabel(stats[0]!)).toBe('v3');
     expect(stats[0]!.rate.losses).toBe(1);
     expect(stats[1]!.rate.wins).toBe(1);
     expect(stats.every((s) => !s.pooled)).toBe(true);
@@ -104,19 +108,20 @@ describe('versionStats', () => {
       ],
     });
 
-    saveDeckEdit(versionId, list(standard));
-    logMatch({ deckId, deckVersionId: versionId, result: 'win' });
-    logMatch({ deckId, deckVersionId: versionId, result: 'win' });
+    const built = saveDeckEdit(versionId, list(standard)).versionId;
+    logMatch({ deckId, deckVersionId: built, result: 'win' });
+    logMatch({ deckId, deckVersionId: built, result: 'win' });
 
-    // Locked by the matches above, so the art swap forks.
-    const swapped = saveDeckEdit(versionId, list(alt));
+    // Same cards, different printing — and it still forks.
+    const swapped = saveDeckEdit(built, list(alt));
     expect(swapped.outcome).toBe('forked');
     logMatch({ deckId, deckVersionId: swapped.versionId, result: 'loss' });
 
     const stats = versionStats(deckId);
-    expect(stats).toHaveLength(1);
+    // The pooled pair, plus the seeded v1 that was never played.
+    expect(stats).toHaveLength(2);
     expect(stats[0]!.pooled).toBe(true);
-    expect(versionStatLabel(stats[0]!)).toBe('v1 + v2');
+    expect(versionStatLabel(stats[0]!)).toBe('v2 + v3');
     // One sample of three, not two samples of two and one.
     expect(stats[0]!.rate.total).toBe(3);
     expect(stats[0]!.rate.wins).toBe(2);
@@ -137,17 +142,17 @@ describe('versionStats', () => {
     const a = seedCard({ id: 'a', name: 'Card A' });
     const b = seedCard({ id: 'b', name: 'Card B' });
 
-    saveDeckEdit(versionId, {
+    const current = saveDeckEdit(versionId, {
       slots: [
         { card: legend, quantity: 1, zone: 'legend' },
         { card: a, quantity: 2, zone: 'main' },
         { card: b, quantity: 1, zone: 'main' },
       ],
-    });
-    logMatch({ deckId, deckVersionId: versionId, result: 'win' });
+    }).versionId;
+    logMatch({ deckId, deckVersionId: current, result: 'win' });
 
     // Same cards, same counts, written in a different order.
-    const forked = saveDeckEdit(versionId, {
+    const forked = saveDeckEdit(current, {
       slots: [
         { card: b, quantity: 1, zone: 'main' },
         { card: legend, quantity: 1, zone: 'legend' },
@@ -156,6 +161,7 @@ describe('versionStats', () => {
     });
     // Identical, so it is a no-op — nothing to pool because nothing forked.
     expect(forked.outcome).toBe('no-op');
-    expect(versionStats(deckId)).toHaveLength(1);
+    // Still just the seeded v1 and the built version — a no-op adds nothing.
+    expect(versionStats(deckId)).toHaveLength(2);
   });
 });

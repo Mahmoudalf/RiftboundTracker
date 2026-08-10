@@ -153,20 +153,20 @@ describe('a card sync completing while the editor is open', () => {
     const a = seedCard({ id: 'a', name: 'Card A' });
     const { deckId, versionId } = createDeck({ name: 'Vi', legend, champion: null });
 
-    saveDeckEdit(versionId, {
+    const built = saveDeckEdit(versionId, {
       slots: [
         { card: legend, quantity: 1, zone: 'legend' },
         { card: ghost, quantity: 2, zone: 'main' },
         { card: a, quantity: 1, zone: 'main' },
       ],
-    });
+    }).versionId;
 
     // The mirror is mid-resync when the editor opens.
     db.runSync('DELETE FROM cards WHERE id = ?', ['ghost']);
-    lockVersion(versionId);
+    lockVersion(built);
 
     const store = useDeckEditor.getState();
-    store.load({ deckId, versionId, name: 'Vi', list: loadDeckList(versionId) });
+    store.load({ deckId, versionId: built, name: 'Vi', list: loadDeckList(built) });
     expect(useDeckEditor.getState().slots.filter((s) => s.zone === 'main')).toHaveLength(1);
 
     // The sync finishes. The user has changed nothing and presses Save.
@@ -175,15 +175,17 @@ describe('a card sync completing while the editor is open', () => {
     const state = useDeckEditor.getState();
     const toSave = reconcileWithStored(
       { slots: state.slots },
-      loadDeckList(versionId),
+      loadDeckList(built),
       state.loadedKeys
     );
-    const result = saveDeckEdit(versionId, toSave);
+    const result = saveDeckEdit(built, toSave);
 
+    // Still a no-op: the guard that keeps a resync from spending a version is
+    // the diff, and that has not changed.
     expect(result.outcome).toBe('no-op');
-    expect(listVersions(deckId)).toHaveLength(1);
+    expect(listVersions(deckId)).toHaveLength(2);
     expect(
-      loadDeckList(versionId)
+      loadDeckList(built)
         .slots.filter((s) => s.zone === 'main')
         .map((s) => s.card.id)
         .sort()
@@ -197,29 +199,29 @@ describe('a card sync completing while the editor is open', () => {
     const b = seedCard({ id: 'b', name: 'Card B' });
     const { deckId, versionId } = createDeck({ name: 'Vi', legend, champion: null });
 
-    saveDeckEdit(versionId, {
+    const built = saveDeckEdit(versionId, {
       slots: [
         { card: legend, quantity: 1, zone: 'legend' },
         { card: ghost, quantity: 2, zone: 'main' },
         { card: a, quantity: 1, zone: 'main' },
       ],
-    });
+    }).versionId;
     db.runSync('DELETE FROM cards WHERE id = ?', ['ghost']);
-    lockVersion(versionId);
+    lockVersion(built);
 
     useDeckEditor.getState().load({
       deckId,
-      versionId,
+      versionId: built,
       name: 'Vi',
-      list: loadDeckList(versionId),
+      list: loadDeckList(built),
     });
     useDeckEditor.getState().adjust(b, 'main', 2);
     seedCard({ id: 'ghost', name: 'Vanishing Act' });
 
     const state = useDeckEditor.getState();
     const result = saveDeckEdit(
-      versionId,
-      reconcileWithStored({ slots: state.slots }, loadDeckList(versionId), state.loadedKeys)
+      built,
+      reconcileWithStored({ slots: state.slots }, loadDeckList(built), state.loadedKeys)
     );
 
     // The user's edit forks, and the resynced card rides along untouched.

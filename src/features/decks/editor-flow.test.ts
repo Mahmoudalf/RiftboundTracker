@@ -109,8 +109,14 @@ describe.skipIf(!hasSeed)('editor flow against the real library', () => {
 
   it('creates a deck through the real create-flow queries', () => {
     const legends = listLegends();
-    // Every printing, not one per card: choosing a Legend also chooses its art.
-    expect(legends.length).toBe(180);
+    /*
+     * Every *pickable* printing, not one per card: choosing a Legend also
+     * chooses its art. The library holds 180 Legend rows — 79 plain, 44
+     * Overnumbered, 1 Alternate Art, and then 28 Metal, 24 Signature and 4
+     * Starter, which are the same Legends in other packaging and would make the
+     * picker read as the same name five times over.
+     */
+    expect(legends.length).toBe(79 + 44 + 1);
 
     // Variants of one Legend sort adjacent, so the grid reads as "which Vi"
     // rather than as four unrelated entries scattered through the list.
@@ -174,16 +180,17 @@ describe.skipIf(!hasSeed)('editor flow against the real library', () => {
     const list: DeckList = { slots };
     const barSaw = checkLegality(list);
 
-    saveDeckEdit(versionId, list);
+    const saved = saveDeckEdit(versionId, list).versionId;
 
-    const version = getVersion(versionId)!;
+    // The cache belongs to the version the edit produced.
+    const version = getVersion(saved)!;
     expect(version.mainCount).toBe(barSaw.counts.main);
     expect(version.runeCount).toBe(barSaw.counts.rune);
     expect(version.battlefieldCount).toBe(barSaw.counts.battlefield);
     expect(version.isLegal).toBe(barSaw.legal);
 
     // And re-reading from disk must agree with what was cached.
-    const reloaded = checkLegality(loadDeckList(versionId));
+    const reloaded = checkLegality(loadDeckList(saved));
     expect(reloaded.counts).toEqual(barSaw.counts);
     expect(reloaded.legal).toBe(version.isLegal);
   });

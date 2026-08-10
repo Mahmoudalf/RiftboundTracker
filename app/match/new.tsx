@@ -612,6 +612,26 @@ export default function LogMatchScreen() {
           })}
         </View>
 
+        {/*
+          Before the result, not after it.
+
+          Continue is the last thing on the screen because it is the last thing
+          you do. With the note below it, the only field you would reach *after*
+          the button that leaves is one you would never see.
+        */}
+        <View style={styles.step}>
+          <Text style={styles.fieldLabel}>Note</Text>
+          <TextInput
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Anything worth remembering"
+            placeholderTextColor={color.textFaint}
+            style={styles.notes}
+            multiline
+            accessibilityLabel="Match note"
+          />
+        </View>
+
         {step(
           5,
           'Result',
@@ -668,19 +688,6 @@ export default function LogMatchScreen() {
             </Text>
           </>
         )}
-
-        <View style={styles.step}>
-          <Text style={styles.fieldLabel}>Note</Text>
-          <TextInput
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Anything worth remembering"
-            placeholderTextColor={color.textFaint}
-            style={styles.notes}
-            multiline
-            accessibilityLabel="Match note"
-          />
-        </View>
       </ScrollView>
 
       {/*

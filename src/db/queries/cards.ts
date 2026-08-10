@@ -1,5 +1,5 @@
 import { domainKey } from '@/api/riftcodex/mapper';
-import { baseName, championMatchesLegend, variantLabel } from '@/lib/card-identity';
+import { baseName, championMatchesLegend, isPickablePrinting, variantLabel } from '@/lib/card-identity';
 
 import { conn } from '../connection';
 import type { CardRow } from '../schema/cards';
@@ -254,6 +254,9 @@ export function listLegends(): CardRow[] {
                  c.alternate_art ASC, c.overnumbered ASC, c.collector_number ASC`
     )
     .map(hydrateCard)
+    // Metal, Signature, Starter and the one-offs are the same Legend in other
+    // packaging; the picker offers the three treatments a decklist distinguishes.
+    .filter(isPickablePrinting)
     .sort(byCardThenVariant);
 }
 
@@ -272,6 +275,7 @@ export function listChampionsForLegend(legend: CardRow): CardRow[] {
         ORDER BY c.clean_name COLLATE NOCASE ASC, c.alternate_art ASC`
     )
     .map(hydrateCard)
+    .filter(isPickablePrinting)
     .filter((c) => {
       const { nameMatches, inIdentity } = championMatchesLegend(c, legend);
       return nameMatches && inIdentity;

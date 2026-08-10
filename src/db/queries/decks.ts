@@ -435,7 +435,14 @@ function syncDeckIdentity(deckId: string, versionId: string, list: DeckList): vo
  * - `amended-locked` — the escape hatch. A locked version was rewritten at the
  *   user's explicit instruction, and its matches now describe the edited list.
  */
-export type SaveOutcome = 'no-op' | 'reprinted' | 'amended' | 'forked' | 'amended-locked';
+/**
+ * What a save did.
+ *
+ * `amended` and `reprinted` were removed when every edit began forking: they
+ * named an in-place write to an unplayed version, which no longer happens. The
+ * only write that is not a fork is the escape hatch.
+ */
+export type SaveOutcome = 'no-op' | 'forked' | 'amended-locked';
 
 export interface SaveResult {
   outcome: SaveOutcome;
@@ -508,7 +515,20 @@ export function saveDeckEdit(
     };
   }
 
-  const inPlace = !version.lockedAt || options.amendLocked === true;
+  /*
+   * Every real change is a new version.
+   *
+   * This used to amend in place whenever no match had been logged yet, on the
+   * reasoning that a version nobody had played was still "being written". But a
+   * version is a record of what the deck *was*, and swapping ten cards makes it
+   * a different deck whether or not it has been played — calling that still-v1
+   * loses the only history the app exists to keep.
+   *
+   * The no-op guard above is what keeps this from filling the timeline: a save
+   * that changes nothing writes nothing. Amending survives only as the explicit
+   * escape hatch, which is offered for locked versions and confirmed by name.
+   */
+  const inPlace = options.amendLocked === true;
 
   if (inPlace) {
     conn().withTransactionSync(() => {
@@ -517,13 +537,21 @@ export function saveDeckEdit(
       syncDeckIdentity(version.deckId, versionId, list);
     });
 
-    const outcome: SaveOutcome = version.lockedAt
-      ? 'amended-locked'
-      : diff.cardSetIdentical
-        ? 'reprinted'
-        : 'amended';
-
-    return { outcome, versionId, versionNumber: version.versionNumber, diff };
+    /*
+     * One outcome, because there is now one way to reach here.
+     *
+     * This branch used to serve two callers: ordinary edits to an unplayed
+     * version, and the escape hatch. The first is gone, so `amended` and
+     * `reprinted` described states nothing could produce — and the pair that
+     * *could* still arrive, an `amendLocked` on a version that is not locked,
+     * is incoherent rather than meaningful.
+     */
+    return {
+      outcome: 'amended-locked',
+      versionId,
+      versionNumber: version.versionNumber,
+      diff,
+    };
   }
 
   const forked = forkVersion(version.deckId, versionId, list, {

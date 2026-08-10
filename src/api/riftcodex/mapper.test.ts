@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { domainKey, toCardRow, toSetRow } from './mapper';
+import { domainKey, dropStaleDuplicates, toCardRow, toSetRow } from './mapper';
 import { cardSchema, setSchema } from './schemas';
 
 /**
@@ -115,5 +115,45 @@ describe('toSetRow', () => {
       setSchema.parse({ id: 'c', name: 'Vendetta', set_id: 'VEN', card_count: 358 })
     );
     expect(row.cardmarketIds).toEqual([]);
+  });
+});
+
+describe('dropStaleDuplicates', () => {
+  const row = (id: string, riftboundId: string, name: string, cleanName: string | null) =>
+    ({ id, riftbound_id: riftboundId, name, metadata: { clean_name: cleanName } }) as never;
+
+  /*
+   * The case that put two apparently identical Shens in a Champion picker: the
+   * stale row carries the alt-art printing's id under the standard printing's
+   * name.
+   */
+  it('drops the unnamed twin and keeps the named one', () => {
+    const kept = row('a1', 'ven-042a-166', 'Shen, Scourge of Shadows (Alternate Art)', 'Shen …');
+    const stale = row('a2', 'ven-042a-166', 'Shen, Scourge of Shadows', null);
+
+    expect(dropStaleDuplicates([kept, stale])).toEqual([kept]);
+  });
+
+  /*
+   * 16 pairs share a riftbound_id legitimately — a Metal printing and its
+   * standard. Both rows are complete, so both survive. De-duplicating on the id
+   * alone would have deleted every Metal card in the set.
+   */
+  it('keeps both when a Metal printing shares an id with its standard', () => {
+    const std = row('b1', 'opp-259-298', 'Yasuo - Unforgiven', 'Yasuo Unforgiven');
+    const metal = row('b2', 'opp-259-298', 'Yasuo - Unforgiven (Metal)', 'Yasuo Unforgiven Metal');
+
+    expect(dropStaleDuplicates([std, metal])).toEqual([std, metal]);
+  });
+
+  it('keeps a lone unnamed row, since nothing supersedes it', () => {
+    const only = row('c1', 'ven-999-1', 'Something', null);
+    expect(dropStaleDuplicates([only])).toEqual([only]);
+  });
+
+  it('leaves a clean response untouched', () => {
+    const a = row('d1', 'x-1-1', 'A', 'A');
+    const b = row('d2', 'x-2-1', 'B', 'B');
+    expect(dropStaleDuplicates([a, b])).toEqual([a, b]);
   });
 });

@@ -5,7 +5,7 @@ import { diffLists } from '@/lib/deck-diff';
 
 import { saveMessage } from './save-message';
 
-const OUTCOMES: SaveOutcome[] = ['no-op', 'reprinted', 'amended', 'forked', 'amended-locked'];
+const OUTCOMES: SaveOutcome[] = ['no-op', 'forked', 'amended-locked'];
 
 function result(outcome: SaveOutcome): SaveResult {
   return {
@@ -35,10 +35,10 @@ describe('saveMessage', () => {
   });
 
   it('explains the absence of a new version when amending', () => {
-    expect(saveMessage(result('amended'))).toContain('no new version');
+    expect(saveMessage(result('forked'))).toContain('untouched');
   });
 
   it('distinguishes a fork from an amend', () => {
-    expect(saveMessage(result('forked'))).not.toBe(saveMessage(result('amended')));
+    expect(saveMessage(result('forked'))).not.toBe(saveMessage(result('amended-locked')));
   });
 });

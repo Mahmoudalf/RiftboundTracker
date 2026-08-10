@@ -86,3 +86,29 @@ export function toSetRow(set: ApiSet) {
     publishedOn: set.published_on ?? null,
   };
 }
+
+/**
+ * Drop the stale twin when the API returns a card twice.
+ *
+ * Measured against the live 1,451-card response: **147 `riftbound_id`s appear
+ * on two rows.** 131 of those pairs have one complete row and one leftover with
+ * `clean_name: null` — and in 52 cases the leftover also carries the *wrong*
+ * display name, missing its `(Alternate Art)` suffix. That is what puts two
+ * apparently identical "Shen, Scourge of Shadows" entries in a Champion picker:
+ * one of them is the alt-art printing wearing the standard printing's name.
+ *
+ * The other 16 pairs are real. A Metal printing genuinely shares its
+ * `riftbound_id` with the standard one, and both rows are complete — so
+ * de-duplicating on `riftbound_id` alone would delete every Metal card in the
+ * set. The discriminator has to be `clean_name`, not the id.
+ *
+ * Upstream's problem, fixed at our boundary: the mirror is rebuilt from this on
+ * every sync, so filtering here is enough and no migration is needed.
+ */
+export function dropStaleDuplicates(cards: readonly ApiCard[]): ApiCard[] {
+  const named = new Set<string>();
+  for (const card of cards) {
+    if (card.metadata.clean_name) named.add(card.riftbound_id);
+  }
+  return cards.filter((card) => card.metadata.clean_name || !named.has(card.riftbound_id));
+}

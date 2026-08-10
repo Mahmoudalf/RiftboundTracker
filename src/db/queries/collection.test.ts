@@ -14,8 +14,12 @@ import {
   listBinders,
   missingFromLibrary,
   ownedCounts,
+  ownedFinishes,
   quantityIn,
   renameBinder,
+  collapsePromotional,
+  PROMO_SET_ID,
+  setCompletion,
 } from './collection';
 
 /**
@@ -399,5 +403,105 @@ describe('the numbers the header shows', () => {
     adjustCardQuantity(b, seedCard('other'), 1);
 
     expect(summary()).toEqual({ distinctCards: 2, totalCards: 4 });
+  });
+});
+
+describe('setCompletion', () => {
+  /*
+   * Completion is distinct cards, not copies. A collector with a full playset
+   * of one card has collected one card of the set, and a copies-based bar would
+   * read 300%.
+   */
+  it('counts a card once however many copies are held', () => {
+    const id = createBinder({ name: 'Main' });
+    adjustCardQuantity(id, seedCard('a'), 3);
+    seedCard('b');
+    seedCard('c');
+
+    expect(setCompletion()).toEqual([
+      { setId: 'OGN', label: 'Origins', owned: 1, total: 3 },
+    ]);
+  });
+
+  it('keeps a set nobody has started', () => {
+    seedCard('a');
+    seedCard('b');
+
+    // The most useful bar on the screen is the one still at zero.
+    expect(setCompletion()).toEqual([
+      { setId: 'OGN', label: 'Origins', owned: 0, total: 2 },
+    ]);
+  });
+
+  it('ignores a deleted binder and a card emptied back to zero', () => {
+    const kept = createBinder({ name: 'Kept' });
+    const gone = createBinder({ name: 'Gone' });
+    const a = seedCard('a');
+    const b = seedCard('b');
+
+    adjustCardQuantity(gone, a, 2);
+    deleteBinder(gone);
+    adjustCardQuantity(kept, b, 1);
+    adjustCardQuantity(kept, b, -1);
+
+    expect(setCompletion()).toEqual([
+      { setId: 'OGN', label: 'Origins', owned: 0, total: 2 },
+    ]);
+  });
+});
+
+describe('collapsePromotional', () => {
+  const set = (setId: string, label: string, owned: number, total: number) => ({
+    setId,
+    label,
+    owned,
+    total,
+  });
+
+  it('folds the promotional sets into one line and leaves the rest alone', () => {
+    const out = collapsePromotional([
+      set('OGN', 'Origins', 11, 352),
+      set('OPP', 'Riftbound Organized Play Promotional Cards', 2, 133),
+      set('PR', 'Riftbound Promotional Cards', 1, 13),
+      set('JDG', 'Riftbound Judge Promotional Cards', 0, 3),
+    ]);
+
+    expect(out).toEqual([
+      set('OGN', 'Origins', 11, 352),
+      { setId: PROMO_SET_ID, label: 'Promotional', owned: 3, total: 149 },
+    ]);
+  });
+
+  it('leaves a lone promotional set as itself', () => {
+    // Collapsing one set into a differently-named set of one renames it for
+    // nothing, and loses which promo line it actually was.
+    const only = [set('OGN', 'Origins', 0, 352), set('PR', 'Riftbound Promotional Cards', 1, 13)];
+    expect(collapsePromotional(only)).toEqual(only);
+  });
+
+  it('does nothing when no set is promotional', () => {
+    const sets = [set('OGN', 'Origins', 1, 352), set('UNL', 'Unleashed', 0, 280)];
+    expect(collapsePromotional(sets)).toEqual(sets);
+  });
+});
+
+describe('ownedFinishes', () => {
+  it('splits standard and foil across every binder', () => {
+    const a = createBinder({ name: 'A' });
+    const b = createBinder({ name: 'B' });
+    const card = seedCard('a');
+
+    adjustCardQuantity(a, card, 2, 'standard');
+    adjustCardQuantity(b, card, 1, 'foil');
+
+    expect(ownedFinishes().get('a')).toEqual({ standard: 2, foil: 1, total: 3 });
+  });
+
+  it('forgets a deleted binder, so the sheen goes with it', () => {
+    const gone = createBinder({ name: 'Gone' });
+    adjustCardQuantity(gone, seedCard('a'), 1, 'foil');
+    deleteBinder(gone);
+
+    expect(ownedFinishes().get('a')).toBeUndefined();
   });
 });

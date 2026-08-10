@@ -7,7 +7,7 @@ import type { DeckSummary } from '@/db/queries/decks';
 import { cardImage } from '@/lib/cdn';
 import { deckGradient } from '@/theme/domains';
 import { color, radius, space } from '@/theme/tokens';
-import { metaLine, text } from '@/theme/typography';
+import { text } from '@/theme/typography';
 
 /**
  * A deck in the list. Built from the design's own declarations:
@@ -40,12 +40,15 @@ export function DeckCard({ summary, onPress }: DeckCardProps) {
   const { deck, version, legendImageUrl } = summary;
   const [from, to] = deckGradient(deck.domains);
 
-  // The design's second line is the version and its label — not the full
-  // legality read-out the old card carried.
-  const meta = metaLine(
-    version ? `v${version.versionNumber}` : null,
-    version?.label ?? (version?.isLegal ? 'Legal' : 'Incomplete')
-  );
+  /*
+   * The version, and nothing else.
+   *
+   * It used to carry the version's label too — which is auto-generated from the
+   * last diff, so the list read as a wall of "−3 Statikk Shock and 1 more". That
+   * is a change to *one* version, not a description of the deck, and a list of
+   * decks is not the place to read patch notes.
+   */
+  const meta = version ? `v${version.versionNumber}` : null;
 
   return (
     <Pressable

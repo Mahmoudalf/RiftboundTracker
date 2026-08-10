@@ -102,12 +102,16 @@ export const CardGridItem = memo(function CardGridItem({
           styles.frame,
           { width: frameWidth, height: frameHeight },
           /*
-           * Two dims, deliberately different depths. `blocked` is heavier and
-           * always carries a reason underneath ("Foil only"); "none of this
-           * yet" is lighter and silent, because it describes almost every card
-           * in a new binder and a wall of labels would say nothing.
+           * Not-owned is not dimmed.
+           *
+           * The gallery is a reference you skim, and a library where two thirds
+           * of the art is faded reads as broken rather than as informative. The
+           * count badge already says what is owned — dimming said it twice, and
+           * made the louder claim.
+           *
+           * `blocked` still dims, because that one is about what a tap will do,
+           * and it carries a reason underneath ("Foil only").
            */
-          owned === 0 && !blocked ? styles.frameUnowned : null,
           blocked ? styles.frameBlocked : null,
         ]}
       >
@@ -242,7 +246,6 @@ const styles = StyleSheet.create({
   ownedNone: { backgroundColor: color.overlay },
   ownedFoil: { backgroundColor: color.info },
   frameBlocked: { opacity: 0.35 },
-  frameUnowned: { opacity: 0.6 },
   blocked: { ...text.microMeta, color: color.textMuted, fontSize: 9, paddingTop: 2 },
   ownedText: { ...text.numeric, fontSize: 12, color: color.bg },
   ownedTextNone: { color: color.textMuted },

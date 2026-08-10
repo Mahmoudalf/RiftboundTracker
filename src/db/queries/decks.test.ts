@@ -137,6 +137,22 @@ function makeDeck(name = 'Vi Aggro') {
   return { legend, champion, ...createDeck({ name, legend, champion }) };
 }
 
+/**
+ * Save an edit and load what it produced.
+ *
+ * Every edit forks, so the version passed in is deliberately left alone —
+ * reading *it* back would assert only that the old version still holds the old
+ * list, which it always will. These tests care where the edit landed.
+ */
+function saveAndLoad(
+  versionId: string,
+  list: Parameters<typeof saveDeckEdit>[1],
+  options?: Parameters<typeof saveDeckEdit>[2]
+) {
+  const result = saveDeckEdit(versionId, list, options);
+  return { ...result, list: loadDeckList(result.versionId) };
+}
+
 describe('createDeck', () => {
   it('creates a deck and its first version together', () => {
     const { deckId, versionId } = makeDeck();
@@ -185,7 +201,7 @@ describe('saveDeckEdit', () => {
     const { versionId, legend, champion } = makeDeck();
     const spell = seedCard({ id: 'spell-1', name: 'Fury Bolt', domains: ['Fury'] });
 
-    saveDeckEdit(versionId, {
+    const { list } = saveAndLoad(versionId, {
       slots: [
         { card: legend, quantity: 1, zone: 'legend' },
         { card: champion, quantity: 1, zone: 'champion' },
@@ -193,7 +209,6 @@ describe('saveDeckEdit', () => {
       ],
     });
 
-    const list = loadDeckList(versionId);
     const main = list.slots.filter((s) => s.zone === 'main');
     expect(main).toHaveLength(1);
     expect(main[0]!.quantity).toBe(3);
@@ -206,12 +221,15 @@ describe('saveDeckEdit', () => {
     const b = seedCard({ id: 'b', name: 'B' });
 
     const base = [{ card: legend, quantity: 1, zone: 'legend' as const }];
-    saveDeckEdit(versionId, { slots: [...base, { card: a, quantity: 2, zone: 'main' }] });
-    saveDeckEdit(versionId, { slots: [...base, { card: b, quantity: 1, zone: 'main' }] });
+    const first = saveDeckEdit(versionId, {
+      slots: [...base, { card: a, quantity: 2, zone: 'main' }],
+    });
+    // Edited again from the version the first edit produced, as the editor does.
+    const second = saveAndLoad(first.versionId, {
+      slots: [...base, { card: b, quantity: 1, zone: 'main' }],
+    });
 
-    const ids = loadDeckList(versionId)
-      .slots.filter((s) => s.zone === 'main')
-      .map((s) => s.card.id);
+    const ids = second.list.slots.filter((s) => s.zone === 'main').map((s) => s.card.id);
     expect(ids).toEqual(['b']);
   });
 
@@ -219,13 +237,13 @@ describe('saveDeckEdit', () => {
     const { versionId, legend } = makeDeck();
     const a = seedCard({ id: 'a', name: 'A' });
 
-    saveDeckEdit(versionId, {
+    const { list } = saveAndLoad(versionId, {
       slots: [
         { card: legend, quantity: 1, zone: 'legend' },
         { card: a, quantity: 0, zone: 'main' },
       ],
     });
-    expect(loadDeckList(versionId).slots.filter((s) => s.zone === 'main')).toEqual([]);
+    expect(list.slots.filter((s) => s.zone === 'main')).toEqual([]);
   });
 
   it('updates the denormalized counts and legality flag', () => {
@@ -239,7 +257,7 @@ describe('saveDeckEdit', () => {
       domainKey: 'Colorless',
     });
 
-    saveDeckEdit(versionId, {
+    const saved = saveDeckEdit(versionId, {
       slots: [
         { card: legend, quantity: 1, zone: 'legend' },
         { card: champion, quantity: 1, zone: 'champion' },
@@ -248,7 +266,8 @@ describe('saveDeckEdit', () => {
       ],
     });
 
-    const version = getVersion(versionId)!;
+    // The counts belong to the version the edit produced, not the one it left.
+    const version = getVersion(saved.versionId)!;
     expect(version.mainCount).toBe(4); // 3 spells + the Champion
     expect(version.battlefieldCount).toBe(3);
     expect(version.isLegal).toBe(false); // 4/40 main, 0/12 runes
@@ -330,16 +349,24 @@ describe('version locking', () => {
     expect(saveDeckEdit(versionId, reordered).outcome).toBe('no-op');
   });
 
-  it('amends in place while the version has no matches', () => {
+  /*
+   * A version records what the deck *was*. Swapping cards makes it a different
+   * deck whether or not it has been played, so an unplayed version is not a
+   * draft to be overwritten — it is the list that came before this one.
+   */
+  it('forks even when the version has no matches on it', () => {
     const { deckId, versionId, legend } = makeDeck();
     const a = seedCard({ id: 'a', name: 'A' });
 
     const result = saveDeckEdit(versionId, withCards(versionId, legend, [[a, 2]]));
 
-    expect(result.outcome).toBe('amended');
-    expect(result.versionId).toBe(versionId);
-    expect(listVersions(deckId)).toHaveLength(1);
-    expect(getDeck(deckId)!.currentVersionId).toBe(versionId);
+    expect(result.outcome).toBe('forked');
+    expect(result.versionId).not.toBe(versionId);
+    expect(result.versionNumber).toBe(2);
+    expect(listVersions(deckId)).toHaveLength(2);
+    expect(getDeck(deckId)!.currentVersionId).toBe(result.versionId);
+    // The version left behind still holds what it always held.
+    expect(loadDeckList(versionId).slots.filter((x) => x.zone === 'main')).toEqual([]);
   });
 
   it('forks once a match is logged, leaving the played list untouched', () => {
@@ -347,16 +374,17 @@ describe('version locking', () => {
     const a = seedCard({ id: 'a', name: 'A' });
     const b = seedCard({ id: 'b', name: 'B' });
 
-    saveDeckEdit(versionId, {
+    // Build the list first — that edit is itself a version now — then play it.
+    const built = saveDeckEdit(versionId, {
       slots: [
         { card: legend, quantity: 1, zone: 'legend' },
         { card: champion, quantity: 1, zone: 'champion' },
         { card: a, quantity: 3, zone: 'main' },
       ],
     });
-    logMatch(versionId);
+    logMatch(built.versionId);
 
-    const result = saveDeckEdit(versionId, {
+    const result = saveDeckEdit(built.versionId, {
       slots: [
         { card: legend, quantity: 1, zone: 'legend' },
         { card: champion, quantity: 1, zone: 'champion' },
@@ -365,11 +393,11 @@ describe('version locking', () => {
     });
 
     expect(result.outcome).toBe('forked');
-    expect(result.versionId).not.toBe(versionId);
-    expect(result.versionNumber).toBe(2);
+    expect(result.versionId).not.toBe(built.versionId);
+    expect(result.versionNumber).toBe(3);
 
     // The played list is exactly as it was played (invariant 1).
-    const played = loadDeckList(versionId).slots.filter((s) => s.zone === 'main');
+    const played = loadDeckList(built.versionId).slots.filter((s) => s.zone === 'main');
     expect(played.map((s) => s.card.id)).toEqual(['a']);
 
     // The deck now points at the fork (invariant 3), which carries the change.
@@ -382,47 +410,55 @@ describe('version locking', () => {
     ).toEqual(['b']);
 
     const forked = getVersion(result.versionId)!;
-    expect(forked.parentVersionId).toBe(versionId);
+    expect(forked.parentVersionId).toBe(built.versionId);
     expect(forked.lockedAt).toBeNull();
     expect(forked.label).toBe('−3 A and 1 more');
   });
 
   /*
-   * Reported from a device as "editing a deck no longer creates a version".
-   * Reproduced here as the exact sequence rather than argued about: the fork is
-   * unlocked when it is born, so the *next* edit amends it. Correct, and
-   * indistinguishable from a broken save if the UI says nothing — which is why
-   * gap 2 is a defect even though nothing here is.
+   * Reported from a device as "editing a deck no longer creates a version",
+   * and reproduced here as the exact sequence rather than argued about.
+   *
+   * At the time it was correct-but-invisible: the fork was born unlocked, so
+   * the next edit amended it. That behaviour is gone — every change is its own
+   * version now, so the sequence below climbs v1 → v2 → v3 and the report has
+   * no way to recur.
    */
-  it('amends the fork on the next edit, because a fork starts unlocked', () => {
+  it('forks again on the next edit, so each change is its own version', () => {
     const { deckId, versionId, legend } = makeDeck();
     const [a, b, c] = [1, 2, 3].map((n) => seedCard({ id: `c${n}`, name: `Card ${n}` }));
 
-    saveDeckEdit(versionId, withCards(versionId, legend, [[a!, 3]]));
-    logMatch(versionId);
+    const built = saveDeckEdit(versionId, withCards(versionId, legend, [[a!, 3]]));
+    logMatch(built.versionId);
 
-    const forked = saveDeckEdit(versionId, withCards(versionId, legend, [[b!, 3]]));
+    const forked = saveDeckEdit(built.versionId, withCards(built.versionId, legend, [[b!, 3]]));
     expect(forked.outcome).toBe('forked');
-    expect(listVersions(deckId)).toHaveLength(2);
+    expect(listVersions(deckId)).toHaveLength(3);
 
-    // Second edit, no match logged in between. No v3 — and the fork carries it.
+    // Second edit, no match logged in between — and it still gets its own version.
     const again = saveDeckEdit(forked.versionId, withCards(forked.versionId, legend, [[c!, 3]]));
-    expect(again.outcome).toBe('amended');
-    expect(again.versionId).toBe(forked.versionId);
-    expect(listVersions(deckId)).toHaveLength(2);
+    expect(again.outcome).toBe('forked');
+    expect(again.versionId).not.toBe(forked.versionId);
+    expect(listVersions(deckId)).toHaveLength(4);
+    // The change went into the new version; the one before it kept its own list.
+    expect(
+      loadDeckList(again.versionId)
+        .slots.filter((s) => s.zone === 'main')
+        .map((s) => s.card.id)
+    ).toEqual(['c3']);
     expect(
       loadDeckList(forked.versionId)
         .slots.filter((s) => s.zone === 'main')
         .map((s) => s.card.id)
-    ).toEqual(['c3']);
+    ).toEqual(['c2']);
 
-    // A match on the fork restores forking, so the rule is "played versions are
-    // immutable", not "the first edit is special".
-    logMatch(forked.versionId);
+    // Playing a version changes nothing about this: it already could not be
+    // rewritten. The lock only still governs the escape hatch.
+    logMatch(again.versionId);
     expect(
-      saveDeckEdit(forked.versionId, withCards(forked.versionId, legend, [[a!, 1]])).outcome
+      saveDeckEdit(again.versionId, withCards(again.versionId, legend, [[a!, 1]])).outcome
     ).toBe('forked');
-    expect(listVersions(deckId)).toHaveLength(3);
+    expect(listVersions(deckId)).toHaveLength(5);
   });
 
   it('numbers versions contiguously from the deck maximum (invariant 4)', () => {
@@ -438,17 +474,35 @@ describe('version locking', () => {
     expect(listVersions(deckId).map((v) => v.versionNumber)).toEqual([4, 3, 2, 1]);
   });
 
-  it('swaps art in place while the version has no matches', () => {
+  it('forks for a printing swap too, since the list it recorded has changed', () => {
     const { deckId, versionId, legend } = makeDeck();
     const standard = seedCard({ id: 'p1', name: 'Statikk Shock' });
     const alt = seedCard({ id: 'p2', name: 'Statikk Shock (Alternate Art)', alternateArt: true });
 
-    saveDeckEdit(versionId, withCards(versionId, legend, [[standard, 2]]));
-    const result = saveDeckEdit(versionId, withCards(versionId, legend, [[alt, 2]]));
+    const built = saveDeckEdit(versionId, withCards(versionId, legend, [[standard, 2]]));
+    const result = saveDeckEdit(built.versionId, withCards(built.versionId, legend, [[alt, 2]]));
 
-    expect(result.outcome).toBe('reprinted');
+    /*
+     * The two lists are identical to the rules, and it still forks.
+     * `deck_version_cards` is the record of what was physically in the sleeve —
+     * match detail renders it, the collection tracker checks ownership against
+     * it, export emits it — so which printing was in there is part of what the
+     * version recorded, not decoration on top of it.
+     */
+    expect(result.outcome).toBe('forked');
     expect(result.diff.cardSetIdentical).toBe(true);
-    expect(listVersions(deckId)).toHaveLength(1);
+    expect(listVersions(deckId)).toHaveLength(3);
+
+    expect(
+      loadDeckList(result.versionId)
+        .slots.filter((x) => x.zone === 'main')
+        .map((x) => x.card.id)
+    ).toEqual(['p2']);
+    expect(
+      loadDeckList(built.versionId)
+        .slots.filter((x) => x.zone === 'main')
+        .map((x) => x.card.id)
+    ).toEqual(['p1']);
   });
 
   /**
@@ -466,24 +520,24 @@ describe('version locking', () => {
     const standard = seedCard({ id: 'p1', name: 'Statikk Shock' });
     const alt = seedCard({ id: 'p2', name: 'Statikk Shock (Alternate Art)', alternateArt: true });
 
-    saveDeckEdit(versionId, withCards(versionId, legend, [[standard, 2]]));
-    logMatch(versionId);
+    const built = saveDeckEdit(versionId, withCards(versionId, legend, [[standard, 2]]));
+    logMatch(built.versionId);
 
     const before = db.getAllSync<Record<string, unknown>>(
       'SELECT * FROM deck_version_cards WHERE deck_version_id = ? ORDER BY id',
-      [versionId]
+      [built.versionId]
     );
 
-    const result = saveDeckEdit(versionId, withCards(versionId, legend, [[alt, 2]]));
+    const result = saveDeckEdit(built.versionId, withCards(built.versionId, legend, [[alt, 2]]));
 
     expect(result.outcome).toBe('forked');
     expect(result.diff.cardSetIdentical).toBe(true);
-    expect(listVersions(deckId)).toHaveLength(2);
+    expect(listVersions(deckId)).toHaveLength(3);
 
     // Byte-identical, row ids included — nothing about the played list moved.
     const after = db.getAllSync<Record<string, unknown>>(
       'SELECT * FROM deck_version_cards WHERE deck_version_id = ? ORDER BY id',
-      [versionId]
+      [built.versionId]
     );
     expect(after).toEqual(before);
 
@@ -509,29 +563,29 @@ describe('version locking', () => {
     const alt = seedCard({ id: 'p-alt', name: 'Statikk Shock (Alternate Art)' });
     const standard = seedCard({ id: 'p-std', name: 'Statikk Shock' });
 
-    saveDeckEdit(versionId, withCards(versionId, legend, [[alt, 3]]));
+    let current = saveDeckEdit(versionId, withCards(versionId, legend, [[alt, 3]])).versionId;
 
     // Upstream drops the alternate-art printing.
     db.runSync('DELETE FROM cards WHERE id = ?', ['p-alt']);
-    expect(loadDeckList(versionId).slots.filter((s) => s.zone === 'main')).toEqual([]);
-    expect(missingCards(versionId).map((m) => m.name)).toEqual([
+    expect(loadDeckList(current).slots.filter((s) => s.zone === 'main')).toEqual([]);
+    expect(missingCards(current).map((m) => m.name)).toEqual([
       'Statikk Shock (Alternate Art)',
     ]);
 
     // The player repairs the hole with the printing they can see.
-    saveDeckEdit(versionId, withCards(versionId, legend, [[standard, 3]]));
+    current = saveDeckEdit(current, withCards(current, legend, [[standard, 3]])).versionId;
 
     const rows = db.getAllSync<{ card_id: string; quantity: number }>(
       `SELECT card_id, quantity FROM deck_version_cards
         WHERE deck_version_id = ? AND zone = 'main'`,
-      [versionId]
+      [current]
     );
     expect(rows).toEqual([{ card_id: 'p-std', quantity: 3 }]);
 
     // And the deck stays legal when the old printing returns.
     seedCard({ id: 'p-alt', name: 'Statikk Shock (Alternate Art)' });
     expect(
-      loadDeckList(versionId)
+      loadDeckList(current)
         .slots.filter((s) => s.zone === 'main')
         .reduce((n, s) => n + s.quantity, 0)
     ).toBe(3);
@@ -542,11 +596,12 @@ describe('version locking', () => {
     const ghost = seedCard({ id: 'ghost', name: 'Vanishing Act' });
     const other = seedCard({ id: 'other', name: 'Something Else' });
 
-    saveDeckEdit(versionId, withCards(versionId, legend, [[ghost, 2]]));
+    let current = saveDeckEdit(versionId, withCards(versionId, legend, [[ghost, 2]])).versionId;
     db.runSync('DELETE FROM cards WHERE id = ?', ['ghost']);
-    saveDeckEdit(versionId, withCards(versionId, legend, [[other, 1]]));
+    current = saveDeckEdit(current, withCards(current, legend, [[other, 1]])).versionId;
 
-    expect(missingCards(versionId).map((m) => m.name)).toEqual(['Vanishing Act']);
+    // The ghost rode across the fork rather than being dropped by it.
+    expect(missingCards(current).map((m) => m.name)).toEqual(['Vanishing Act']);
   });
 
   /**
@@ -588,17 +643,20 @@ describe('version locking', () => {
     const a = seedCard({ id: 'a', name: 'A' });
     const b = seedCard({ id: 'b', name: 'B' });
 
-    saveDeckEdit(versionId, withCards(versionId, legend, [[a, 2]]));
-    logMatch(versionId);
+    const built = saveDeckEdit(versionId, withCards(versionId, legend, [[a, 2]]));
+    logMatch(built.versionId);
 
-    const result = saveDeckEdit(versionId, withCards(versionId, legend, [[b, 2]]), {
+    const result = saveDeckEdit(built.versionId, withCards(built.versionId, legend, [[b, 2]]), {
       amendLocked: true,
     });
 
+    // The one path that still writes in place, and the only one — every other
+    // save forks now, so this is the whole of "overwrite" as a concept.
     expect(result.outcome).toBe('amended-locked');
-    expect(listVersions(deckId)).toHaveLength(1);
+    expect(result.versionId).toBe(built.versionId);
+    expect(listVersions(deckId)).toHaveLength(2);
     expect(
-      loadDeckList(versionId)
+      loadDeckList(built.versionId)
         .slots.filter((s) => s.zone === 'main')
         .map((s) => s.card.id)
     ).toEqual(['b']);
@@ -609,14 +667,14 @@ describe('version locking', () => {
     const ghost = seedCard({ id: 'ghost', name: 'Vanishing Act' });
     const a = seedCard({ id: 'a', name: 'A' });
 
-    saveDeckEdit(versionId, withCards(versionId, legend, [[ghost, 2]]));
-    logMatch(versionId);
+    const built = saveDeckEdit(versionId, withCards(versionId, legend, [[ghost, 2]]));
+    logMatch(built.versionId);
 
     // A card-library resync drops the printing. It is now invisible to the
     // editor, so the edited list cannot contain it.
     db.runSync('DELETE FROM cards WHERE id = ?', ['ghost']);
 
-    const result = saveDeckEdit(versionId, withCards(versionId, legend, [[a, 1]]));
+    const result = saveDeckEdit(built.versionId, withCards(built.versionId, legend, [[a, 1]]));
     expect(result.outcome).toBe('forked');
 
     // The row survived the fork, so the card returns when the mirror does.
@@ -682,11 +740,11 @@ describe('version locking', () => {
     const std = seedCard({ id: 'p-std', name: 'Statikk Shock' });
     const unrelated = seedCard({ id: 'ghost-2', name: 'Vanishing Act' });
 
-    saveDeckEdit(versionId, withCards(versionId, legend, [[alt, 3], [unrelated, 1]]));
+    const built = saveDeckEdit(versionId, withCards(versionId, legend, [[alt, 3], [unrelated, 1]]));
     db.runSync("DELETE FROM cards WHERE id IN ('p-alt', 'ghost-2')");
-    logMatch(versionId);
+    logMatch(built.versionId);
 
-    const forked = saveDeckEdit(versionId, withCards(versionId, legend, [[std, 3]]));
+    const forked = saveDeckEdit(built.versionId, withCards(built.versionId, legend, [[std, 3]]));
     expect(forked.outcome).toBe('forked');
 
     const rows = db.getAllSync<{ card_id: string; quantity: number }>(
@@ -702,7 +760,7 @@ describe('version locking', () => {
       db
         .getAllSync<{ card_id: string }>(
           'SELECT card_id FROM deck_version_cards WHERE deck_version_id = ? ORDER BY card_id',
-          [versionId]
+          [built.versionId]
         )
         .map((r) => r.card_id)
     ).toEqual(['ghost-2', 'legend-1', 'p-alt']);
@@ -716,18 +774,20 @@ describe('version locking', () => {
   it('does not violate the unique index when a held card leaves the mirror', () => {
     const { versionId, legend } = makeDeck();
     const a = seedCard({ id: 'a', name: 'Card A' });
-    saveDeckEdit(versionId, withCards(versionId, legend, [[a, 2]]));
+    const built = saveDeckEdit(versionId, withCards(versionId, legend, [[a, 2]]));
 
     // The draft still holds `a`; a resync drops the printing.
     db.runSync('DELETE FROM cards WHERE id = ?', ['a']);
-    expect(() =>
-      saveDeckEdit(versionId, withCards(versionId, legend, [[a, 3]]))
-    ).not.toThrow();
+    let after = '';
+    expect(() => {
+      after = saveDeckEdit(built.versionId, withCards(built.versionId, legend, [[a, 3]]))
+        .versionId;
+    }).not.toThrow();
 
     const rows = db.getAllSync<{ card_id: string; quantity: number }>(
       `SELECT card_id, quantity FROM deck_version_cards
         WHERE deck_version_id = ? AND zone = 'main'`,
-      [versionId]
+      [after]
     );
     expect(rows).toEqual([{ card_id: 'a', quantity: 3 }]);
   });
@@ -881,7 +941,7 @@ describe('loadDeckList', () => {
   it('drops cards missing from the mirror rather than inventing them', () => {
     const { versionId, legend } = makeDeck();
     const ghost = seedCard({ id: 'ghost', name: 'Vanishing Act' });
-    saveDeckEdit(versionId, {
+    const built = saveDeckEdit(versionId, {
       slots: [
         { card: legend, quantity: 1, zone: 'legend' },
         { card: ghost, quantity: 2, zone: 'main' },
@@ -891,8 +951,8 @@ describe('loadDeckList', () => {
     // The mirror is re-synced and this printing is gone.
     db.runSync('DELETE FROM cards WHERE id = ?', ['ghost']);
 
-    expect(loadDeckList(versionId).slots.filter((s) => s.zone === 'main')).toEqual([]);
-    expect(missingCards(versionId)).toHaveLength(1);
+    expect(loadDeckList(built.versionId).slots.filter((s) => s.zone === 'main')).toEqual([]);
+    expect(missingCards(built.versionId)).toHaveLength(1);
   });
 });
 
@@ -952,7 +1012,7 @@ describe('stale legality cache', () => {
       domainKey: 'Colorless',
     });
 
-    saveDeckEdit(versionId, {
+    const built = saveDeckEdit(versionId, {
       slots: [
         { card: legend, quantity: 1, zone: 'legend' },
         { card: bf, quantity: 3, zone: 'battlefield' },
@@ -962,13 +1022,13 @@ describe('stale legality cache', () => {
     // Forge the state an old build left behind: wrong verdict, old stamp.
     db.runSync(
       'UPDATE deck_versions SET is_legal = 1, main_count = 99, rules_version = 0 WHERE id = ?',
-      [versionId]
+      [built.versionId]
     );
-    expect(getVersion(versionId)!.isLegal).toBe(true);
+    expect(getVersion(built.versionId)!.isLegal).toBe(true);
 
     listDecks();
 
-    const repaired = getVersion(versionId)!;
+    const repaired = getVersion(built.versionId)!;
     expect(repaired.rulesVersion).toBe(RULES_VERSION);
     expect(repaired.mainCount).toBe(0);
     // 3 copies of one Battlefield violates rule 103.4.c.
@@ -1089,10 +1149,7 @@ describe('notes and labels', () => {
   });
 
   it('leaves the version list and its cards alone', () => {
-    const { deckId, versionId, legend } = makeDeck();
-    saveDeckEdit(versionId, {
-      slots: [{ card: legend, quantity: 1, zone: 'legend' }],
-    });
+    const { deckId, versionId } = makeDeck();
     const before = loadDeckList(versionId);
 
     setVersionLabel(versionId, 'Renamed');
@@ -1123,14 +1180,14 @@ describe('archiveDeck', () => {
    * history is kept" is a lie told in a dialog.
    */
   it('keeps versions and matches intact', () => {
-    const { deckId, versionId, legend } = makeDeck('Archivable');
-    saveDeckEdit(versionId, { slots: [{ card: legend, quantity: 1, zone: 'legend' }] });
+    const { deckId, versionId } = makeDeck('Archivable');
     lockVersion(versionId);
 
     archiveDeck(deckId, true);
 
     expect(listVersions(deckId)).toHaveLength(1);
-    expect(loadDeckList(versionId).slots).toHaveLength(1);
+    // Legend and Champion, as seeded — archiving touches neither.
+    expect(loadDeckList(versionId).slots).toHaveLength(2);
     expect(getDeck(deckId)?.deletedAt).toBeNull();
   });
 });

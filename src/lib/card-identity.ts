@@ -53,6 +53,25 @@ export function variantLabel(name: string): string | null {
 }
 
 /**
+ * Printing treatments a deck may name its Legend or Champion with.
+ *
+ * The library carries eight suffixes — Alternate Art, Overnumbered, Signature,
+ * Metal, Starter, Ultimate, Launch Exclusive, GG EZ. Most are the same card in
+ * different packaging, and offering all eight turns "pick your Legend" into a
+ * list where the same Legend appears five times over.
+ *
+ * These three are what a player distinguishes between when naming a deck's
+ * identity. Everything else still exists, is still collectable, and is still
+ * searchable in the gallery — it is only the identity pickers that narrow.
+ */
+const PICKABLE_VARIANTS: readonly (string | null)[] = [null, 'Alternate Art', 'Overnumbered'];
+
+/** Whether this printing belongs in a Legend or Champion picker. */
+export function isPickablePrinting(card: { name: string }): boolean {
+  return PICKABLE_VARIANTS.includes(variantLabel(card.name));
+}
+
+/**
  * A Champion Unit — the card a deck's Legend must be paired with.
  *
  * `supertype === 'Champion'` alone is not enough: 27 of the 403 Champion-

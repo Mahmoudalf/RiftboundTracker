@@ -13,7 +13,8 @@ import { metaLine, text } from '@/theme/typography';
 
 interface DeckSlotRowProps {
   slot: DeckSlot;
-  onAdjust: (delta: number) => void;
+  /** Omit to render the quantity as a read-only figure. */
+  onAdjust?: (delta: number) => void;
   onPress: () => void;
   /** Highlights the row when this card is the reason a deck is illegal. */
   flagged?: boolean;
@@ -105,8 +106,11 @@ export const DeckSlotRow = memo(function DeckSlotRow({
         <DomainBadge domains={card.domains} />
       </Pressable>
 
-      {fixed ? (
-        <Text style={styles.fixedMark}>1</Text>
+      {/* No stepper without a handler. The overview passed a no-op one, so it
+          drew two buttons that did nothing — a control that does not control is
+          worse than no control. */}
+      {fixed || !onAdjust ? (
+        <Text style={styles.fixedMark}>{fixed ? 1 : quantity}</Text>
       ) : (
         <Stepper quantity={quantity} onAdjust={onAdjust} label={name} />
       )}

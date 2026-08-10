@@ -138,17 +138,17 @@ describe('logMatch', () => {
       ],
     });
 
-    // Before any match, edits amend in place.
-    const amended = saveDeckEdit(versionId, withCard(a));
-    expect(amended.outcome).toBe('amended');
-    expect(listVersions(deckId)).toHaveLength(1);
-
-    logMatch({ deckId, deckVersionId: versionId, result: 'loss' });
-
-    // The same edit, after one match, is a fork.
-    const forked = saveDeckEdit(versionId, withCard(b));
-    expect(forked.outcome).toBe('forked');
+    // An edit is a version whether or not the deck has been played.
+    const built = saveDeckEdit(versionId, withCard(a));
+    expect(built.outcome).toBe('forked');
     expect(listVersions(deckId)).toHaveLength(2);
+
+    logMatch({ deckId, deckVersionId: built.versionId, result: 'loss' });
+
+    // And the same is true once it has: playing it never made the difference.
+    const forked = saveDeckEdit(built.versionId, withCard(b));
+    expect(forked.outcome).toBe('forked');
+    expect(listVersions(deckId)).toHaveLength(3);
   });
 
   it('leaves the lock timestamp alone on later matches', () => {
@@ -596,16 +596,20 @@ describe('undo and delete', () => {
     undoMatch(id);
     expect(getVersion(versionId)!.lockedAt).toBeNull();
 
-    // And the next edit amends, rather than spending a version number on a
-    // match that never happened.
+    /*
+     * The undo released the lock, and that is all it did. The next edit still
+     * forks — it always would have — so what this test now pins is the lock
+     * itself: released, and no longer standing in the way of the escape hatch.
+     */
     const next = saveDeckEdit(versionId, {
       slots: [
         { card: legend, quantity: 1, zone: 'legend' },
         { card: a, quantity: 2, zone: 'main' },
       ],
     });
-    expect(next.outcome).toBe('amended');
-    expect(listVersions(deckId)).toHaveLength(1);
+    expect(next.outcome).toBe('forked');
+    expect(getVersion(versionId)!.lockedAt).toBeNull();
+    expect(listVersions(deckId)).toHaveLength(2);
   });
 
   it('keeps the lock when another match still references the version', () => {

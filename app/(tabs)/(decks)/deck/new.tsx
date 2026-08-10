@@ -18,6 +18,7 @@ import {
   poolKindFilters,
   type PoolFilterState,
 } from '@/components/decks/CardPoolFilters';
+import { DeckPreview } from '@/components/decks/DeckPreview';
 import { LegalityBar } from '@/components/decks/LegalityBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
@@ -58,7 +59,15 @@ import { metaLine, text } from '@/theme/typography';
  * sitting in the list.
  */
 
-const STEPS = ['legend', 'champion', 'main', 'runes', 'battlefields', 'overview'] as const;
+const STEPS = [
+  'legend',
+  'champion',
+  'main',
+  'runes',
+  'battlefields',
+  'sideboard',
+  'overview',
+] as const;
 type Step = (typeof STEPS)[number];
 
 /** Types that live in the main deck. Runes and Battlefields have their own steps. */
@@ -83,6 +92,13 @@ export default function NewDeckScreen() {
   const champion = slots.find((s) => s.zone === 'champion')?.card ?? null;
   const list = useMemo(() => ({ slots }), [slots]);
   const legality = useMemo(() => checkLegality(list), [list]);
+
+  /* Not part of legality — no rule counts the sideboard — so it is counted here
+     rather than added to `DeckCounts`, which exists to answer "is this legal". */
+  const sideboardCount = useMemo(
+    () => slots.filter((s) => s.zone === 'sideboard').reduce((n, s) => n + s.quantity, 0),
+    [slots]
+  );
 
   // Leaving the flow discards the draft.
   useEffect(() => reset, [reset]);
@@ -223,6 +239,16 @@ export default function NewDeckScreen() {
       title: 'Battlefields',
       meta: `${legality.counts.battlefield}/${BATTLEFIELD_COUNT} — all must be different`,
     },
+    /*
+     * No rule governs the sideboard, so it has no target and no failure state.
+     * It was missing from this flow entirely: the zone is stored, forked,
+     * exported and editable everywhere else, so a deck built here started life
+     * unable to hold something every other screen would happily show it.
+     */
+    sideboard: {
+      title: 'Sideboard',
+      meta: sideboardCount > 0 ? `${sideboardCount} cards — optional` : 'Optional — skip it',
+    },
     overview: { title: 'Review', meta: 'Name it and save' },
   };
 
@@ -299,6 +325,24 @@ export default function NewDeckScreen() {
             }
             onAdd={(card) => adjust(card, 'main', 1)}
             onRemove={(card) => adjust(card, 'main', -1)}
+            header={searchField}
+          />
+        ) : null}
+
+        {step === 'sideboard' ? (
+          <CardGrid
+            cards={mainPool}
+            mode="quantity"
+            quantityOf={quantityIn('sideboard')}
+            blockedReason={(card) =>
+              // Copies are counted across main and sideboard together: three is
+              // three, wherever they are sitting.
+              copiesOf(card, ['main', 'champion', 'sideboard']) >= COPY_LIMIT
+                ? `Max ${COPY_LIMIT}`
+                : null
+            }
+            onAdd={(card) => adjust(card, 'sideboard', 1)}
+            onRemove={(card) => adjust(card, 'sideboard', -1)}
             header={searchField}
           />
         ) : null}
@@ -385,6 +429,10 @@ export default function NewDeckScreen() {
                   </Text>
                 </View>
               ) : null}
+
+              {/* The last honest look at the list before it is written. Read-only
+                  on purpose — this screen is for checking, not for one more edit. */}
+              <DeckPreview slots={slots} />
 
               <Pressable
                 accessibilityRole="button"

@@ -126,7 +126,7 @@ function buildRealisticDeck() {
 
   const { deckId, versionId } = createDeck({ name: 'Scaling', legend, champion });
 
-  saveDeckEdit(versionId, {
+  const built = saveDeckEdit(versionId, {
     slots: [
       { card: legend, quantity: 1, zone: 'legend' },
       { card: champion, quantity: 1, zone: 'champion' },
@@ -136,7 +136,9 @@ function buildRealisticDeck() {
     ],
   });
 
-  return { deckId, versionId, spares };
+  // The full list lives on the version that edit produced, not on the seeded
+  // one — building the deck is itself a version now.
+  return { deckId, versionId: built.versionId, spares };
 }
 
 /** What deck detail reads on every focus, regardless of tab. */
@@ -207,7 +209,9 @@ describe('version scaling', () => {
       expect(nodes).toHaveLength(target);
       // Snapshots, not diffs — storage is linear in versions by design, and a
       // regression to anything else is the thing this test exists to catch.
-      expect(cardRows).toBe(target * SLOTS_PER_VERSION);
+      // v1 is the seeded shell — Legend and Champion only — and every version
+      // after it carries a full list.
+      expect(cardRows).toBe((target - 1) * SLOTS_PER_VERSION + 2);
       // Comparing reads exactly two lists however long the history is.
       expect(compareMs).toBeLessThan(25);
       rows.push(

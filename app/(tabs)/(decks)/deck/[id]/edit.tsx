@@ -1,8 +1,9 @@
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { CandidateRow } from '@/components/decks/CandidateRow';
 import { CardGrid } from '@/components/decks/CardGrid';
 import { CardPickerSheet } from '@/components/decks/CardPickerSheet';
 import {
@@ -11,11 +12,11 @@ import {
   poolKindFilters,
   type PoolFilterState,
 } from '@/components/decks/CardPoolFilters';
-import { DeckSlotRow } from '@/components/decks/DeckSlotRow';
-import { LegalityBar } from '@/components/decks/LegalityBar';
+import { LegalityCard } from '@/components/decks/LegalityCard';
 import { SaveVersionSheet } from '@/components/decks/SaveVersionSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
+import { Prompt } from '@/components/ui/Prompt';
 import { Screen } from '@/components/ui/Screen';
 import {
   listBattlefields,
@@ -29,6 +30,7 @@ import {
   getVersion,
   loadDeckList,
   missingCards,
+  renameDeck,
   saveDeckEdit,
   versionMatchCounts,
   type SaveOptions,
@@ -53,45 +55,23 @@ import { text } from '@/theme/typography';
 /**
  * The deck editor.
  *
- * Two full-screen modes rather than a split. An earlier version put the
- * decklist on top and a horizontal card rail underneath: the list was squeezed
- * into a strip, and finding one card among ~900 meant dragging sideways past
- * hundreds of them. Both halves were unusable at once, so each now gets the
- * whole screen and the legality bar stays pinned across both.
+ * **One list per zone**, not two modes. The screen has been through three
+ * shapes and each fixed the last one's real problem: a decklist over a
+ * horizontal card rail (the list was a strip, and finding one card among ~900
+ * meant dragging sideways past hundreds); then a Deck mode and an Add-cards
+ * mode, which gave each the whole screen but meant adding a third copy of
+ * something required leaving the list that told you that you had two.
+ *
+ * The design's answer is neither: pick a zone, and its candidates *are* the
+ * list — what the deck holds sorted to the top, everything addable underneath,
+ * every row carrying its own quantity. There is nowhere to switch to, because
+ * there is nothing the other view knew.
  *
  * Nothing here blocks a save.
  */
 
-type Mode = 'deck' | 'add';
-
-/**
- * Which zone the Add-cards grid puts a card into.
- *
- * The pool *is* the destination — that is why `main`, `rune` and `battlefield`
- * agree with `defaultZoneFor()`. `sideboard` is the one that does not: it draws
- * from the same pool as the main deck and sends cards somewhere else, which is
- * exactly what a sideboard is.
- */
+/** Which candidate list is on screen. Zones the deck counts, in build order. */
 type Pool = 'main' | 'rune' | 'battlefield' | 'sideboard';
-
-const ZONE_ORDER: { zone: DeckZone; label: string; fixed?: boolean }[] = [
-  { zone: 'legend', label: 'Legend', fixed: true },
-  { zone: 'champion', label: 'Champion', fixed: true },
-  { zone: 'main', label: 'Main deck' },
-  { zone: 'rune', label: 'Runes' },
-  { zone: 'battlefield', label: 'Battlefields' },
-  // Only rendered when non-empty. Nothing in the builder creates a sideboard —
-  // they arrive by import — but a zone that is stored, forked and re-exported
-  // while being invisible is worse than either having it or not.
-  { zone: 'sideboard', label: 'Sideboard' },
-];
-
-const POOLS: { key: Pool; label: string }[] = [
-  { key: 'main', label: 'Main' },
-  { key: 'rune', label: 'Runes' },
-  { key: 'battlefield', label: 'Fields' },
-  { key: 'sideboard', label: 'Side' },
-];
 
 /** The pool decides the zone; only `sideboard` differs from the card's type. */
 const zoneForPool = (pool: Pool, card: CardRow): DeckZone =>
@@ -109,8 +89,27 @@ const BLOCK_LABELS: Record<NonNullable<ReturnType<typeof slotBlockReason>>, stri
 
 export default function DeckEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [mode, setMode] = useState<Mode>('deck');
-  const [pool, setPool] = useState<Pool>('main');
+  /*
+   * One list, not two.
+   *
+   * The editor used to have a Deck mode and an Add-cards mode, so adding a
+   * third copy of something meant leaving the list that told you that you had
+   * two. The design merges them: pick a zone, and its candidates are the list —
+   * what is in the deck sorted to the top, everything addable underneath.
+   */
+  const [zone, setZone] = useState<Pool>('main');
+  const [view, setView] = useState<'list' | 'gallery'>('list');
+  /*
+   * Show only what the deck already holds.
+   *
+   * Cutting a deck down is a different job from building one up: you want the
+   * 44 cards you have, not the 900 you could have. Membership is taken when the
+   * toggle flips, not live — otherwise a card you zero disappears from under
+   * your finger before you can see the count change.
+   */
+  const [inDeckOnly, setInDeckOnly] = useState(false);
+  /** The prompt the screen is currently asking. */
+  const [asking, setAsking] = useState<'leave' | 'amend' | null>(null);
   const [filters, setFilters] = useState<PoolFilterState>(EMPTY_POOL_FILTERS);
   const [picker, setPicker] = useState<'legend' | 'champion' | null>(null);
   const [pending, setPending] = useState<DeckDiff | null>(null);
@@ -173,6 +172,7 @@ export default function DeckEditorScreen() {
   const versionId = useDeckEditor((s) => s.versionId);
   const loadedKeys = useDeckEditor((s) => s.loadedKeys);
   const deckName = useDeckEditor((s) => s.name);
+  const setDeckName = useDeckEditor((s) => s.setName);
   const load = useDeckEditor((s) => s.load);
   const reset = useDeckEditor((s) => s.reset);
   const adjust = useDeckEditor((s) => s.adjust);
@@ -228,8 +228,8 @@ export default function DeckEditorScreen() {
    */
   const addCards = useMemo(() => {
     if (!legend) return [];
-    if (pool === 'rune') return listRunesForIdentity(legend.domains);
-    if (pool === 'battlefield') {
+    if (zone === 'rune') return listRunesForIdentity(legend.domains);
+    if (zone === 'battlefield') {
       const term = filters.search.trim().toLowerCase();
       const all = listBattlefields();
       return term ? all.filter((c) => c.cleanName.toLowerCase().includes(term)) : all;
@@ -245,7 +245,7 @@ export default function DeckEditorScreen() {
       supertypes: supertypes.length ? supertypes : undefined,
       sort: term ? 'relevance' : filters.sort,
     }).filter((c) => MAIN_DECK_TYPES.includes(c.type));
-  }, [legend, pool, filters]);
+  }, [legend, zone, filters]);
 
   const pickerCards = useMemo(() => {
     if (picker === 'legend') return listLegends();
@@ -254,12 +254,12 @@ export default function DeckEditorScreen() {
   }, [picker, legend]);
 
   const onAdd = (card: CardRow) => {
-    const zone = zoneForPool(pool, card);
-    if (zone === 'battlefield' && copiesOf(card, ['battlefield']) > 0) return;
+    const target = zoneForPool(zone, card);
+    if (target === 'battlefield' && copiesOf(card, ['battlefield']) > 0) return;
     if (Platform.OS !== 'web') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    adjust(card, zone, 1);
+    adjust(card, target, 1);
   };
 
   /**
@@ -314,6 +314,11 @@ export default function DeckEditorScreen() {
     if (!versionId || committing.current) return;
     committing.current = true;
 
+    // The name lives on the deck, not the version, so renaming is not an edit
+    // and never forks. Trimmed and only written when it actually changed.
+    const trimmed = deckName.trim();
+    if (deck && trimmed && trimmed !== deck.name) renameDeck(deck.id, trimmed);
+
     const result = saveDeckEdit(versionId, buildSaveList(), options);
     useDeckEditor.setState({ versionId: result.versionId });
 
@@ -334,26 +339,67 @@ export default function DeckEditorScreen() {
   };
 
   /**
-   * The escape hatch. Rewriting a locked version is the one operation in the
-   * app that can make an existing number wrong, so it states the consequence in
-   * terms of the matches it affects and defaults to Cancel.
+   * The zone's candidates, with what is already in the deck at the top.
+   *
+   * A card in the deck is always in this list, whatever the filters say —
+   * otherwise filtering by set hides copies you own and leaves no way to remove
+   * them.
    */
-  const onAmendLocked = () => {
-    const count = editing?.matchCount ?? 0;
-    Alert.alert(
-      `Overwrite v${editing?.version.versionNumber}?`,
-      count > 0
-        ? `The ${count === 1 ? 'match' : `${count} matches`} already logged on this version will be attributed to the edited list. This cannot be undone.`
-        : 'This version will be rewritten in place.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Overwrite',
-          style: 'destructive',
-          onPress: () => commit({ amendLocked: true }),
-        },
-      ]
-    );
+  /*
+   * The order is settled when the list is built, and not again.
+   *
+   * Sorting held cards to the top *live* meant a card leapt there the instant
+   * you added it, so adding a second copy meant scrolling back to find where it
+   * had gone. This depends on the zone and the filtered pool only — never on
+   * quantities — so a tap changes a number in place and moves nothing.
+   *
+   * The draft is read imperatively for the same reason: naming `slots` as a
+   * dependency is exactly what would retake the snapshot on every tap.
+   */
+  const candidates = useMemo(() => {
+    // The four pools are named for the zones they fill, so a pool *is* a zone
+    // here. Routing through zoneForPool with a dummy card asked what zone a Unit
+    // belongs to and got "main" for every tab.
+    const held = useDeckEditor.getState().slots.filter((s) => s.zone === zone);
+
+    const byId = new Map(addCards.map((c) => [c.id, c]));
+    // A card in the deck belongs in this list whatever the filters say, or
+    // filtering by set would hide copies you own with no way to remove them.
+    for (const slot of held) if (!byId.has(slot.card.id)) byId.set(slot.card.id, slot.card);
+
+    const heldIds = new Set(held.map((s) => s.card.id));
+    const pool = inDeckOnly ? [...byId.values()].filter((c) => heldIds.has(c.id)) : [...byId.values()];
+
+    return pool.sort((a, b) => (heldIds.has(b.id) ? 1 : 0) - (heldIds.has(a.id) ? 1 : 0));
+  }, [addCards, zone, inDeckOnly]);
+
+  const zoneCount = (which: Pool) =>
+    slots.filter((s) => s.zone === which).reduce((n, s) => n + s.quantity, 0);
+
+  /** Why this card cannot be added. Null means it can. */
+  const blockedReason = (card: CardRow) => {
+    const reason = slotBlockReason(card, list);
+    if (reason) return BLOCK_LABELS[reason];
+    if (zone === 'battlefield' && legality.counts.battlefield >= BATTLEFIELD_COUNT) {
+      return 'Deck is full';
+    }
+    return null;
+  };
+
+  /**
+   * Leaving with work in progress.
+   *
+   * The draft is cleared on unmount, so backing out is genuinely destructive —
+   * and until now it happened silently, on a gesture nobody confirms.
+   */
+  const onLeave = () => {
+    if (!versionId) {
+      router.back();
+      return;
+    }
+    const diff = diffLists(loadDeckList(versionId), buildSaveList());
+    if (diff.isEmpty) router.back();
+    else setAsking('leave');
   };
 
   if (notFound) {
@@ -368,200 +414,234 @@ export default function DeckEditorScreen() {
     );
   }
 
+  const zoneTabs: { key: Pool; label: string }[] = [
+    { key: 'main', label: 'Main' },
+    { key: 'rune', label: 'Runes' },
+    { key: 'battlefield', label: 'Battlefields' },
+    { key: 'sideboard', label: 'Sideboard' },
+  ];
+
   return (
-    <Screen
-      title={deckName || 'Deck'}
-      meta="Editing"
-      action={
+    <Screen back={false}>
+      {/* Cancel · deck · Save. The design gives the editor its own header rather
+          than the app's display title: this is a task you are inside, and the
+          two ways out belong at the top of it. */}
+      <View style={styles.header}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel editing"
+          onPress={onLeave}
+          style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}
+        >
+          <Text style={styles.cancelLabel}>Cancel</Text>
+        </Pressable>
+
+        {/* The name is edited where it is shown. It was previously unreachable
+            from here at all — the one screen dedicated to changing the deck. */}
+        <TextInput
+          value={deckName}
+          onChangeText={setDeckName}
+          placeholder="Deck name"
+          placeholderTextColor={color.textFaint}
+          style={styles.headerTitle}
+          returnKeyType="done"
+          accessibilityLabel="Deck name"
+        />
+
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Save deck"
           onPress={onSave}
-          style={({ pressed }) => [styles.save, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}
         >
           <Text style={styles.saveLabel}>Save</Text>
         </Pressable>
-      }
-    >
-      {/* Stated before the first edit, not at save time. Learning that a change
-          forks a version while confirming the change is learning it too late. */}
-      {editing?.version.lockedAt ? (
-        <Text style={styles.lockBanner}>
-          v{editing.version.versionNumber} ·{' '}
-          {editing.matchCount > 0
-            ? `${editing.matchCount === 1 ? '1 match' : `${editing.matchCount} matches`} tracked`
-            : 'locked'}{' '}
-          — saving will create v{editing.version.versionNumber + 1}
-        </Text>
+      </View>
+
+      <LegalityCard
+        legality={legality}
+        sideboard={zoneCount('sideboard')}
+        unresolved={missingFromCounts}
+        footnote={
+          // Stated before the first edit, not at save time. Learning that a
+          // change forks a version while confirming the change is too late.
+          editing?.version.lockedAt
+            ? `v${editing.version.versionNumber} · ${
+                editing.matchCount > 0
+                  ? `${editing.matchCount === 1 ? '1 match' : `${editing.matchCount} matches`} tracked`
+                  : 'locked'
+              } — saving will create v${editing.version.versionNumber + 1}`
+            : null
+        }
+      />
+
+      {/* The deck's identity, above the zones it decides. Changing either
+          re-flags the list rather than deleting from it. */}
+      <View style={styles.identity}>
+        {(['legend', 'champion'] as const).map((which) => {
+          const card = which === 'legend' ? legend : champion;
+          return (
+            <Pressable
+              key={which}
+              accessibilityRole="button"
+              accessibilityLabel={
+                card
+                  ? `${which === 'legend' ? 'Legend' : 'Champion'}: ${baseName(card.name)}`
+                  : `Pick a ${which === 'legend' ? 'Legend' : 'Champion'}`
+              }
+              disabled={which === 'champion' && !legend}
+              onPress={() => setPicker(which)}
+              style={({ pressed }) => [
+                styles.identityField,
+                which === 'champion' && !legend && styles.identityDisabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.identityLabel}>
+                {which === 'legend' ? 'LEGEND' : 'CHAMPION'}
+              </Text>
+              <Text style={card ? styles.identityValue : styles.identityEmpty} numberOfLines={1}>
+                {card ? baseName(card.name) : which === 'legend' ? 'Pick one' : 'Legend first'}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.zoneTabs}>
+        {zoneTabs.map((tab) => {
+          const on = zone === tab.key;
+          return (
+            <Pressable
+              key={tab.key}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: on }}
+              onPress={() => {
+                setZone(tab.key);
+                setFilters(EMPTY_POOL_FILTERS);
+              }}
+              style={({ pressed }) => [
+                styles.zoneTab,
+                on && styles.zoneTabOn,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.zoneTabLabel, on && styles.zoneTabLabelOn]} numberOfLines={1}>
+                {tab.label}
+              </Text>
+              <Text style={[styles.zoneTabCount, on && styles.zoneTabCountOn]}>
+                {zoneCount(tab.key)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Main and Side draw from the same ~900 cards and get the full control
+          set. Battlefields are 64 and Runes are 2 — a filter row over those
+          would cost more space than it saves. */}
+      {zone === 'main' || zone === 'sideboard' ? (
+        <CardPoolFilters
+          value={filters}
+          onChange={setFilters}
+          resultCount={candidates.length}
+          placeholder={
+            zone === 'sideboard'
+              ? 'Search cards for the sideboard'
+              : `Search ${legend?.domains.join(' / ') ?? ''} cards`
+          }
+          editable={!!legend}
+        />
+      ) : zone === 'battlefield' ? (
+        <TextInput
+          value={filters.search}
+          onChangeText={(search) => setFilters({ ...filters, search })}
+          placeholder="Search Battlefields"
+          placeholderTextColor={color.textFaint}
+          style={styles.search}
+          autoCorrect={false}
+          editable={!!legend}
+          accessibilityLabel="Search cards to add"
+        />
       ) : null}
 
-      {missing.length > 0 ? (
-        <Text style={styles.missingBanner}>
-          Not in the card library:{' '}
-          {missing.map((m) => `${m.quantity}× ${m.name ?? 'an unknown card'}`).join(', ')}. Still
-          in the deck and kept when you save
-          {missingFromCounts > 0
-            ? ` — the counts below are short by ${missingFromCounts}.`
-            : '.'}
+      <View style={styles.listHead}>
+        <Text style={styles.listHeadLabel} numberOfLines={1}>
+          {zoneTabs.find((t) => t.key === zone)?.label.toUpperCase()} · {zoneCount(zone)} in deck ·
+          candidates below
         </Text>
-      ) : null}
 
-      <View style={styles.modes}>
-        {(['deck', 'add'] as const).map((m) => (
-          <Pressable
-            key={m}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: mode === m }}
-            onPress={() => setMode(m)}
-            style={[styles.mode, mode === m && styles.modeActive]}
-          >
-            <Text style={[styles.modeLabel, mode === m && styles.modeLabelActive]}>
-              {m === 'deck' ? 'Deck' : 'Add cards'}
-            </Text>
-          </Pressable>
-        ))}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: inDeckOnly }}
+          accessibilityLabel="Show only cards already in the deck"
+          onPress={() => setInDeckOnly((on) => !on)}
+          style={({ pressed }) => [
+            styles.filterPill,
+            inDeckOnly && styles.filterPillOn,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={[styles.filterPillLabel, inDeckOnly && styles.filterPillLabelOn]}>
+            In deck
+          </Text>
+        </Pressable>
+
+        <View style={styles.viewToggle}>
+          {(['list', 'gallery'] as const).map((v) => (
+            <Pressable
+              key={v}
+              accessibilityRole="button"
+              accessibilityState={{ selected: view === v }}
+              accessibilityLabel={v === 'list' ? 'List view' : 'Gallery view'}
+              onPress={() => setView(v)}
+              style={[styles.viewOption, view === v && styles.viewOptionOn]}
+            >
+              <Text style={[styles.viewGlyph, view === v && styles.viewGlyphOn]}>
+                {v === 'list' ? '☰' : '▦'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       <View style={styles.body}>
-        {mode === 'deck' ? (
-          <ScrollView contentContainerStyle={styles.listContent}>
-            {ZONE_ORDER.map(({ zone, label, fixed }) => {
-              const zoneSlots = slots
-                .filter((s) => s.zone === zone)
-                .sort((a, b) => (a.card.energy ?? 99) - (b.card.energy ?? 99));
-              const count = zoneSlots.reduce((n, s) => n + s.quantity, 0);
-
-              return (
-                <View key={zone} style={styles.zone}>
-                  <View style={styles.zoneHeader}>
-                    <Text style={styles.zoneLabel}>{label}</Text>
-                    <Text style={styles.zoneCount}>{count}</Text>
-                  </View>
-
-                  {zoneSlots.length === 0 ? (
-                    fixed ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                          zone === 'legend' ? 'Pick a Legend' : 'Pick a Champion'
-                        }
-                        onPress={() => setPicker(zone === 'legend' ? 'legend' : 'champion')}
-                        style={({ pressed }) => [styles.zonePick, pressed && styles.pressed]}
-                      >
-                        <Text style={styles.zonePickLabel}>
-                          {zone === 'legend' ? 'Pick a Legend' : 'Pick a Champion'}
-                        </Text>
-                      </Pressable>
-                    ) : (
-                      <Text style={styles.zoneEmpty}>Nothing here yet</Text>
-                    )
-                  ) : (
-                    zoneSlots.map((slot) => (
-                      <DeckSlotRow
-                        key={`${slot.zone}:${slot.card.id}`}
-                        slot={slot}
-                        fixed={fixed}
-                        flagged={flagged.has(slot.card.id)}
-                        onAdjust={(delta) => adjust(slot.card, slot.zone, delta)}
-                        // Tapping a Legend or Champion changes it; any other card
-                        // opens its detail, since the stepper already handles
-                        // quantity.
-                        onPress={() =>
-                          fixed
-                            ? setPicker(slot.zone === 'legend' ? 'legend' : 'champion')
-                            : router.push(`/card/${slot.card.id}`)
-                        }
-                      />
-                    ))
-                  )}
-                </View>
-              );
-            })}
+        {!legend ? (
+          <EmptyState
+            title="Pick a Legend first"
+            body="The Legend decides which domains the deck may hold, so there is nothing to offer until it is chosen."
+          />
+        ) : view === 'list' ? (
+          <ScrollView contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
+            {candidates.length === 0 ? (
+              <Text style={styles.empty}>No cards match.</Text>
+            ) : (
+              candidates.map((card) => (
+                <CandidateRow
+                  key={card.id}
+                  card={card}
+                  quantity={quantityIn(zone)(card)}
+                  blocked={blockedReason(card)}
+                  flagged={flagged.has(card.id)}
+                  onAdd={() => onAdd(card)}
+                  onRemove={() => adjust(card, zoneForPool(zone, card), -1)}
+                  onPress={() => router.push(`/card/${card.id}`)}
+                />
+              ))
+            )}
           </ScrollView>
         ) : (
-          <>
-            <View style={styles.pools}>
-              {POOLS.map((p) => (
-                <Pressable
-                  key={p.key}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: pool === p.key }}
-                  onPress={() => {
-                    setPool(p.key);
-                    setFilters(EMPTY_POOL_FILTERS);
-                  }}
-                  style={[styles.poolChip, pool === p.key && styles.poolChipActive]}
-                >
-                  <Text
-                    style={[styles.poolLabel, pool === p.key && styles.poolLabelActive]}
-                  >
-                    {p.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {/* Main and Side draw from the same ~900 cards and get the full
-                control set. Battlefields are 64 and Runes are 2 — a filter row
-                over those would cost more space than it saves. */}
-            {pool === 'main' || pool === 'sideboard' ? (
-              <CardPoolFilters
-                value={filters}
-                onChange={setFilters}
-                resultCount={addCards.length}
-                placeholder={
-                  pool === 'sideboard'
-                    ? 'Search cards for the sideboard'
-                    : `Search ${legend?.domains.join(' / ') ?? ''} cards`
-                }
-                editable={!!legend}
-              />
-            ) : pool === 'battlefield' ? (
-              <TextInput
-                value={filters.search}
-                onChangeText={(search) => setFilters({ ...filters, search })}
-                placeholder="Search Battlefields"
-                placeholderTextColor={color.textFaint}
-                style={styles.search}
-                autoCorrect={false}
-                editable={!!legend}
-                accessibilityLabel="Search cards to add"
-              />
-            ) : null}
-
-            <CardGrid
-              cards={addCards}
-              mode="quantity"
-              columns={pool === 'battlefield' ? 2 : 3}
-              tileAspect={pool === 'battlefield' ? 1 / CARD_ASPECT : CARD_ASPECT}
-              quantityOf={quantityIn(pool)}
-              blockedReason={(card) => {
-                /*
-                 * The rules come from `slotBlockReason`, which is the tested
-                 * implementation. This used to re-derive a subset of them
-                 * inline — and silently omitted the foreign-Signature rule, so
-                 * another Champion's Signature card looked addable in the rail
-                 * and only failed once it was in the deck.
-                 *
-                 * "Deck is full" stays here: it is not a rule about the card,
-                 * it is a fact about this zone being complete.
-                 */
-                const reason = slotBlockReason(card, list);
-                if (reason) return BLOCK_LABELS[reason];
-
-                if (
-                  pool === 'battlefield' &&
-                  legality.counts.battlefield >= BATTLEFIELD_COUNT
-                ) {
-                  return 'Deck is full';
-                }
-                return null;
-              }}
-              onAdd={onAdd}
-              onRemove={(card) => adjust(card, zoneForPool(pool, card), -1)}
-              emptyMessage={legend ? 'No cards match.' : 'Pick a Legend first.'}
-            />
-          </>
+          <CardGrid
+            cards={candidates}
+            mode="quantity"
+            columns={zone === 'battlefield' ? 2 : 3}
+            tileAspect={zone === 'battlefield' ? 1 / CARD_ASPECT : CARD_ASPECT}
+            quantityOf={quantityIn(zone)}
+            blockedReason={blockedReason}
+            onAdd={onAdd}
+            onRemove={(card) => adjust(card, zoneForPool(zone, card), -1)}
+            emptyMessage="No cards match."
+          />
         )}
       </View>
 
@@ -594,72 +674,160 @@ export default function DeckEditorScreen() {
           matchCount={editing?.matchCount ?? 0}
           locked={!!editing?.version.lockedAt}
           onCancel={() => setPending(null)}
-          onSave={(options) => (options.amendLocked ? onAmendLocked() : commit(options))}
+          onSave={(options) => (options.amendLocked ? setAsking('amend') : commit(options))}
         />
       ) : null}
 
-      <LegalityBar result={legality} />
+      {/*
+        Leaving, and overwriting: the two decisions in this screen that cannot
+        be taken back. Both were `Alert.alert`, which arrives in the OS font
+        with the OS button order — and on Android cannot offer three options
+        without reading as an error.
+      */}
+      <Prompt
+        visible={asking === 'leave'}
+        title="Leave without saving?"
+        body="The draft is not stored anywhere. Under the version model an unsaved edit is not a lost keystroke, it is a deck that never existed."
+        onDismiss={() => setAsking(null)}
+        actions={[
+          {
+            label: 'Save and leave',
+            kind: 'primary',
+            onPress: () => {
+              setAsking(null);
+              onSave();
+            },
+          },
+          {
+            label: 'Discard and continue',
+            kind: 'secondary',
+            onPress: () => {
+              setAsking(null);
+              router.back();
+            },
+          },
+          { label: 'Stay here', kind: 'quiet', onPress: () => setAsking(null) },
+        ]}
+      />
+
+      <Prompt
+        visible={asking === 'amend'}
+        title={`Overwrite v${editing?.version.versionNumber ?? 1}?`}
+        body={
+          (editing?.matchCount ?? 0) > 0
+            ? `The ${
+                editing?.matchCount === 1 ? 'match' : `${editing?.matchCount} matches`
+              } already logged on this version will be attributed to the edited list. This cannot be undone.`
+            : 'This version will be rewritten in place.'
+        }
+        onDismiss={() => setAsking(null)}
+        actions={[
+          {
+            label: 'Overwrite',
+            kind: 'primary',
+            destructive: true,
+            onPress: () => {
+              setAsking(null);
+              commit({ amendLocked: true });
+            },
+          },
+          { label: 'Keep it as it is', kind: 'quiet', onPress: () => setAsking(null) },
+        ]}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  body: { flex: 1 },
-  listContent: { paddingBottom: space[4], gap: space[5] },
-  lockBanner: {
-    ...text.microMeta,
-    color: color.warning,
-    paddingBottom: space[3],
-  },
-  missingBanner: {
-    ...text.microMeta,
-    color: color.warning,
-    paddingBottom: space[3],
-  },
-  modes: { flexDirection: 'row', gap: space[1], paddingBottom: space[3] },
-  mode: {
-    paddingHorizontal: space[4],
-    minHeight: 34,
-    justifyContent: 'center',
-    borderRadius: radius.full,
-  },
-  modeActive: { backgroundColor: color.raised },
-  modeLabel: { ...text.smallMedium, color: color.textMuted },
-  modeLabelActive: { color: color.text },
-  pools: { flexDirection: 'row', gap: space[1], paddingBottom: space[2] },
-  poolChip: {
-    paddingHorizontal: space[3],
-    minHeight: 30,
-    justifyContent: 'center',
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: color.border,
-  },
-  poolChipActive: { backgroundColor: color.accent, borderColor: color.text },
-  poolLabel: { ...text.microMeta, color: color.textSecondary },
-  poolLabelActive: { color: color.onAccent },
-  zone: { gap: space[1] },
-  zoneHeader: {
+  header: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: space[1],
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: color.borderSubtle,
+    gap: space[2],
+    paddingBottom: space[3],
   },
-  zoneLabel: { ...text.meta, color: color.textSecondary },
-  zoneCount: { ...text.numeric, fontSize: 13, color: color.textMuted },
-  zoneEmpty: { ...text.small, color: color.textFaint, paddingVertical: space[2] },
-  zonePick: { minHeight: 44, justifyContent: 'center' },
-  zonePickLabel: { ...text.smallMedium, color: color.info },
-  save: {
-    minHeight: 36,
+  headerAction: { minHeight: 44, justifyContent: 'center' },
+  headerTitle: { ...text.title, fontSize: 15, color: color.text, flex: 1, textAlign: 'center' },
+  cancelLabel: { ...text.smallMedium, fontSize: 13.5, color: color.textMuted },
+  saveLabel: { ...text.smallMedium, fontSize: 13.5, color: color.accent },
+
+  identity: { flexDirection: 'row', gap: space[2], paddingTop: space[3] },
+  identityField: {
+    flex: 1,
+    minHeight: 52,
     justifyContent: 'center',
-    paddingHorizontal: space[4],
-    borderRadius: radius.full,
-    backgroundColor: color.accent,
+    gap: 2,
+    paddingHorizontal: space[3],
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
   },
-  saveLabel: { ...text.smallMedium, color: color.onAccent },
+  identityDisabled: { opacity: 0.45 },
+  identityLabel: { ...text.microMeta, fontSize: 9, color: color.textFaint },
+  identityValue: { ...text.smallMedium, fontSize: 12, color: color.text },
+  identityEmpty: { ...text.smallMedium, fontSize: 12, color: color.textMuted },
+
+  zoneTabs: { flexDirection: 'row', gap: 7, paddingTop: space[3], paddingBottom: space[3] },
+  zoneTab: {
+    flex: 1,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  zoneTabOn: { backgroundColor: color.accent, borderColor: color.accent },
+  zoneTabLabel: { ...text.caption, fontSize: 11.5, color: color.textSecondary },
+  zoneTabLabelOn: { color: color.onAccent },
+  zoneTabCount: { ...text.numeric, fontSize: 10, color: color.textFaint },
+  zoneTabCountOn: { color: color.onAccent },
+
+  listHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space[2],
+    paddingBottom: space[2],
+    borderBottomWidth: 1,
+    borderBottomColor: color.border,
+  },
+  listHeadLabel: { ...text.microMeta, color: color.textFaint, flex: 1, minWidth: 0 },
+  filterPill: {
+    height: 32,
+    paddingHorizontal: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  filterPillOn: { backgroundColor: color.accent, borderColor: color.accent },
+  filterPillLabel: { ...text.caption, fontSize: 11, color: color.textSecondary },
+  filterPillLabelOn: { color: color.onAccent },
+
+  viewToggle: {
+    flexDirection: 'row',
+    gap: 3,
+    padding: 3,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  viewOption: {
+    height: 36,
+    paddingHorizontal: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 7,
+  },
+  viewOptionOn: { backgroundColor: color.accent },
+  viewGlyph: { ...text.small, color: color.textMuted },
+  viewGlyphOn: { color: color.onAccent },
+
+  body: { flex: 1 },
+  listContent: { paddingTop: space[2], paddingBottom: space[6] },
+  empty: { ...text.small, color: color.textFaint, paddingVertical: space[4] },
   pressed: { opacity: 0.75 },
   search: {
     ...text.small,
