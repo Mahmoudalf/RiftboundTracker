@@ -11,24 +11,18 @@ import { loadDeckList } from '@/db/queries/decks';
 import { isLandscapeCard, uprightArt } from '@/lib/card-art';
 import { baseName } from '@/lib/card-identity';
 import { cardImage } from '@/lib/cdn';
-import {
-  deal,
-  mulligan,
-  MULLIGAN_LIMIT,
-  runesForTurn,
-  takeTurn,
-  type GoldfishCard,
-} from '@/lib/goldfish';
+import { deal, draw, mulligan, MULLIGAN_LIMIT, type GoldfishCard } from '@/lib/goldfish';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
 /**
  * Goldfishing — drawing sample hands with no opponent.
  *
- * The question it answers is "does this deck function", which is a question
- * about openers: how often the four cards you start with let you do anything.
- * So the screen leads with the hand and keeps everything else to a line of
- * numbers.
+ * The question it answers is "do my opening cards work together", so the
+ * screen is the hand and almost nothing else. Turn structure and Rune
+ * channelling were built here first and taken back out: without an opponent, a
+ * board, or anything to spend Runes on, they produced numbers that looked like
+ * information and were not.
  *
  * **Design gap, stated:** the Hi-Fi design has no goldfish screen. This is
  * assembled from the shared vocabulary — section labels, pill actions, the
@@ -47,16 +41,22 @@ export default function GoldfishScreen() {
     .filter((s) => s.zone === 'main')
     .reduce((n, s) => n + s.quantity, 0);
 
-  /* The seed *is* the hand. Bumping it is what "draw again" means, and it keeps
-     any hand reproducible — you can go back to the one you were looking at. */
-  const [seed, setSeed] = useState(1);
-  const [onDraw, setOnDraw] = useState(false);
-  const [state, setState] = useState(() => deal(list, 1, false));
+  /*
+   * The seed *is* the hand: the same number always deals the same cards, which
+   * is what lets a test pin one and a player return to the opener they were
+   * looking at.
+   *
+   * The first one is random, though. Fixing it at 1 meant every visit to this
+   * screen opened on the identical four cards — reproducible, and useless, since
+   * the whole question is what a *typical* opener looks like.
+   */
+  const [seed, setSeed] = useState(() => 1 + Math.floor(Math.random() * 1_000_000));
+  const [state, setState] = useState(() => deal(list, seed));
   const [picked, setPicked] = useState<string[]>([]);
 
-  const redraw = (nextSeed: number, nextOnDraw = onDraw) => {
+  const redraw = (nextSeed: number) => {
     setSeed(nextSeed);
-    setState(deal(list, nextSeed, nextOnDraw));
+    setState(deal(list, nextSeed));
     setPicked([]);
   };
 
@@ -79,42 +79,11 @@ export default function GoldfishScreen() {
   return (
     <Screen
       title="Test hand"
-      meta={metaLine(
-        `seed ${seed}`,
-        state.turn === 0 ? 'opening hand' : `turn ${state.turn}`,
-        onDraw ? 'on the draw' : 'on the play'
-      )}
+      meta={metaLine(`seed ${seed}`, `${state.hand.length} in hand`, `${state.deck.length} left`)}
     >
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        {/* Who is on the play changes the first channel, so it is a setting of
-            the simulation rather than a control inside it. */}
-        <View style={styles.turnOrder}>
-          {[false, true].map((draw) => (
-            <Pressable
-              key={String(draw)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: onDraw === draw }}
-              onPress={() => {
-                setOnDraw(draw);
-                redraw(seed, draw);
-              }}
-              style={({ pressed }) => [
-                styles.turnOption,
-                onDraw === draw && styles.turnOptionOn,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={[styles.turnLabel, onDraw === draw && styles.turnLabelOn]}>
-                {draw ? 'On the draw' : 'On the play'}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
         <View style={styles.section}>
-          <SectionLabel>
-            {state.turn === 0 ? 'Opening hand' : `Hand · ${state.hand.length}`}
-          </SectionLabel>
+          <SectionLabel>{canMulligan ? 'Opening hand' : 'Hand'}</SectionLabel>
           {canMulligan ? (
             <Text style={styles.hint}>
               Tap up to {MULLIGAN_LIMIT} to recycle. They go to the bottom of the deck and can come
@@ -166,30 +135,19 @@ export default function GoldfishScreen() {
           <View style={styles.actions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Take the next turn"
-              onPress={() => setState(takeTurn(state))}
+              accessibilityLabel="Draw one card"
+              disabled={state.deck.length === 0}
+              onPress={() => setState(draw(state))}
               style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
             >
-              <Text style={styles.primaryLabel}>
-                Turn {state.turn + 1} · channel {runesForTurn(state.turn + 1, onDraw)}, draw 1
-              </Text>
+              <Text style={styles.primaryLabel}>Draw a card</Text>
             </Pressable>
           </View>
         )}
 
-        {/* The board, as numbers. Runes are a resource count, not a thing you
-            need to look at the art of. */}
-        <View style={styles.section}>
-          <SectionLabel>Board</SectionLabel>
-          <View style={styles.counts}>
-            <Count label="Runes channelled" value={state.runes.length} />
-            <Count label="Rune deck" value={state.runeDeck.length} />
-            <Count label="Main deck" value={state.deck.length} />
-          </View>
-          {state.deck.length === 0 ? (
-            <Text style={styles.hint}>The main deck is empty — every card is in hand.</Text>
-          ) : null}
-        </View>
+        {state.deck.length === 0 ? (
+          <Text style={styles.hint}>The deck is empty — every card is in hand.</Text>
+        ) : null}
 
         <Pressable
           accessibilityRole="button"
@@ -201,15 +159,6 @@ export default function GoldfishScreen() {
         </Pressable>
       </ScrollView>
     </Screen>
-  );
-}
-
-function Count({ label, value }: { label: string; value: number }) {
-  return (
-    <View style={styles.count}>
-      <Text style={styles.countValue}>{value}</Text>
-      <Text style={styles.countLabel}>{label}</Text>
-    </View>
   );
 }
 
@@ -262,20 +211,6 @@ function HandCard({
 const styles = StyleSheet.create({
   body: { paddingBottom: space[16], gap: space[5] },
 
-  turnOrder: { flexDirection: 'row', gap: space[2] },
-  turnOption: {
-    flex: 1,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-  },
-  turnOptionOn: { backgroundColor: color.accent, borderColor: color.accent },
-  turnLabel: { ...text.smallMedium, fontSize: 12, color: color.textSecondary },
-  turnLabelOn: { color: color.onAccent },
-
   section: { gap: space[2] },
   hint: { ...text.caption, fontSize: 11, color: color.textFaint },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP, paddingTop: space[1] },
@@ -316,14 +251,4 @@ const styles = StyleSheet.create({
   secondaryLabel: { ...text.smallMedium, color: color.textSecondary },
   pressed: { opacity: 0.75 },
 
-  counts: { flexDirection: 'row', gap: space[2] },
-  count: {
-    flex: 1,
-    gap: 2,
-    padding: space[3],
-    borderRadius: radius.lg,
-    backgroundColor: color.surface,
-  },
-  countValue: { ...text.stat, color: color.text },
-  countLabel: { ...text.microMeta, fontSize: 9, color: color.textFaint },
 });

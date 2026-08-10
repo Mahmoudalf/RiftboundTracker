@@ -595,13 +595,20 @@ In priority order — each is independently shippable.
       deliberately — a tile shows a card, and coverage is a deck-level allocation, so the two want
       different numbers and that deserves its own decision
 - [x] **Goldfish** — `/goldfish/[versionId]`, reached from deck overview. `src/lib/goldfish.ts` is
-      pure, seeded and separately tested (11 probes). Rules taken from the official Core Rules:
-      **4-card opening hand**, **one** mulligan recycling up to **2** to the *bottom* of the main
-      deck, **2 Runes channelled per turn** (3 on turn 1 when on the draw) and 1 card drawn.
+      pure, seeded and separately tested (10 probes). **Deal 4, recycle up to 2, then draw** — the
+      two rules kept are from the official Core Rules: a 4-card opening hand, and one mulligan
+      recycling up to 2 to the *bottom* of the main deck.
+
+      **Turn structure and Rune channelling were built and then removed.** Both were modelled
+      faithfully — 2 Runes a turn, 3 on turn 1 when on the draw — and both were scaffolding: with no
+      opponent, no board and nothing to spend Runes on, they produced numbers that looked like
+      information and were not. What is left is the question the feature exists for, which is whether
+      the opening cards work together.
 
       Two decisions worth knowing. Recycled cards go to the **bottom, not out** — a simulator that
       discarded them would quietly make every deck look more consistent than it is. And the seed is
-      the hand: any opener can be re-drawn by its number, which is what lets a test pin one.
+      the hand: any opener can be re-drawn by its number, which is what lets a test pin one. The
+      *first* seed is random, though — fixing it meant every visit opened on the identical hand.
 
       **The Champion is deliberately not in the shuffled deck.** It occupies a main-deck slot in the
       rules but lives in its own zone in `DeckList`, so including it would shuffle a card the list

@@ -3,11 +3,12 @@ import { describe, expect, it } from 'vitest';
 import type { CardRow } from '@/db/schema/cards';
 import type { DeckList } from '@/lib/legality';
 
-import { deal, mulligan, OPENING_HAND, runesForTurn, takeTurn } from './goldfish';
+import { deal, draw, mulligan, OPENING_HAND } from './goldfish';
 
 const card = (id: string): CardRow => ({ id, name: id }) as CardRow;
 
-/** 40 distinct main-deck cards and 12 runes, so positions are identifiable. */
+/** 40 distinct main-deck cards, so positions are identifiable. Runes are not
+    simulated — the opener is the whole question. */
 const list: DeckList = {
   slots: [
     ...Array.from({ length: 40 }, (_, i) => ({
@@ -15,18 +16,21 @@ const list: DeckList = {
       quantity: 1,
       zone: 'main' as const,
     })),
+    // Present in the list and deliberately not in the shuffle.
     { card: card('rune-fury'), quantity: 6, zone: 'rune' as const },
-    { card: card('rune-order'), quantity: 6, zone: 'rune' as const },
+    { card: card('legend'), quantity: 1, zone: 'legend' as const },
   ],
 };
 
 describe('deal', () => {
-  it('opens on four cards', () => {
+  it('opens on four cards from the main deck only', () => {
     const state = deal(list, 1);
+
     expect(state.hand).toHaveLength(OPENING_HAND);
     expect(state.deck).toHaveLength(36);
-    expect(state.turn).toBe(0);
     expect(state.mulliganed).toBe(false);
+    // Runes and the Legend are in the list, never in the shuffle.
+    expect([...state.hand, ...state.deck].every((c) => c.card.id.startsWith('m'))).toBe(true);
   });
 
   it('is reproducible from its seed, and different between seeds', () => {
@@ -38,11 +42,12 @@ describe('deal', () => {
     expect(a).not.toEqual(c);
   });
 
-  it('gives every copy its own entry', () => {
-    const state = deal(list, 7);
-    const runes = [...state.runeDeck];
-    expect(runes).toHaveLength(12);
-    expect(new Set(runes.map((r) => r.key)).size).toBe(12);
+  it('gives every copy of a card its own entry', () => {
+    const playset: DeckList = {
+      slots: [{ card: card('x'), quantity: 3, zone: 'main' }],
+    };
+    const state = deal(playset, 2);
+    expect(new Set(state.hand.map((c) => c.key)).size).toBe(3);
   });
 });
 
@@ -59,35 +64,32 @@ describe('mulligan', () => {
 
     expect(after.hand).toHaveLength(OPENING_HAND);
     expect(after.deck).toHaveLength(36);
-    // Still in the deck, at the very bottom.
-    const bottom = after.deck.slice(-2).map((c) => c.key);
-    expect(bottom.sort()).toEqual([...returned].sort());
-    // And they are no longer in hand.
-    expect(after.hand.map((c) => c.key).some((k) => returned.includes(k))).toBe(false);
+    expect(after.deck.slice(-2).map((c) => c.key).sort()).toEqual([...returned].sort());
+    expect(after.hand.some((c) => returned.includes(c.key))).toBe(false);
   });
 
   it('takes at most two, however many are named', () => {
     const start = deal(list, 9);
-    const after = mulligan(start, start.hand.map((c) => c.key));
-
-    // Two swapped, two kept.
-    const keptFromOpener = after.hand.filter((c) =>
-      start.hand.slice(2).some((s) => s.key === c.key)
+    const after = mulligan(
+      start,
+      start.hand.map((c) => c.key)
     );
-    expect(keptFromOpener.length).toBeGreaterThanOrEqual(2);
+
     expect(after.hand).toHaveLength(OPENING_HAND);
+    // Two of the opener survive.
+    const survivors = after.hand.filter((c) => start.hand.some((s) => s.key === c.key));
+    expect(survivors).toHaveLength(2);
   });
 
   it('is offered once', () => {
     const start = deal(list, 11);
     const once = mulligan(start, [start.hand[0]!.key]);
-    const twice = mulligan(once, [once.hand[0]!.key]);
 
     expect(once.mulliganed).toBe(true);
-    expect(twice).toBe(once);
+    expect(mulligan(once, [once.hand[0]!.key])).toBe(once);
   });
 
-  it('keeping the hand still spends the mulligan', () => {
+  it('keeping the hand still spends it', () => {
     const start = deal(list, 13);
     const kept = mulligan(start, []);
 
@@ -96,37 +98,28 @@ describe('mulligan', () => {
   });
 });
 
-describe('turns', () => {
-  it('channels two runes, or three on the first turn when on the draw', () => {
-    expect(runesForTurn(1, false)).toBe(2);
-    expect(runesForTurn(1, true)).toBe(3);
-    expect(runesForTurn(2, true)).toBe(2);
+describe('draw', () => {
+  it('moves one card from the top of the deck to the hand', () => {
+    const start = deal(list, 3);
+    const after = draw(start);
+
+    expect(after.hand).toHaveLength(OPENING_HAND + 1);
+    expect(after.deck).toHaveLength(35);
+    expect(after.hand[OPENING_HAND]!.key).toBe(start.deck[0]!.key);
   });
 
-  it('channels and draws one', () => {
-    const state = takeTurn(deal(list, 3));
-
-    expect(state.turn).toBe(1);
-    expect(state.runes).toHaveLength(2);
-    expect(state.runeDeck).toHaveLength(10);
-    expect(state.hand).toHaveLength(OPENING_HAND + 1);
-    expect(state.deck).toHaveLength(35);
+  it('closes the mulligan window', () => {
+    const drawn = draw(deal(list, 3));
+    expect(drawn.mulliganed).toBe(true);
+    expect(mulligan(drawn, [drawn.hand[0]!.key])).toBe(drawn);
   });
 
-  it('closes the mulligan window once the game starts', () => {
-    const started = takeTurn(deal(list, 3));
-    expect(started.mulliganed).toBe(true);
-    expect(mulligan(started, [started.hand[0]!.key])).toBe(started);
-  });
-
-  /* Running a deck out is a fact about the deck, not an error. */
+  /* Running the deck out is a fact about the deck, not an error. */
   it('runs out quietly rather than throwing', () => {
     let state = deal(list, 17);
-    for (let i = 0; i < 60; i++) state = takeTurn(state);
+    for (let i = 0; i < 60; i++) state = draw(state);
 
     expect(state.deck).toHaveLength(0);
-    expect(state.runeDeck).toHaveLength(0);
     expect(state.hand).toHaveLength(40);
-    expect(state.runes).toHaveLength(12);
   });
 });
