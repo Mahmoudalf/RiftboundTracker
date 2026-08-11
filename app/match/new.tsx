@@ -6,15 +6,14 @@ import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-n
 import { CardPickerSheet } from '@/components/decks/CardPickerSheet';
 import { GameCard } from '@/components/matches/GameCard';
 import { MatchupCard, MatchupDivider } from '@/components/matches/MatchupCard';
-import { DetailsSheet } from '@/components/ui/DetailsSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { ChoiceRow, SectionLabel, SelectField } from '@/components/ui/Field';
+import { ChoiceRow, OptionRow, SectionLabel, SelectField } from '@/components/ui/Field';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import { Sheet, SheetRow } from '@/components/ui/Sheet';
 import { listBattlefields, listChampionsForLegend, listLegends } from '@/db/queries/cards';
 import { listDecks, loadDeckList } from '@/db/queries/decks';
-import { createEvent, listEvents, type EventSummary } from '@/db/queries/events';
+import { eventForName } from '@/db/queries/events';
 import { saveMatchGames } from '@/db/queries/match-games';
 import {
   battlefieldFields,
@@ -23,22 +22,20 @@ import {
   opponentBattlefieldFields,
   opponentChampionFields,
   opponentFields,
-  recentOpponents,
   undoMatch,
 } from '@/db/queries/matches';
 import type { CardRow } from '@/db/schema/cards';
 import {
   BEST_OF_OPTIONS,
-  EVENT_STYLES,
-  MATCH_STYLES,
-  type EventStyle,
+  DEFAULT_BEST_OF,
+  LOGGED_MATCH_STYLES,
   type MatchResult,
   type MatchStyle,
 } from '@/db/schema/matches';
 import { markLogAnother, markLogged, markSheetReady } from '@/features/matches/timing';
 import { useToast } from '@/features/matches/useToast';
 import { baseName, cardKey } from '@/lib/card-identity';
-import { eventStyleLabel, matchStyleLabel } from '@/lib/format';
+import { matchStyleLabel } from '@/lib/format';
 import { gameScoreLine, gamesToWin, matchProgress, visibleGames } from '@/lib/match-progress';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
@@ -46,9 +43,9 @@ import { metaLine, text } from '@/theme/typography';
 /**
  * Log a match, top to bottom.
  *
- * The order is the design: **style → format → your deck → their deck → the
- * games.** It follows the shape of the match itself, so each answer is one you
- * already have by the time you are asked.
+ * The order is the design's: **the matchup → how it was played → your deck →
+ * their deck → the games → what came of it.** It follows the shape of the match
+ * itself, so each answer is one you already have by the time you are asked.
  *
  * That is a deliberate trade against the earlier layout, which put WIN and LOSS
  * at the top and everything optional underneath. Two taps was faster; it also
@@ -60,14 +57,29 @@ import { metaLine, text } from '@/theme/typography';
  * disagree with them, and a Bo3 recorded as 2–0 cannot also claim three games
  * were played. Games appear one at a time and stop appearing once the match is
  * settled; see `lib/match-progress`.
+ *
+ * ---
+ *
+ * Built to the Hi-Fi design's `1_Current ML` screen and the three changes in
+ * its `design_handoff_match_log_form` note. What those changes removed:
+ *
+ * - **The event picker.** Was a rail of chips over existing events plus a "+"
+ *   that opened a naming sheet. Now one free-text field: type the tournament's
+ *   name and every round typed under the same name groups itself (see
+ *   `eventForName`). Optional, so a tournament round no longer blocks on it.
+ * - **Bo5 and "not recorded".** Riftbound is Bo1 or Bo3, and a match with no
+ *   format recorded could not say how many games it took. Always one of the two
+ *   now, defaulting to Bo1.
+ * - **The recent-opponent rail.** A row of chips above the Legend field. The
+ *   design leaves only the field.
  */
 
 /**
  * Styles that describe an organised event, and so can belong to a named one.
  *
- * `casual`, `online` and `testing` are left out: they are things you do, not
- * places you go, and offering to file them under a tournament would be asking a
- * question with no answer.
+ * `casual` and `online` are left out: they are things you do, not places you
+ * go, and offering to file them under a tournament would be asking a question
+ * with no answer.
  */
 const ORGANISED: MatchStyle[] = ['tournament'];
 
@@ -103,16 +115,20 @@ export default function LogMatchScreen() {
   const [deckIndex, setDeckIndex] = useState(0);
 
   const [matchStyle, setMatchStyle] = useState<MatchStyle>('casual');
-  const [bestOf, setBestOf] = useState<number | null>(null);
+  const [bestOf, setBestOf] = useState<number>(DEFAULT_BEST_OF);
   const [opponent, setOpponent] = useState<CardRow | null>(null);
   const [oppChampion, setOppChampion] = useState<CardRow | null>(null);
   const [notes, setNotes] = useState('');
   const [picker, setPicker] = useState<Picker | null>(null);
-  const [eventId, setEventId] = useState<string | null>(null);
-  /* Re-read by bumping a tick rather than setting state in an effect, which
-     would cascade a render on every mount. */
-  const [eventsTick, setEventsTick] = useState(0);
-  const [namingEvent, setNamingEvent] = useState(false);
+  /**
+   * The tournament's name, as typed.
+   *
+   * A name, not an id: the design's field creates or matches an event by what
+   * you call it, and resolving that to a row at save time means the name you
+   * are looking at is always the one being written. Holding an id here instead
+   * would let the field show one tournament while the match joined another.
+   */
+  const [eventName, setEventName] = useState('');
   /**
    * The games, in order. The match result is never asked for — it falls out of
    * these, so it can never disagree with them.
@@ -123,12 +139,7 @@ export default function LogMatchScreen() {
    */
   const [games, setGames] = useState<GameDraft[]>([BLANK_GAME]);
   const [reviewing, setReviewing] = useState(false);
-  /* The tier of the event being created. Lives here, not in the sheet, which
-     only ever owns the two fields it draws itself. */
-  const [newEventStyle, setNewEventStyle] = useState<EventStyle>('nexus-night');
-
-  /** A tournament round has to say which tournament. */
-  const needsEvent = matchStyle === 'tournament' && !eventId;
+  const [deckOpen, setDeckOpen] = useState(false);
 
   const progress = matchProgress(games, bestOf);
   const shown = visibleGames(games, bestOf);
@@ -173,19 +184,6 @@ export default function LogMatchScreen() {
     [opponent]
   );
 
-  /*
-   * Read once on mount, not per render and not after each save.
-   *
-   * Logging four rounds of an event should not reshuffle the rail underneath
-   * you between rounds — the round you just logged would jump to the front and
-   * move everything else, and the rail's value is that its contents stay where
-   * your thumb last found them.
-   */
-  const recent = useMemo(() => dedupe(recentOpponents()), []);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const events: EventSummary[] = useMemo(() => listEvents(), [eventsTick]);
-
   const reset = () => {
     // "Log another": you are still at the same event, with the same deck and
     // Battlefields. The opponent is what changes between rounds.
@@ -219,6 +217,16 @@ export default function LogMatchScreen() {
      */
     const played = games.slice(0, progress.played);
     const first = played[0];
+
+    /*
+     * Resolve the typed name to an event, here rather than as you type.
+     *
+     * Creating one per keystroke would leave a trail of half-typed tournaments
+     * behind every abandoned log. Only a match that is actually being saved is
+     * evidence that its event exists. Styles that are not organised play never
+     * carry one, however the field was left.
+     */
+    const eventId = ORGANISED.includes(matchStyle) ? eventForName(eventName) : null;
 
     const id = logMatch({
       deckId: deck.id,
@@ -281,7 +289,7 @@ export default function LogMatchScreen() {
 
   if (decks.length === 0) {
     return (
-      <Screen title="Log a match" back={false}>
+      <Screen title="Log a match" back={false} compact>
         <EmptyState
           title="No decks yet"
           body="A match is attached to the exact deck version that played it, so there needs to be a deck first."
@@ -294,54 +302,11 @@ export default function LogMatchScreen() {
     );
   }
 
-  /**
-   * The design's shapes, wrapping what the screen already computed.
-   *
-   * Kept as the same three helpers so the form's structure is untouched — only
-   * the vocabulary changes, which is the whole difference between "recoloured"
-   * and "redesigned".
-   */
-  const chips = <T,>(
-    options: { key: string; label: string; value: T }[],
-    current: T,
-    onSelect: (value: T) => void
-  ) => <ChoiceRow options={options} value={current} onSelect={onSelect} tall />;
-
-  /**
-   * A field that opens a picker.
-   *
-   * The design expands options in place, and this does for the short lists. The
-   * Legend and Battlefield pickers stay modal: an inline accordion of 180
-   * Legends is a scroll inside a scroll, and the picker already has search.
-   */
-  const field = (label: string, value: string | null, onPress: () => void, disabled = false) => (
-    <SelectField
-      placeholder={label}
-      value={value}
-      open={false}
-      onToggle={onPress}
-      disabled={disabled}
-    />
-  );
-
-  /**
-   * A section.
-   *
-   * The numbered step badges are gone: the design labels each block in the
-   * card-footer idiom instead, which reads as a form rather than as a wizard
-   * you are being marched through.
-   */
-  const step = (_n: number, title: string, children: React.ReactNode) => (
-    <View style={styles.step}>
-      <SectionLabel>{title}</SectionLabel>
-      {children}
-    </View>
-  );
-
   return (
     <Screen
       title="Log a match"
       back={false}
+      compact
       action={
         <Pressable
           accessibilityRole="button"
@@ -358,7 +323,7 @@ export default function LogMatchScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.step}>
+        <View style={styles.block}>
           <SectionLabel>The matchup</SectionLabel>
           <MatchupCard
             side="you"
@@ -385,190 +350,136 @@ export default function LogMatchScreen() {
           />
         </View>
 
-        {step(
-          1,
-          'Match style',
-          <>
-            {chips(
-              MATCH_STYLES.map((key) => ({ key, label: matchStyleLabel(key), value: key })),
-              matchStyle,
-              (next) => {
-                setMatchStyle(next);
-                // A casual game is not a round of anything.
-                if (!ORGANISED.includes(next)) setEventId(null);
-              }
-            )}
+        <View style={styles.block}>
+          <SectionLabel>Match style</SectionLabel>
+          <ChoiceRow<MatchStyle>
+            options={LOGGED_MATCH_STYLES.map((key) => ({
+              key,
+              label: matchStyleLabel(key),
+              value: key,
+            }))}
+            value={matchStyle}
+            onSelect={(next) => {
+              haptic(Haptics.ImpactFeedbackStyle.Light);
+              setMatchStyle(next);
+            }}
+            tall
+          />
 
-            {/*
-              The event, offered only for styles that have one.
-              *
-              A style is a category — "a Nexus Night". An event is the instance
-              — "*the* Nexus Night on the 9th", with a placement at the end.
-              Casual and testing never get asked, so the fast path stays four
-              taps; the ten-second budget is not spent on a field that would be
-              blank for most matches.
-            */}
-            {ORGANISED.includes(matchStyle) ? (
-              <View style={styles.eventRow}>
-                <Text style={styles.fieldLabel}>Event (optional)</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.recentRail}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  {events.map((event) => {
-                    const active = eventId === event.id;
-                    return (
-                      <Pressable
-                        key={event.id}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                        accessibilityLabel={`${event.name}, ${event.total} rounds logged`}
-                        onPress={() => {
-                          haptic(Haptics.ImpactFeedbackStyle.Light);
-                          setEventId(active ? null : event.id);
-                        }}
-                        style={({ pressed }) => [
-                          styles.chip,
-                          active && styles.chipActive,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <Text
-                          style={[styles.chipLabel, active && styles.chipLabelActive]}
-                          numberOfLines={1}
-                        >
-                          {event.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+          {/*
+            The event, offered only for styles that have one.
 
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="New event"
-                    onPress={() => setNamingEvent(true)}
-                    style={({ pressed }) => [styles.chip, styles.chipAdd, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.chipLabel}>
-                      {events.length === 0 ? '+  New event' : '+'}
-                    </Text>
-                  </Pressable>
-                </ScrollView>
-              </View>
-            ) : null}
-          </>
-        )}
+            Free text rather than a picker: an event is created by naming it,
+            and every round typed under the same name joins the same one. That
+            is the whole mechanism — there is nothing to pick from before the
+            first round of a tournament has been logged, which is exactly when
+            the old picker was emptiest.
 
-        {step(
-          2,
-          'Best of',
-          chips<number | null>(
-            [
-              { key: 'none', label: '—', value: null },
-              ...BEST_OF_OPTIONS.map((n) => ({ key: String(n), label: `Bo${n}`, value: n })),
-            ],
-            bestOf,
-            setBestOf
-          )
-        )}
+            Optional, which is a change of rule as well as of control: a
+            tournament round used to refuse to save without an event. It saves
+            now, and simply records no event, because "which tournament" is a
+            detail about a match that certainly happened.
+          */}
+          {ORGANISED.includes(matchStyle) ? (
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Event (optional)</Text>
+              <TextInput
+                value={eventName}
+                onChangeText={setEventName}
+                placeholder="Nexus Night #4"
+                placeholderTextColor={color.textMuted}
+                style={styles.input}
+                autoCapitalize="words"
+                accessibilityLabel="Event name"
+              />
+              <Text style={styles.helper}>
+                Name this tournament — every round and game logged under it will be grouped
+                together.
+              </Text>
+            </View>
+          ) : null}
+        </View>
 
-        {step(
-          3,
-          'Your deck',
-          <>
-            {decks.length > 1
-              ? chips(
-                  decks.map((d, i) => ({
-                    key: d.deck.id,
-                    label: d.deck.name,
-                    value: i,
-                  })),
-                  deckIndex,
-                  (i) => {
+        <View style={styles.block}>
+          <SectionLabel>Best of</SectionLabel>
+          <ChoiceRow<number>
+            options={BEST_OF_OPTIONS.map((n) => ({ key: String(n), label: `Bo${n}`, value: n }))}
+            value={bestOf}
+            onSelect={(next) => {
+              haptic(Haptics.ImpactFeedbackStyle.Light);
+              setBestOf(next);
+            }}
+            tall
+          />
+        </View>
+
+        <View style={styles.block}>
+          <SectionLabel>Your deck</SectionLabel>
+          {/*
+            One deck is a statement, several are a question.
+
+            The design draws the single-deck case, which is a name and nothing
+            else. With more than one there has to be a way to say which played,
+            and the field the design already uses for exactly that — a 52px row
+            that opens its options in place — is the one borrowed here.
+          */}
+          {decks.length > 1 ? (
+            <SelectField
+              placeholder="Choose a deck"
+              value={selected ? selected.deck.name : null}
+              open={deckOpen}
+              onToggle={() => setDeckOpen((o) => !o)}
+            >
+              {decks.map((d, i) => (
+                <OptionRow
+                  key={d.deck.id}
+                  label={d.deck.name}
+                  meta={d.version ? `v${d.version.versionNumber}` : null}
+                  selected={i === deckIndex}
+                  onPress={() => {
                     setDeckIndex(i);
+                    setDeckOpen(false);
                     // The old deck's Battlefields are not in the new one.
                     setGames((prev) => prev.map((g) => ({ ...g, ourField: null })));
-                  }
-                )
-              : (
-                <Text style={styles.single}>{selected?.deck.name}</Text>
-              )}
-          </>
-        )}
+                  }}
+                />
+              ))}
+            </SelectField>
+          ) : (
+            <Text style={styles.single}>{selected?.deck.name}</Text>
+          )}
+        </View>
 
-        {step(
-          4,
-          'Their deck',
-          <>
+        {/*
+          Their Legend and Champion, each labelled and nothing above them.
+
+          The quick-select rail of recently-faced Legends is gone with the
+          design's third change. It was a real shortcut for logging a
+          tournament's rounds back to back, and it cost a row of chips in the
+          middle of the form to buy it.
+        */}
+        <View style={styles.fields}>
+          <View style={styles.field}>
             <Text style={styles.fieldLabel}>Legend</Text>
+            <SelectField
+              placeholder="Choose a Legend"
+              value={opponent ? baseName(opponent.name) : null}
+              open={false}
+              onToggle={() => setPicker({ kind: 'legend' })}
+            />
+          </View>
 
-            {/*
-              The rail exists for one situation: logging a tournament's rounds
-              one after another, where the Legend you are about to record is
-              usually one you have faced recently. Opening a 180-card picker for
-              that is most of the ten-second budget spent on the field least
-              likely to be new.
-
-              Above the picker rather than inside it — a shortcut you have to
-              open something to reach is not a shortcut.
-            */}
-            {recent.length > 0 ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.recentRail}
-                keyboardShouldPersistTaps="handled"
-              >
-                {recent.map((card) => {
-                  const active = opponent?.id === card.id;
-                  return (
-                    <Pressable
-                      key={card.id}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                      accessibilityLabel={`${baseName(card.name)}, recently faced`}
-                      onPress={() => {
-                        haptic(Haptics.ImpactFeedbackStyle.Light);
-                        // Re-tapping clears, so a mis-tap costs one tap rather
-                        // than a trip through the picker to undo.
-                        setOpponent(active ? null : card);
-                        setOppChampion(null);
-                      }}
-                      style={({ pressed }) => [
-                        styles.chip,
-                        active && styles.chipActive,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Text
-                        style={[styles.chipLabel, active && styles.chipLabelActive]}
-                        numberOfLines={1}
-                      >
-                        {baseName(card.name)}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            ) : null}
-
-            {field(
-              'Legend',
-              opponent ? baseName(opponent.name) : null,
-              () => setPicker({ kind: 'legend' })
-            )}
-
+          <View style={styles.field}>
             <Text style={styles.fieldLabel}>Chosen Champion</Text>
-            {field(
-              'Champion',
-              oppChampion ? baseName(oppChampion.name) : null,
-              () => setPicker({ kind: 'champion' }),
-              !opponent
-            )}
-          </>
-        )}
+            <SelectField
+              placeholder={opponent ? 'Choose a Champion' : 'Pick a Legend first'}
+              value={oppChampion ? baseName(oppChampion.name) : null}
+              open={false}
+              onToggle={() => setPicker({ kind: 'champion' })}
+              disabled={!opponent}
+            />
+          </View>
+        </View>
 
         {/*
           The games, one card at a time.
@@ -584,7 +495,7 @@ export default function LogMatchScreen() {
             return (
               <GameCard
                 key={i}
-                title={(bestOf ?? 1) > 1 ? `Game ${i + 1}` : 'The game'}
+                title={bestOf > 1 ? `Game ${i + 1}` : 'The game'}
                 summary={metaLine(
                   game.result === 'win'
                     ? 'W'
@@ -619,112 +530,64 @@ export default function LogMatchScreen() {
           you do. With the note below it, the only field you would reach *after*
           the button that leaves is one you would never see.
         */}
-        <View style={styles.step}>
+        <View style={styles.field}>
           <Text style={styles.fieldLabel}>Note</Text>
           <TextInput
             value={notes}
             onChangeText={setNotes}
             placeholder="Anything worth remembering"
-            placeholderTextColor={color.textFaint}
+            placeholderTextColor={color.textMuted}
             style={styles.notes}
             multiline
             accessibilityLabel="Match note"
           />
         </View>
 
-        {step(
-          5,
-          'Result',
-          <>
-            {/*
-              A tournament round belongs to a tournament.
-              *
-              The only place the app stops short of saving, and narrowly: the
-              style says this was an organised event, so there is one to name.
-              Recoverable in a tap by choosing a different style, which is why
-              this is a missing answer rather than a judgement about the deck.
-            */}
-            {needsEvent ? (
-              <Text style={styles.needsEvent}>
-                Pick an event above, or change the style to Casual or Online.
-              </Text>
-            ) : null}
-
-            {/* Read back, not asked. Two places holding the same fact is how
-                they come to disagree. */}
-            <View style={styles.outcome}>
-              <Text style={styles.outcomeValue}>
-                {result === 'win'
-                  ? 'Win'
-                  : result === 'loss'
-                    ? 'Loss'
-                    : result === 'draw'
-                      ? 'Draw'
-                      : 'Still playing'}
-              </Text>
-              <Text style={styles.outcomeMeta}>
-                {gameScoreLine(games, bestOf) ?? 'No games logged yet'}
-              </Text>
-            </View>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Continue to review"
-              disabled={!result || needsEvent}
-              onPress={() => setReviewing(true)}
-              style={({ pressed }) => [
-                styles.continue,
-                (!result || needsEvent) && styles.continueDisabled,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={styles.continueLabel}>Continue</Text>
-            </Pressable>
-
-            <Text style={styles.hint}>
-              {result
-                ? 'Nothing is saved yet — the next screen reads the match back first.'
-                : `Answer each game above. ${gamesToWin(bestOf)} won takes the match.`}
+        {/* Read back, not asked. Two places holding the same fact is how they
+            come to disagree. */}
+        <View>
+          <View style={styles.outcome}>
+            <Text style={styles.outcomeValue}>
+              {result === 'win'
+                ? 'Win'
+                : result === 'loss'
+                  ? 'Loss'
+                  : result === 'draw'
+                    ? 'Draw'
+                    : 'Still playing'}
             </Text>
-          </>
-        )}
+            <Text style={styles.outcomeMeta}>
+              {result
+                ? metaLine(gameScoreLine(games, bestOf), 'derived from the games')
+                : 'No games logged yet'}
+            </Text>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Continue to review"
+            disabled={!result}
+            onPress={() => setReviewing(true)}
+            style={({ pressed }) => [
+              styles.continue,
+              !result && styles.continueDisabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.continueLabel}>Continue</Text>
+          </Pressable>
+
+          <Text style={styles.hint}>
+            {result
+              ? 'Nothing is saved yet — the next screen reads the match back first.'
+              : `Answer each game above. ${gamesToWin(bestOf)} won takes the match.`}
+          </Text>
+        </View>
       </ScrollView>
 
       {/*
-        Name it and carry on. An event gathers its rounds as you log them, so
-        the only thing needed up front is something to call it — rounds played,
-        record, and where you placed all arrive later, on the event itself.
-      */}
-      <DetailsSheet
-        visible={namingEvent}
-        title="New event"
-        nameLabel="Name"
-        namePlaceholder="Nexus Night #4"
-        initialName=""
-        initialNotes=""
-        notesPlaceholder="Where is it? Anything worth remembering later."
-        onClose={() => setNamingEvent(false)}
-        extra={
-          <>
-            <Text style={styles.fieldLabel}>Event style</Text>
-            {chips(
-              EVENT_STYLES.map((key) => ({ key, label: eventStyleLabel(key), value: key })),
-              newEventStyle,
-              setNewEventStyle
-            )}
-          </>
-        }
-        onSave={(name, location) => {
-          const id = createEvent({ name, eventType: newEventStyle, location });
-          setNamingEvent(false);
-          setEventId(id);
-          setEventsTick((t) => t + 1);
-        }}
-      />
-
-      {/*
         Read the match back before committing it.
-        *
+
         Everything skipped is named as "not recorded" rather than omitted — the
         difference between a field the user chose to leave blank and one the app
         quietly forgot to ask about.
@@ -736,7 +599,8 @@ export default function LogMatchScreen() {
         onClose={() => setReviewing(false)}
         actions={
           <>
-            {matchStyle === 'tournament' ? (
+            {/* Only an organised style has a next round to log. */}
+            {ORGANISED.includes(matchStyle) ? (
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
@@ -761,9 +625,9 @@ export default function LogMatchScreen() {
           </>
         }
       >
-        <View style={styles.outcome}>
+        <View style={styles.sheetOutcome}>
           <SectionLabel>Match outcome</SectionLabel>
-          <Text style={styles.outcomeValue}>
+          <Text style={styles.sheetOutcomeValue}>
             {result === 'win' ? 'Win' : result === 'loss' ? 'Loss' : 'Draw'}
           </Text>
           {/* Derived from the games — never asked for twice. */}
@@ -783,7 +647,7 @@ export default function LogMatchScreen() {
         />
         <SheetRow
           label="Format"
-          value={metaLine(matchStyleLabel(matchStyle), bestOf ? `Bo${bestOf}` : 'Best of not recorded')}
+          value={metaLine(matchStyleLabel(matchStyle), `Bo${bestOf}`)}
           mono
         />
         {/* Every game gets its own line. A Bo3 read back as one turn order and
@@ -792,7 +656,7 @@ export default function LogMatchScreen() {
         {games.slice(0, progress.played).map((game, i) => (
           <SheetRow
             key={i}
-            label={(bestOf ?? 1) > 1 ? `Game ${i + 1}` : 'The game'}
+            label={bestOf > 1 ? `Game ${i + 1}` : 'The game'}
             value={metaLine(
               game.result === 'win' ? 'Won' : game.result === 'loss' ? 'Lost' : 'Drew',
               game.onPlay === null
@@ -805,11 +669,8 @@ export default function LogMatchScreen() {
             )}
           />
         ))}
-        {eventId ? (
-          <SheetRow
-            label="Event"
-            value={events.find((e) => e.id === eventId)?.name ?? 'Event'}
-          />
+        {ORGANISED.includes(matchStyle) ? (
+          <SheetRow label="Event" value={eventName.trim() || 'Not recorded'} />
         ) : null}
         {notes.trim() ? <SheetRow label="Note" value={notes.trim()} /> : null}
       </Sheet>
@@ -826,7 +687,7 @@ export default function LogMatchScreen() {
         subtitle={
           picker?.kind === 'champion' && opponent
             ? `Champions that partner ${baseName(opponent.name)}`
-            : picker?.kind === 'theirField' && (bestOf ?? 1) > 1
+            : picker?.kind === 'theirField' && bestOf > 1
               ? `Game ${picker.game + 1}`
               : undefined
         }
@@ -870,7 +731,9 @@ export default function LogMatchScreen() {
 }
 
 const styles = StyleSheet.create({
-  body: { paddingBottom: space[16], gap: space[6] },
+  body: { paddingBottom: space[16], gap: space[5] },
+
+  // 36px pill, per the design's header.
   close: {
     minHeight: 36,
     justifyContent: 'center',
@@ -878,41 +741,72 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     backgroundColor: color.raised,
   },
-  closeLabel: { ...text.smallMedium, color: color.text },
-
-  step: { gap: space[2] },
-  stepHeader: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  stepNumber: {
-    ...text.numeric,
-    fontSize: 11,
-    color: color.bg,
-    backgroundColor: color.textMuted,
-    width: 18,
-    height: 18,
-    borderRadius: radius.full,
-    textAlign: 'center',
-    lineHeight: 18,
+  closeLabel: {
+    ...text.caption,
+    fontFamily: 'SpaceGrotesk_600SemiBold',
+    color: color.textSecondary,
   },
-  stepTitle: { ...text.meta, color: color.textSecondary },
-  fieldLabel: { ...text.microMeta, color: color.textMuted, paddingTop: space[1] },
+
+  /** A titled section — `THE MATCHUP`, `BEST OF`. */
+  block: { gap: space[2] },
+  /** One labelled control. Between them the design leaves 18px. */
+  fields: { gap: 18 },
+  field: { gap: space[2] },
+  fieldLabel: { ...text.fieldLabel, color: color.textFaint },
+  /** The sentence under a field explaining what it does. */
+  helper: { ...text.caption, fontSize: 10.5, lineHeight: 15, color: color.textHint },
   single: { ...text.bodyMedium, color: color.text },
-  hint: { ...text.microMeta, color: color.textFaint },
-
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
-  // Scrolls rather than wraps: eight Legend names would be three rows tall, and
-  // this sits in the middle of a six-step form.
-  recentRail: { flexDirection: 'row', gap: space[2], paddingRight: space[4] },
-  chip: {
-    minHeight: 38,
-    justifyContent: 'center',
-    paddingHorizontal: space[3],
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: color.border,
+  hint: {
+    ...text.caption,
+    fontSize: 11,
+    lineHeight: 16,
+    color: color.textHint,
+    paddingTop: 10,
+    paddingBottom: space[1],
   },
-  chipActive: { backgroundColor: color.accent, borderColor: color.text },
-  chipAdd: { borderStyle: 'dashed' },
-  eventRow: { gap: space[2], paddingTop: space[1] },
+
+  /** 52px, matching `SelectField` — the design's one field height. */
+  input: {
+    ...text.body,
+    height: 52,
+    paddingHorizontal: space[4],
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    color: color.text,
+  },
+
+  games: { gap: space[3] },
+
+  outcome: {
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: space[4],
+  },
+  outcomeValue: { ...text.title, fontSize: 22, color: color.text },
+  outcomeMeta: {
+    ...text.caption,
+    fontSize: 11,
+    lineHeight: 15,
+    color: color.textMuted,
+    paddingTop: space[1],
+  },
+  sheetOutcome: {
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 14,
+    marginBottom: space[3],
+  },
+  // 17px in the sheet against 22px on the form: in the sheet it is one row of a
+  // read-back, on the form it is the answer the whole screen was building to.
+  sheetOutcomeValue: {
+    ...text.subtitle,
+    fontFamily: 'SpaceGrotesk_600SemiBold',
+    color: color.text,
+    paddingTop: space[1.5],
+  },
+
   continue: {
     height: 48,
     borderRadius: radius.lg,
@@ -923,15 +817,7 @@ const styles = StyleSheet.create({
   },
   continueDisabled: { opacity: 0.4 },
   continueLabel: { ...text.bodyMedium, color: color.onAccent },
-  outcome: {
-    borderRadius: radius.lg,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    padding: space[4],
-    marginBottom: space[3],
-  },
-  outcomeValue: { ...text.title, fontSize: 22, color: color.text },
-  outcomeMeta: { ...text.microMeta, color: color.textFaint, paddingTop: space[1] },
-  games: { gap: space[3] },
+
   sheetPrimary: {
     flex: 1,
     height: 48,
@@ -951,48 +837,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sheetSecondaryLabel: { ...text.bodyMedium, color: color.textSecondary },
-  needsEvent: { ...text.microMeta, color: color.warning, paddingBottom: space[2] },
-  resultsBlocked: { opacity: 0.4 },
-  chipLabel: { ...text.small, color: color.textSecondary },
-  chipLabelActive: { color: color.onAccent },
-
-  field: {
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: space[3],
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: color.border,
-    backgroundColor: color.surface,
-  },
-  fieldDisabled: { opacity: 0.45 },
-  fieldValue: { ...text.small, color: color.text },
-  fieldPlaceholder: { ...text.small, color: color.textFaint },
-
-  results: { flexDirection: 'row', gap: space[3] },
-  result: {
-    flex: 1,
-    minHeight: 88,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.xl,
-    borderWidth: 2,
-  },
-  win: { borderColor: color.win, backgroundColor: color.surface },
-  loss: { borderColor: color.loss, backgroundColor: color.surface },
-  resultPressed: { opacity: 0.6 },
-  resultLabel: { ...text.display, fontSize: 26, color: color.text },
-  tertiary: { alignItems: 'center' },
-  draw: { minHeight: 36, justifyContent: 'center', paddingHorizontal: space[6] },
-  drawLabel: { ...text.small, color: color.textMuted },
 
   notes: {
     ...text.small,
+    lineHeight: 19.5,
     color: color.text,
     backgroundColor: color.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: color.border,
+    borderColor: 'rgba(255,255,255,0.14)',
     padding: space[3],
     minHeight: 64,
     textAlignVertical: 'top',

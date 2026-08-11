@@ -19,7 +19,11 @@ declare const palette: {
     text: string;
     textSecondary: string;
     textMuted: string;
+    /** The label on an unselected segmented control. */
+    textDim: string;
     textFaint: string;
+    /** Helper copy under a field — the sentence explaining what it does. */
+    textHint: string;
   };
   semantic: {
     win: string;

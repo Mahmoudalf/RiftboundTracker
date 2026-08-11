@@ -564,6 +564,59 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE match_games ADD COLUMN opp_battlefield_card_id TEXT;
     `,
   },
+  {
+    version: 17,
+    up: /* sql */ `
+      -- An event may have no tier.
+      --
+      -- The log form now names an event in free text and never asks what kind
+      -- of event it is, so \`event_type NOT NULL DEFAULT 'nexus-night'\` would
+      -- stamp every one of them a Nexus Night. That is the same failure
+      -- migration 15 refused when it chose to lose a label rather than invent
+      -- an occasion — only here it would be inventing the label itself, on
+      -- every event, silently.
+      --
+      -- The tier is still real and still settable; it just belongs to the event
+      -- screen, where someone can answer it, rather than to a field the log
+      -- form no longer shows.
+      --
+      -- SQLite cannot drop NOT NULL in place, so the table is rebuilt. Existing
+      -- rows carry their tier across untouched — nothing already answered
+      -- becomes unanswered.
+      CREATE TABLE IF NOT EXISTS events_new (
+        id                TEXT PRIMARY KEY NOT NULL,
+        name              TEXT NOT NULL,
+        format            TEXT NOT NULL DEFAULT 'constructed',
+        event_type        TEXT,
+        started_at        TEXT NOT NULL,
+        location          TEXT,
+        rounds            INTEGER,
+        final_placement   INTEGER,
+        notes             TEXT,
+        created_at        TEXT NOT NULL,
+        updated_at        TEXT NOT NULL,
+        deleted_at        TEXT,
+        user_id           TEXT,
+        dirty             INTEGER NOT NULL DEFAULT 1,
+        updated_by_device TEXT
+      );
+
+      INSERT INTO events_new
+        (id, name, format, event_type, started_at, location, rounds,
+         final_placement, notes, created_at, updated_at, deleted_at, user_id,
+         dirty, updated_by_device)
+      SELECT
+         id, name, format, event_type, started_at, location, rounds,
+         final_placement, notes, created_at, updated_at, deleted_at, user_id,
+         dirty, updated_by_device
+        FROM events;
+
+      DROP TABLE events;
+      ALTER TABLE events_new RENAME TO events;
+
+      CREATE INDEX IF NOT EXISTS events_deleted_idx ON events(deleted_at);
+    `,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

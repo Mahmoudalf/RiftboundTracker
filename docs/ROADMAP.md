@@ -725,7 +725,81 @@ Two documented decisions were deliberately overridden and are worth knowing:
 | --- | --- |
 | Deck list | 104px cards with the Legend art bleeding in from the left across a long fade. Art is joined in `listDecks` — a lookup inside the card component would be one query per frame per deck |
 | Deck detail | A 206px hero with the art running under the status bar, translucent Back / Share / Edit, a chip row, and four tabs — **Overview · Versions · Matches · Stats**. The decklist moved into Overview behind a **List / Gallery** toggle; legality leads with a sentence rather than a bar |
-| Match log | The matchup as two mirrored cards with a VS rule, mono section labels, 52px select fields, and **Continue → review sheet → Finalize**. Nothing saves on the result tap any more. Logging is **per game**: a card per game asking turn order, both Battlefields and who won, revealed one at a time and withdrawn once the match is settled — a Bo3 at 2–0 never shows a third. The match result is **derived, never asked** (`lib/match-progress`), and game 1's answers mirror onto the match columns so the existing splits keep working |
+| Match log | *(Updated 2026-08-11 by the design handoff — see below.)* The matchup as two mirrored cards with a VS rule, mono section labels, 52px select fields, and **Continue → review sheet → Finalize**. Nothing saves on the result tap any more. Logging is **per game**: a card per game asking turn order, both Battlefields and who won, revealed one at a time and withdrawn once the match is settled — a Bo3 at 2–0 never shows a third. The match result is **derived, never asked** (`lib/match-progress`), and game 1's answers mirror onto the match columns so the existing splits keep working |
+
+### Match log — the design handoff (2026-08-11)
+
+Read through the DesignSync MCP from the same project: the `1_Current ML` screen, which the design
+built as a **pixel-for-pixel recreation of `app/match/new.tsx`**, plus the three changes in
+`design_handoff_match_log_form/README.md` applied on top. The recreation is what makes the handoff
+legible — the delta is the deliverable, and everything else is confirmation that what shipped was
+right.
+
+| Change | Was | Now |
+| --- | --- | --- |
+| **Event** | A rail of chips over existing events plus a `+` that opened a naming sheet with a tier picker | One free-text field. Typing a name creates the tournament; typing it again next round joins the same one (`eventForName`) |
+| **Best of** | `—` · Bo1 · Bo3 · Bo5 | Bo1 · Bo3, defaulting to Bo1, never unset |
+| **Legend** | A quick-select rail of recently-faced Legends above the field | The field alone |
+
+**The event field is the change with consequences, and two of them reverse earlier decisions.**
+
+- **A tournament round no longer refuses to save.** M6 made naming an event the one place the app
+  stopped short of saving, on the reasoning that "Tournament" asserts an organised event exists. The
+  design marks the field *optional*, and it is right: the match certainly happened, and which
+  tournament it belonged to is a detail about it rather than a precondition for it.
+- **An event created this way has no tier** — `events.event_type` is nullable as of **migration 17**,
+  which rebuilds the table because SQLite cannot drop NOT NULL in place. The alternative was
+  defaulting, which would stamp every free-text event a Nexus Night: the same fabrication migration
+  15 refused when it chose to lose a label rather than invent an occasion, except applied silently to
+  every row. The tier is still real and still settable — on the event screen, where somebody is being
+  asked rather than assumed at.
+
+  The rebuild is the first migration that DROPs a table holding user data, so it gets a test that
+  loads a tournament, its tier, a soft-deleted sibling and **two rounds pointing at it**, then
+  asserts every one survives. `matches.event_id` deliberately carries no foreign key, which is what
+  makes the drop safe — asserted rather than reasoned about, because "there is no FK" stays true only
+  until a migration adds one.
+
+**Deleted, not hidden.** `recentOpponents()` went with the rail: correct, tested, and with no
+consumer left, which is precisely what gap 15 named. The shipped Hermes bundle was searched for the
+symbol afterwards — absent — because a checklist tick is not evidence that code is gone.
+
+**Narrowed, never rewritten.** `BEST_OF_OPTIONS` is `[1, 3]` and `LOGGED_MATCH_STYLES` drops
+`testing`, but `matches.best_of` stays nullable and `MATCH_STYLES` keeps all four: rows already
+holding `5` or `testing` are true records of what was entered. The **match detail** screen therefore
+offers the narrowed list *plus whatever that match already holds* (`withCurrent`), so opening an old
+Bo5 does not present a control with nothing selected — which reads as unanswered and invites
+correcting a fact that was never wrong. It also keeps `—`, because that screen's job is to correct
+the record and "I do not actually know" is a correction someone is entitled to make.
+
+Fidelity fixes found by reading the design's declarations against the code rather than by eye:
+
+| | |
+| --- | --- |
+| `SectionLabel` carried `paddingBottom: space[2]` **and** every caller wrapped it in a container with `gap: space[2]` | 16px where the design draws 8–10, on **every** screen using one. The gap belongs to the caller; the label now only asks for air above it |
+| `SheetRow` values were left-aligned | The design right-aligns them against a fixed-width label column. A read-back is scanned down its values |
+| The screen used `Screen`'s 30px display title | The design gives a presented sheet a 20px title on a tight header — the difference between having navigated somewhere and having opened something. `Screen` grew a `compact` prop |
+| `#ADADB2` and `#5A5A5D` were being rendered as `textSecondary` and `textFaint` | Both are their own values in the design (19 and 10 uses). An unselected segment sat at the same weight as the selected one's neighbour; helper copy sat at the same value as the label above it. Added as `textDim` and `textHint` |
+
+**Device report: "the user's Battlefield is missing from the match log."** It was not missing — it
+was unreadable. The field renders only when the deck has Battlefields, and the empty case said
+*"This deck has no Battlefields yet"* in `microMeta` at `textFaint`: 9.5px, uppercase, and a value
+`palette.js` documents as below AA and **never to carry information**. Sitting directly under a
+section label in the identical style, two lines of micro-caps read as one label with no control
+under it — indistinguishable from a field that had been deleted.
+
+The chain behind the field was proven before touching anything, because "it renders the empty state"
+and "the query broke" look the same from the screen: a new probe in `editor-flow.test.ts` drives
+`listDecks() → currentVersionId → loadDeckList → battlefield slots` against the real library, then
+locks the version, swaps a Battlefield, forks, and asserts the deck follows the fork. It passed
+unchanged. The defect was only the empty state, which now reads at body size in sentence case and
+says what to do about it. `match/[id].tsx`'s footnote had the same mistake — two sentences of prose
+set as a label — and was fixed with it.
+
+**Stated deviations.** Segmented-control labels are one size (13px) where the design uses four
+between 11.5 and 14 for the same control with no rule given — raised rather than guessed at. And
+metadata stays `•`-separated where the design uses `·`: the app's separator is the one printed along
+the foot of a real Riftbound card, which is where the idiom came from.
 
 **Collection**, split in two, because browsing 1,451 cards and reviewing a collection are different
 activities that only happened to share a grid — and sharing it meant the collection had no summary
@@ -792,7 +866,7 @@ Found on a device, not yet fixed. Each is a real defect or a real omission — n
 | 12 | ~~**`match_games` is shipped but unwritten**~~ — **closed.** Per-game logging writes it: a card per game asking turn order, both Battlefields and who won, revealed one at a time and withdrawn once the match is settled. Migration 16 added `battlefield_card_id` / `opp_battlefield_card_id` so the two sides can be told apart, and the match result became **derived** from the games rather than asked for | M4 data-layer audit | Closed |
 | 13 | ~~On-play / on-draw not captured~~ — **closed.** Restored to the log sheet as a single three-option row during the post-M5 audit; the analytics split fills in as matches are logged | M4 sheet simplification | Closed |
 
-| 14 | ~~**The recent-opponent rail is gone**~~ — **closed.** Restored above the Legend field in step 4 of the log flow, not inside the picker: a shortcut you have to open something to reach is not a shortcut. Read once on mount, so logging four rounds of an event does not reshuffle the rail between them. Four probes were written against `recentOpponents()` when it finally got a consumer — undone matches, deleted matches, a printing leaving the library mid-event, and the limit — and **all four passed unchanged**. The query was correct; only its reachability was the defect | Post-gap-1 audit | Closed |
+| 14 | ~~**The recent-opponent rail is gone**~~ — **closed, then removed by the design.** It was restored above the Legend field, read once on mount so logging four rounds did not reshuffle it between them, and four probes written against `recentOpponents()` when it finally got a consumer all passed unchanged. The Hi-Fi handoff's third change then deleted the rail, and the query went with it — an export with no consumer is gap 15. Recorded rather than quietly reversed: the shortcut was real, and if logging a tournament's rounds turns out to want it back, this is the entry that says what it did and why it was correct | Post-gap-1 audit | Closed — then removed by design |
 | 15 | ~~`countDecks()` dead~~ — **closed.** No consumer anywhere, tests included. Deleted | Post-gap-1 audit | Closed |
 | 17 | ~~**Archiving a deck erased it from Stats**~~ — **closed.** Found while auditing gaps 6-7, and the reason archiving could not have shipped as written. `stats.tsx` called `listDecks()`, which excludes archived, so an archived deck left the picker and took its match history with it. Worse, **"All decks" disagreed with itself**: the headline record summed only live decks while the history list beneath it read every match in the database, so archiving changed the total without changing a row. Stats now reads `listDecks(true)` and labels archived entries | Post-gap-6/7 audit | Closed |
 | 18 | ~~`setDeckNotes` stored `''` instead of clearing~~ — **closed.** Its two siblings trim blank to null; this one stored the raw string, so an emptied field left an empty note behind — which renders as a note someone deliberately wrote nothing in. Invisible until a screen could call it | Post-gap-6/7 audit | Closed |

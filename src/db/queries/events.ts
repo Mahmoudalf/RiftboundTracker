@@ -33,7 +33,14 @@ export interface EventSummary extends EventRow {
 
 export interface CreateEventInput {
   name: string;
-  eventType: EventStyle;
+  /**
+   * The tier, when it is known.
+   *
+   * Optional because the log form does not ask. It names a tournament in free
+   * text and nothing else, so passing a tier there would be inventing one —
+   * see migration 17. The event screen sets it afterwards.
+   */
+  eventType?: EventStyle | null;
   location?: string | null;
   /** Defaults to now. Set explicitly when back-filling last week's tournament. */
   startedAt?: string;
@@ -99,7 +106,7 @@ export function createEvent(input: CreateEventInput): string {
     [
       id,
       input.name.trim() || 'Event',
-      input.eventType,
+      input.eventType ?? null,
       input.startedAt ?? timestamp,
       input.location?.trim() || null,
       timestamp,
@@ -109,9 +116,43 @@ export function createEvent(input: CreateEventInput): string {
   return id;
 }
 
+/**
+ * The event called `name`, creating it if there is not one already.
+ *
+ * This is what the log form's free-text Event field resolves through. Typing
+ * the same tournament name on round 2 has to land on the round-1 event or the
+ * grouping the field promises never happens — so the lookup comes first and
+ * only a genuine miss writes a row.
+ *
+ * Matched **case-insensitively** on the trimmed name. The design says "exact",
+ * and this is exact in the sense that matters: nobody typing "nexus night #4"
+ * after "Nexus Night #4" means a second tournament, and a case-sensitive match
+ * would silently split one event's rounds across two records.
+ *
+ * Deleted events are not matched. A deleted event is gone from every screen, so
+ * re-attaching rounds to it would file them somewhere invisible.
+ *
+ * Returns null for a blank name — no event, rather than one called "Event".
+ */
+export function eventForName(name: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+
+  const existing = conn().getFirstSync<{ id: string }>(
+    `SELECT id FROM events
+      WHERE deleted_at IS NULL AND name = ? COLLATE NOCASE
+      ORDER BY started_at DESC, rowid DESC
+      LIMIT 1`,
+    [trimmed]
+  );
+  if (existing?.id) return existing.id;
+
+  return createEvent({ name: trimmed });
+}
+
 export interface EventPatch {
   name?: string;
-  eventType?: EventStyle;
+  eventType?: EventStyle | null;
   location?: string | null;
   rounds?: number | null;
   finalPlacement?: number | null;
@@ -129,7 +170,7 @@ export function updateEvent(eventId: string, patch: EventPatch): void {
 
   // Blank clears, matching every other text setter in the app.
   if (patch.name !== undefined) put('name', patch.name.trim() || 'Event');
-  if (patch.eventType !== undefined) put('event_type', patch.eventType);
+  if (patch.eventType !== undefined) put('event_type', patch.eventType ?? null);
   if (patch.location !== undefined) put('location', patch.location?.trim() || null);
   if (patch.notes !== undefined) put('notes', patch.notes?.trim() || null);
   if (patch.rounds !== undefined) put('rounds', patch.rounds);

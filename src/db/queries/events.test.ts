@@ -9,6 +9,7 @@ import { createDeck, deleteDeck } from './decks';
 import {
   createEvent,
   deleteEvent,
+  eventForName,
   eventMatches,
   getEvent,
   listEvents,
@@ -389,5 +390,83 @@ describe('an event and its rounds', () => {
     });
 
     expect(listEvents().map((e) => e.id)).toEqual([newer, older]);
+  });
+});
+
+/**
+ * The free-text Event field, which is the whole mechanism behind the Hi-Fi
+ * handoff's first change.
+ *
+ * The old picker could only offer events that already existed, which made it
+ * emptiest exactly when it was needed — before round 1 of a tournament. Typing
+ * a name creates the event; typing it again next round has to find the *same*
+ * one, or the grouping the field promises silently never happens and a
+ * five-round day becomes five one-round tournaments.
+ */
+describe('eventForName', () => {
+  it('creates an event the first time a name is used', () => {
+    const id = eventForName('Nexus Night #4');
+
+    expect(id).toBeTruthy();
+    expect(getEvent(id!)).toMatchObject({ name: 'Nexus Night #4' });
+  });
+
+  it('claims no tier — the log form never asks for one', () => {
+    const id = eventForName('Nexus Night #4');
+
+    // Not 'nexus-night'. The name says it; the column would be inventing it.
+    expect(getEvent(id!)?.eventType).toBeNull();
+  });
+
+  it('returns the same event when the name is typed again', () => {
+    const first = eventForName('Nexus Night #4');
+    const second = eventForName('Nexus Night #4');
+
+    expect(second).toBe(first);
+    expect(listEvents()).toHaveLength(1);
+  });
+
+  it('matches regardless of case or surrounding space', () => {
+    const first = eventForName('Nexus Night #4');
+
+    expect(eventForName('  nexus night #4  ')).toBe(first);
+    expect(listEvents()).toHaveLength(1);
+  });
+
+  it('is null for a blank name rather than an event called "Event"', () => {
+    expect(eventForName('   ')).toBeNull();
+    expect(listEvents()).toHaveLength(0);
+  });
+
+  /*
+   * A deleted event is gone from every screen. Re-attaching rounds to it would
+   * file them somewhere nothing can show, so the name is free to be reused.
+   */
+  it('does not match a deleted event, and makes a new one instead', () => {
+    const first = eventForName('Nexus Night #4');
+    deleteEvent(first!);
+
+    const second = eventForName('Nexus Night #4');
+
+    expect(second).not.toBe(first);
+    expect(listEvents().map((e) => e.id)).toEqual([second]);
+  });
+
+  it('matches an event created with a tier, and leaves the tier alone', () => {
+    const existing = createEvent({ name: 'Regionals', eventType: 'regional-final' });
+
+    expect(eventForName('Regionals')).toBe(existing);
+    expect(getEvent(existing)?.eventType).toBe('regional-final');
+  });
+
+  /*
+   * Two events can share a name — one is creatable directly, and history may
+   * hold others. The newest is the one being played today.
+   */
+  it('picks the most recent when a name is duplicated', () => {
+    createEvent({ name: 'Locals', startedAt: '2026-08-01T10:00:00.000Z' });
+    const newer = createEvent({ name: 'Locals', startedAt: '2026-08-09T10:00:00.000Z' });
+
+    expect(eventForName('Locals')).toBe(newer);
   });
 });

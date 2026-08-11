@@ -87,6 +87,23 @@ export const text = {
     textTransform: 'uppercase' as const,
   },
 
+  /**
+   * The label directly above a single field — `EVENT (OPTIONAL)`, `LEGEND`.
+   *
+   * The design distinguishes this from `microMeta`, and the distinction is
+   * structural rather than decorative: `microMeta` labels a *section* of the
+   * form (600 weight, tighter), this labels one control inside it (400, a
+   * half-point larger, looser). Rendering both at the same weight made a field
+   * label look like the start of a new section.
+   */
+  fieldLabel: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase' as const,
+  },
+
   /** Headline stat readouts — legible across a table. */
   stat: {
     fontFamily: 'SpaceGrotesk_700Bold',

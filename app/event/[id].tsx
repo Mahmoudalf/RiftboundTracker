@@ -48,7 +48,15 @@ export default function EventDetailScreen() {
   const [matches, setMatches] = useState<MatchRowType[]>([]);
   const [editing, setEditing] = useState(false);
   const [placing, setPlacing] = useState(false);
-  const [style, setStyle] = useState<EventStyle>('nexus-night');
+  /**
+   * Null until someone says otherwise.
+   *
+   * An event named from the log form has no tier — the form does not ask, and
+   * migration 17 stopped the column from making one up. This screen is where
+   * the question can actually be answered, so it opens on "not set" rather than
+   * on a guess that saving would then make true.
+   */
+  const [style, setStyle] = useState<EventStyle | null>(null);
 
   const load = useCallback(() => {
     setEvent(getEvent(id));
@@ -93,7 +101,10 @@ export default function EventDetailScreen() {
     <Screen
       title={event.name}
       meta={metaLine(
-        eventStyleLabel(event.eventType),
+        // Dropped rather than shown as "not recorded": this is a meta line, and
+        // `metaLine` already omits what is absent. A tier nobody set is not a
+        // gap to announce in the title — it is a detail that has not come up.
+        event.eventType ? eventStyleLabel(event.eventType) : null,
         matchDate(event.startedAt),
         event.location
       )}
@@ -184,7 +195,10 @@ export default function EventDetailScreen() {
                   key={key}
                   accessibilityRole="button"
                   accessibilityState={{ selected: style === key }}
-                  onPress={() => setStyle(key)}
+                  // Re-tapping clears it, so an event whose tier was set by
+                  // mistake can go back to having none rather than only to
+                  // having a different wrong one.
+                  onPress={() => setStyle(style === key ? null : key)}
                   style={({ pressed }) => [
                     styles.styleChip,
                     style === key && styles.styleChipOn,

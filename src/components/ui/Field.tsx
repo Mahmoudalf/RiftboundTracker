@@ -159,7 +159,15 @@ const styles = StyleSheet.create({
   sectionLabel: {
     ...text.microMeta,
     color: color.textFaint,
-    paddingBottom: space[2],
+    /*
+     * No bottom padding.
+     *
+     * Every caller puts this at the head of a container with `gap: space[2]`,
+     * so a padding here was added to that gap rather than instead of it: the
+     * design draws 8–10px between a section label and what it labels, and this
+     * was rendering 16 on every screen that uses one. The gap is the caller's
+     * to own; the label only asks for a little air above it.
+     */
     paddingTop: space[1],
   },
 
@@ -201,7 +209,7 @@ const styles = StyleSheet.create({
     borderColor: color.border,
   },
   optionOn: { backgroundColor: color.accent, borderColor: color.accent },
-  optionLabel: { ...text.smallMedium, color: color.textSecondary },
+  optionLabel: { ...text.smallMedium, color: color.textDim },
   optionLabelOn: { color: color.onAccent },
   optionMeta: { ...text.microMeta, color: color.textFaint },
 
@@ -218,7 +226,9 @@ const styles = StyleSheet.create({
   },
   choiceTall: { height: 52, borderRadius: radius.lg },
   choiceOn: { backgroundColor: color.accent, borderColor: color.accent },
-  choiceLabel: { ...text.smallMedium, color: color.textSecondary },
+  // The design's own value for an unselected segment: a step below
+  // `textSecondary`, so the chosen option is the one that reads as chosen.
+  choiceLabel: { ...text.smallMedium, color: color.textDim },
   choiceLabelOn: { color: color.onAccent },
 
   pressed: { opacity: 0.75 },

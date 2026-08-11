@@ -4,7 +4,7 @@ import { conn } from '../connection';
 import type { CardRow } from '../schema/cards';
 import type { MatchStyle, MatchResult, MatchRow } from '../schema/matches';
 
-import { hydrateCard, hydrateMatch } from './hydrate';
+import { hydrateMatch } from './hydrate';
 
 /**
  * Match reads and writes.
@@ -268,26 +268,16 @@ export function deckRecord(deckId: string, versionId?: string): DeckRecord {
   };
 }
 
-/**
- * The Legends most recently played against, for the opponent chip rail.
+/*
+ * `recentOpponents()` lived here — the Legends most recently faced, for the
+ * quick-select rail above the Legend field.
  *
- * Ordered by when each was last faced rather than by how often — the opponent
- * you are about to log is far more likely to be the one you just played in the
- * previous round than your all-time most common.
+ * Deleted with the rail, which the Hi-Fi handoff's third change removed from
+ * the log form. It was correct and tested, and that is exactly why it had to go
+ * rather than linger: an exported query with no consumer is what gap 15 named,
+ * and a passing test cannot tell "works" from "works and is reachable". It is
+ * in the history if the shortcut is ever wanted back.
  */
-export function recentOpponents(limit = 8): CardRow[] {
-  const rows = conn().getAllSync<Record<string, unknown>>(
-    `SELECT c.* FROM cards c
-       JOIN (SELECT opp_legend_card_id AS id, MAX(played_at) AS last_played
-               FROM matches
-              WHERE opp_legend_card_id IS NOT NULL AND deleted_at IS NULL
-              GROUP BY opp_legend_card_id) m ON m.id = c.id
-      ORDER BY m.last_played DESC
-      LIMIT ?`,
-    [Math.floor(limit)]
-  );
-  return rows.map(hydrateCard);
-}
 
 export function updateMatch(id: string, patch: Partial<LogMatchInput>): void {
   const sets: string[] = [];

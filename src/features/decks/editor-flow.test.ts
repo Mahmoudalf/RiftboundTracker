@@ -16,7 +16,9 @@ import {
   createDeck,
   getDeck,
   getVersion,
+  listDecks,
   loadDeckList,
+  lockVersion,
   saveDeckEdit,
 } from '@/db/queries/decks';
 import { cardColumns, toBindValue } from '@/db/queries/hydrate';
@@ -193,6 +195,64 @@ describe.skipIf(!hasSeed)('editor flow against the real library', () => {
     const reloaded = checkLegality(loadDeckList(saved));
     expect(reloaded.counts).toEqual(barSaw.counts);
     expect(reloaded.legal).toBe(version.isLegal);
+  });
+
+  /**
+   * Exactly what the match log reads for "Your battlefield — from this deck".
+   *
+   * The field is populated from `listDecks()` → `deck.currentVersionId` →
+   * `loadDeckList` → the battlefield slots, and it renders "This deck has no
+   * Battlefields yet" when that comes back empty. Four things sit between the
+   * user tapping a Battlefield in the editor and the log form offering it, and
+   * a break in any of them looks identical from the screen — so the whole chain
+   * is asserted here rather than any one link.
+   */
+  it('offers the deck\'s Battlefields to the match log, through a fork', () => {
+    const legend = listLegends().find((l) => l.name.startsWith('Vi - Piltover'))!;
+    const champion = listChampionsForLegend(legend)[0]!;
+    const { deckId, versionId } = createDeck({ name: 'Vi', legend, champion });
+
+    openEditor(deckId);
+    const editor = useDeckEditor.getState();
+    const chosen = railFor(legend)
+      .filter((c) => c.type === 'Battlefield')
+      .slice(0, BATTLEFIELD_COUNT);
+    expect(chosen).toHaveLength(BATTLEFIELD_COUNT);
+    for (const bf of chosen) editor.add(bf);
+
+    saveDeckEdit(versionId, { slots: useDeckEditor.getState().slots });
+
+    // The log form's own expression, verbatim.
+    const fieldsFor = (id: string) =>
+      loadDeckList(id)
+        .slots.filter((s) => s.zone === 'battlefield')
+        .map((s) => s.card);
+
+    const summary = listDecks().find((d) => d.deck.id === deckId)!;
+    expect(summary.deck.currentVersionId).toBeTruthy();
+    expect(fieldsFor(summary.deck.currentVersionId!).map((c) => c.id).sort()).toEqual(
+      chosen.map((c) => c.id).sort()
+    );
+
+    /*
+     * And again after a locked version forks, which is the case that could
+     * silently break it: the deck must follow the fork, or the log form would
+     * offer the Battlefields of a list that is no longer current.
+     */
+    lockVersion(summary.deck.currentVersionId!);
+    openEditor(deckId);
+    const swap = railFor(legend).find(
+      (c) => c.type === 'Battlefield' && !chosen.some((x) => x.id === c.id)
+    )!;
+    useDeckEditor.getState().adjust(chosen[0]!, 'battlefield', -1);
+    useDeckEditor.getState().add(swap);
+    saveDeckEdit(useDeckEditor.getState().versionId!, {
+      slots: useDeckEditor.getState().slots,
+    });
+
+    const forked = listDecks().find((d) => d.deck.id === deckId)!;
+    expect(fieldsFor(forked.deck.currentVersionId!)).toHaveLength(BATTLEFIELD_COUNT);
+    expect(fieldsFor(forked.deck.currentVersionId!).map((c) => c.id)).toContain(swap.id);
   });
 
   it('never offers an off-identity card in the rail', () => {

@@ -281,6 +281,103 @@ describe('migrate — every version upgrades a populated database', () => {
     db.close();
   });
 
+  /**
+   * Migration 17 rebuilds `events` to drop NOT NULL from `event_type`, which
+   * means DROP TABLE on a table holding user data. Every other migration so far
+   * has been additive; this one can lose a tournament outright if the copy is
+   * wrong, and the parameterised sweep above only asserts *card* data survives.
+   */
+  it('rebuilds events without losing a row or a tier (v16 -> v17)', () => {
+    const db = createTestDatabase();
+    applyMigrationsUpTo(db, MIGRATIONS, 16);
+
+    const timestamp = '2026-08-01T10:00:00.000Z';
+    db.runSync(
+      `INSERT INTO events
+         (id, name, event_type, started_at, location, rounds, final_placement,
+          notes, created_at, updated_at)
+       VALUES ('e1', 'Nexus Night #4', 'nexus-night', ?, 'The Shop', 5, 3,
+               'Went well', ?, ?),
+              ('e2', 'Regionals', 'regional-final', ?, NULL, NULL, NULL, NULL, ?, ?)`,
+      [timestamp, timestamp, timestamp, timestamp, timestamp, timestamp]
+    );
+    // A soft-deleted event must survive too — deletion is a flag, and the rows
+    // stay for sync to propagate.
+    db.runSync('UPDATE events SET deleted_at = ? WHERE id = ?', [timestamp, 'e2']);
+
+    /*
+     * Rounds attached to the event being dropped.
+     *
+     * This is the failure the rebuild could actually cause on a device: someone
+     * with a five-round tournament in their history. `matches.event_id` carries
+     * no foreign key — deliberately, since M6 wanted a deleted event to leave
+     * its rounds alone — so DROP TABLE must not reach them. Asserted rather
+     * than reasoned about, because "there is no FK" is exactly the kind of
+     * thing that is true until a later migration adds one.
+     */
+    db.runSync(
+      `INSERT INTO decks (id, name, domains, created_at, updated_at)
+       VALUES ('d', 'D', '[]', ?, ?)`,
+      [timestamp, timestamp]
+    );
+    db.runSync(
+      `INSERT INTO matches
+         (id, deck_id, deck_version_id, played_at, result, event_id, event_type,
+          created_at, updated_at)
+       VALUES ('m1', 'd', 'v', ?, 'win', 'e1', 'tournament', ?, ?),
+              ('m2', 'd', 'v', ?, 'loss', 'e1', 'tournament', ?, ?)`,
+      [timestamp, timestamp, timestamp, timestamp, timestamp, timestamp]
+    );
+
+    migrate(db as never);
+
+    expect(
+      db.getAllSync<{ id: string; event_id: string | null }>(
+        'SELECT id, event_id FROM matches ORDER BY id'
+      )
+    ).toEqual([
+      { id: 'm1', event_id: 'e1' },
+      { id: 'm2', event_id: 'e1' },
+    ]);
+
+    expect(
+      db.getAllSync<{ id: string; event_type: string | null; final_placement: number | null }>(
+        'SELECT id, event_type, final_placement FROM events ORDER BY id'
+      )
+    ).toEqual([
+      { id: 'e1', event_type: 'nexus-night', final_placement: 3 },
+      { id: 'e2', event_type: 'regional-final', final_placement: null },
+    ]);
+    expect(
+      db.getFirstSync<{ deleted_at: string | null }>(
+        'SELECT deleted_at FROM events WHERE id = ?',
+        ['e2']
+      )?.deleted_at
+    ).toBe(timestamp);
+
+    // The whole point of the rebuild: a tier may now be absent.
+    db.runSync(
+      `INSERT INTO events (id, name, started_at, created_at, updated_at)
+       VALUES ('e3', 'Typed in the log form', ?, ?, ?)`,
+      [timestamp, timestamp, timestamp]
+    );
+    expect(
+      db.getFirstSync<{ event_type: string | null }>(
+        'SELECT event_type FROM events WHERE id = ?',
+        ['e3']
+      )?.event_type
+    ).toBeNull();
+
+    // The index came back with the table.
+    expect(
+      db.getFirstSync<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'events_deleted_idx'"
+      )?.name
+    ).toBe('events_deleted_idx');
+
+    db.close();
+  });
+
   it('has contiguous, ascending version numbers starting at 1', () => {
     const versions = MIGRATIONS.map((m) => m.version);
     expect(versions).toEqual(versions.map((_, i) => i + 1));

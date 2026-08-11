@@ -68,8 +68,17 @@ export function matchStyleLabel(value: string): string {
   return MATCH_STYLE_LABELS[value as MatchStyle] ?? humanise(value);
 }
 
-/** The tier of an event: Nexus Night, Skirmish, Locals, Regional…. */
-export function eventStyleLabel(value: string): string {
+/**
+ * The tier of an event: Nexus Night, Skirmish, Locals, Regional….
+ *
+ * Null since migration 17 — an event named in the log form has no tier until
+ * someone sets one. Reported as "not recorded", the same words every other
+ * unanswered field on a match uses, rather than blanked: the difference between
+ * a question nobody answered and one the app forgot to ask is the whole reason
+ * these fields are nullable.
+ */
+export function eventStyleLabel(value: string | null): string {
+  if (value === null) return 'Not recorded';
   return EVENT_STYLE_LABELS[value as EventStyle] ?? humanise(value);
 }
 

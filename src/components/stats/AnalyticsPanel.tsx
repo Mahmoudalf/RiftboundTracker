@@ -191,7 +191,10 @@ export function AnalyticsPanel({ matches }: AnalyticsPanelProps) {
         }
       >
         {formats.length === 0 ? (
-          <NeedsData what="No format recorded yet. Pick Bo1, Bo3 or Bo5 when you log a match." />
+          // Named the options, so it had to stop naming Bo5 the moment the log
+          // form did. Only reachable now on matches logged before that form
+          // always recorded a format.
+          <NeedsData what="No format recorded yet. Every match logged from here on records Bo1 or Bo3." />
         ) : (
           <SegmentList segments={formats} />
         )}

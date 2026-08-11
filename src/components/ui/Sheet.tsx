@@ -118,6 +118,15 @@ const styles = StyleSheet.create({
     borderBottomColor: color.border,
   },
   rowLabel: { ...text.smallMedium, color: color.textFaint, width: 92 },
-  rowValue: { ...text.smallMedium, color: color.text, flex: 1 },
-  rowValueMono: { ...text.numeric, fontSize: 12, color: color.text, flex: 1 },
+  // Right-aligned, per the design. A read-back is scanned down its values, and
+  // a ragged left edge on a fixed-width label column makes that column the
+  // thing you read instead.
+  rowValue: { ...text.smallMedium, color: color.text, flex: 1, textAlign: 'right' },
+  rowValueMono: {
+    ...text.numeric,
+    fontSize: 12,
+    color: color.text,
+    flex: 1,
+    textAlign: 'right',
+  },
 });

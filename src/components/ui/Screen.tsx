@@ -23,6 +23,15 @@ interface ScreenProps {
    * navigator has somewhere to go back to.
    */
   back?: boolean;
+  /**
+   * A modal's header rather than a screen's.
+   *
+   * The design gives a presented sheet a 20px title on a tight two-line header,
+   * against the 30px display title a tab root gets. The difference is what tells
+   * you whether you are somewhere or *over* somewhere — a full display title on
+   * a modal reads as having navigated away rather than having opened something.
+   */
+  compact?: boolean;
 }
 
 /**
@@ -44,7 +53,15 @@ function BackChevron() {
   );
 }
 
-export function Screen({ children, title, meta, action, bleed = false, back }: ScreenProps) {
+export function Screen({
+  children,
+  title,
+  meta,
+  action,
+  bleed = false,
+  back,
+  compact = false,
+}: ScreenProps) {
   const insets = useSafeAreaInsets();
 
   /*
@@ -59,7 +76,7 @@ export function Screen({ children, title, meta, action, bleed = false, back }: S
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       {title ? (
-        <View style={styles.header}>
+        <View style={[styles.header, compact && styles.headerCompact]}>
           {showBack ? (
             <Pressable
               accessibilityRole="button"
@@ -72,7 +89,10 @@ export function Screen({ children, title, meta, action, bleed = false, back }: S
             </Pressable>
           ) : null}
           <View style={styles.headerText}>
-            <Text style={styles.title} accessibilityRole="header">
+            <Text
+              style={[styles.title, compact && styles.titleCompact]}
+              accessibilityRole="header"
+            >
               {title}
             </Text>
             {meta ? <Text style={styles.meta}>{meta}</Text> : null}
@@ -104,6 +124,13 @@ const styles = StyleSheet.create({
     paddingBottom: space[4],
     gap: space[3],
   },
+  // The design's modal header: `padding: 2px 16px 10px`, and the trailing
+  // action centred against the title rather than hung from its cap height.
+  headerCompact: {
+    alignItems: 'center',
+    paddingTop: space[0.5],
+    paddingBottom: 10,
+  },
   back: {
     width: 32,
     // The title's own line height, so the chevron centres on the title whether
@@ -115,6 +142,7 @@ const styles = StyleSheet.create({
   backPressed: { opacity: 0.6 },
   headerText: { flex: 1, gap: space[1] },
   title: { ...text.display, color: color.text },
+  titleCompact: { ...text.title, color: color.text },
   meta: { ...text.meta, color: color.textMuted },
   body: { flex: 1 },
   bodyPadded: { paddingHorizontal: space[4] },

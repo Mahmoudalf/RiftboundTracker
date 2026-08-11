@@ -23,7 +23,6 @@ import {
   opponentBattlefieldFields,
   opponentChampionFields,
   opponentFields,
-  recentOpponents,
   undoMatch,
   updateMatch,
 } from './matches';
@@ -330,18 +329,6 @@ describe('the opponent outliving the card library', () => {
     });
   });
 
-  it('drops the opponent from the rail, which needs art it no longer has', () => {
-    const { deckId, versionId } = makeDeck();
-    const yasuo = seedCard({ id: 'yasuo', name: 'Yasuo', type: 'Legend', domains: ['Chaos'] });
-    logMatch({ deckId, deckVersionId: versionId, result: 'win', ...opponentFields(yasuo) });
-
-    expect(recentOpponents()).toHaveLength(1);
-    db.runSync('DELETE FROM cards WHERE id = ?', ['yasuo']);
-
-    // Deliberate: the rail is a row of card images, and there is no image to
-    // show. The record survives; only the shortcut disappears.
-    expect(recentOpponents()).toEqual([]);
-  });
 });
 
 describe('transaction nesting', () => {
@@ -432,119 +419,6 @@ describe('versionMatchCounts', () => {
     const id = logMatch({ deckId, deckVersionId: versionId, result: 'win' });
     deleteMatch(id);
     expect(versionMatchCounts(deckId).get(versionId)).toBeUndefined();
-  });
-});
-
-describe('recentOpponents', () => {
-  it('orders by when each was last faced, not by how often', () => {
-    const { deckId, versionId } = makeDeck();
-    const yasuo = seedCard({ id: 'yasuo', name: 'Yasuo', type: 'Legend' });
-    const lux = seedCard({ id: 'lux', name: 'Lux', type: 'Legend' });
-
-    logMatch({
-      deckId, deckVersionId: versionId, result: 'win',
-      oppLegendCardId: yasuo.id, playedAt: '2026-08-01T10:00:00.000Z',
-    });
-    logMatch({
-      deckId, deckVersionId: versionId, result: 'win',
-      oppLegendCardId: yasuo.id, playedAt: '2026-08-02T10:00:00.000Z',
-    });
-    logMatch({
-      deckId, deckVersionId: versionId, result: 'loss',
-      oppLegendCardId: lux.id, playedAt: '2026-08-03T10:00:00.000Z',
-    });
-
-    // Yasuo is the more common opponent; Lux is the one just played, and the
-    // next round is far likelier to be a rematch than an all-time favourite.
-    expect(recentOpponents().map((c) => c.id)).toEqual(['lux', 'yasuo']);
-  });
-
-  it('hydrates full card rows, not a bag of undefineds', () => {
-    const { deckId, versionId } = makeDeck();
-    seedCard({ id: 'yasuo', name: 'Yasuo', type: 'Legend' });
-    logMatch({ deckId, deckVersionId: versionId, result: 'win', oppLegendCardId: 'yasuo' });
-
-    const [opponent] = recentOpponents();
-    expect(opponent!.imageUrl).toBe('https://cdn.example/art.png');
-    expect(opponent!.cleanName).toBeTruthy();
-  });
-
-  it('is empty when no opponent was ever recorded', () => {
-    const { deckId, versionId } = makeDeck();
-    logMatch({ deckId, deckVersionId: versionId, result: 'win' });
-    expect(recentOpponents()).toEqual([]);
-  });
-
-  /*
-   * Probes added when the rail finally got a consumer. Nothing had ever called
-   * this from a screen, so its behaviour under the conditions a screen actually
-   * creates had never been exercised.
-   */
-
-  it('forgets an opponent whose match was undone', () => {
-    const { deckId, versionId } = makeDeck();
-    seedCard({ id: 'yasuo', name: 'Yasuo', type: 'Legend' });
-    const matchId = logMatch({
-      deckId,
-      deckVersionId: versionId,
-      result: 'win',
-      oppLegendCardId: 'yasuo',
-    });
-
-    expect(recentOpponents()).toHaveLength(1);
-    undoMatch(matchId);
-    expect(recentOpponents()).toEqual([]);
-  });
-
-  it('forgets an opponent whose only match was deleted', () => {
-    const { deckId, versionId } = makeDeck();
-    seedCard({ id: 'yasuo', name: 'Yasuo', type: 'Legend' });
-    const matchId = logMatch({
-      deckId,
-      deckVersionId: versionId,
-      result: 'win',
-      oppLegendCardId: 'yasuo',
-    });
-
-    deleteMatch(matchId);
-    expect(recentOpponents()).toEqual([]);
-  });
-
-  /*
-   * The rail exists for the second round of an event, so it has to survive the
-   * card mirror losing a printing between rounds. The JOIN to `cards` drops an
-   * unresolvable Legend rather than handing the screen a blank chip.
-   */
-  it('omits an opponent whose printing has left the library', () => {
-    const { deckId, versionId } = makeDeck();
-    seedCard({ id: 'yasuo', name: 'Yasuo', type: 'Legend' });
-    seedCard({ id: 'lux', name: 'Lux', type: 'Legend' });
-    logMatch({ deckId, deckVersionId: versionId, result: 'win', oppLegendCardId: 'yasuo' });
-    logMatch({ deckId, deckVersionId: versionId, result: 'win', oppLegendCardId: 'lux' });
-
-    db.runSync('DELETE FROM cards WHERE id = ?', ['yasuo']);
-
-    const rail = recentOpponents();
-    expect(rail.map((c) => c.id)).toEqual(['lux']);
-    // Not a null row — the screen maps straight over this.
-    expect(rail.every((c) => !!c.name)).toBe(true);
-  });
-
-  it('honours its limit', () => {
-    const { deckId, versionId } = makeDeck();
-    for (let i = 0; i < 12; i++) {
-      seedCard({ id: `l${i}`, name: `Legend ${i}`, type: 'Legend' });
-      logMatch({
-        deckId,
-        deckVersionId: versionId,
-        result: 'win',
-        oppLegendCardId: `l${i}`,
-        playedAt: `2026-08-${String(i + 1).padStart(2, '0')}T10:00:00.000Z`,
-      });
-    }
-
-    expect(recentOpponents()).toHaveLength(8);
-    expect(recentOpponents(3).map((c) => c.id)).toEqual(['l11', 'l10', 'l9']);
   });
 });
 

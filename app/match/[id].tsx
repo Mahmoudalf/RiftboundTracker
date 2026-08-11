@@ -19,7 +19,7 @@ import {
 import type { CardRow } from '@/db/schema/cards';
 import {
   BEST_OF_OPTIONS,
-  MATCH_STYLES,
+  LOGGED_MATCH_STYLES,
   type MatchResult,
   type MatchStyle,
 } from '@/db/schema/matches';
@@ -48,6 +48,27 @@ const RESULTS: { key: MatchResult; label: string }[] = [
   { key: 'loss', label: 'Loss' },
   { key: 'draw', label: 'Draw' },
 ];
+
+interface Option<T> {
+  key: string;
+  label: string;
+  value: T;
+}
+
+/**
+ * The options on offer, plus whatever this match already holds.
+ *
+ * The log form's vocabulary narrowed with the Hi-Fi handoff — Bo5 and Testing
+ * are gone from it — and a match logged before that is still a true record of
+ * what was entered. Without this, opening such a match would show a control
+ * with nothing selected, which reads as *unanswered* and invites correcting a
+ * fact that was never wrong. Same rule the event-style split settled on in M6:
+ * narrow what can be written, never rewrite what already is.
+ */
+function withCurrent<T>(offered: Option<T>[], current: T, label: (value: T) => string): Option<T>[] {
+  if (offered.some((option) => option.value === current)) return offered;
+  return [...offered, { key: `held-${String(current)}`, label: label(current), value: current }];
+}
 
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -202,11 +223,23 @@ export default function MatchDetailScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Best of</Text>
+          {/*
+            `—` survives here and not on the log form.
+
+            The form's job is to record a match being played, where the format
+            is always known — the design is explicit that it never defaults to
+            unset. This screen's job is to correct the record, and "I do not
+            actually know" is a correction someone is entitled to make.
+          */}
           {chipRow<number | null>(
-            [
-              { key: 'none', label: '—', value: null },
-              ...BEST_OF_OPTIONS.map((n) => ({ key: String(n), label: `Bo${n}`, value: n })),
-            ],
+            withCurrent<number | null>(
+              [
+                { key: 'none', label: '—', value: null },
+                ...BEST_OF_OPTIONS.map((n) => ({ key: String(n), label: `Bo${n}`, value: n })),
+              ],
+              match.bestOf,
+              (value) => `Bo${value}`
+            ),
             match.bestOf,
             (value) => patch({ bestOf: value })
           )}
@@ -215,7 +248,15 @@ export default function MatchDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Match style</Text>
           {chipRow<MatchStyle>(
-            MATCH_STYLES.map((key) => ({ key, label: matchStyleLabel(key), value: key })),
+            withCurrent<MatchStyle>(
+              LOGGED_MATCH_STYLES.map((key) => ({
+                key,
+                label: matchStyleLabel(key),
+                value: key,
+              })),
+              match.eventType,
+              matchStyleLabel
+            ),
             match.eventType,
             (value) => patch({ eventType: value })
           )}
@@ -338,7 +379,10 @@ const styles = StyleSheet.create({
     minHeight: 72,
     textAlignVertical: 'top',
   },
-  footnote: { ...text.microMeta, color: color.textFaint },
+  // Two sentences of prose, not a label — `microMeta` would set it in 9.5px
+  // uppercase at a value the palette reserves for decoration. Same mistake as
+  // the match log's empty Battlefield state.
+  footnote: { ...text.caption, color: color.textMuted },
   delete: { minHeight: 44, justifyContent: 'center' },
   deleteLabel: { ...text.bodyMedium, color: color.danger },
   eventLink: {

@@ -80,7 +80,24 @@ export function GameCard({
       <View style={styles.block}>
         <SectionLabel>Your battlefield — from this deck</SectionLabel>
         {ourFields.length === 0 ? (
-          <Text style={styles.hint}>This deck has no Battlefields yet.</Text>
+          /*
+           * Reported as "the user's Battlefield is missing from the match log".
+           *
+           * It was not missing — it was invisible. This said "This deck has no
+           * Battlefields yet" in `microMeta` at `textFaint`, which is 9.5px,
+           * uppercase, and a value the palette documents as **below AA and
+           * never to carry information**. Directly under a section label in the
+           * identical style, two lines of micro-caps read as one label with no
+           * control beneath it, which is exactly what a removed field looks
+           * like.
+           *
+           * Sentence case, readable size, and it now says what to do — an empty
+           * state is the one message a user genuinely has to be able to read.
+           */
+          <Text style={styles.empty}>
+            This deck&apos;s current version has no Battlefields. Add them in the deck editor and
+            they will show up here.
+          </Text>
         ) : (
           <SelectField
             compact
@@ -154,5 +171,5 @@ const styles = StyleSheet.create({
   title: { ...text.subtitle, fontFamily: 'SpaceGrotesk_700Bold', fontSize: 13.5, color: color.text },
   summary: { ...text.microMeta, color: color.textFaint, flexShrink: 1, textAlign: 'right' },
   block: { gap: space[2] },
-  hint: { ...text.microMeta, color: color.textFaint },
+  empty: { ...text.small, color: color.textMuted },
 });

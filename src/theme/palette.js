@@ -39,8 +39,24 @@ const neutral = {
   text: '#F5F5F6',
   textSecondary: '#C9C9CD',
   textMuted: '#9C9CA1',
+  /**
+   * The label on an *unselected* segmented control.
+   *
+   * A step below `textSecondary` and its own value in the design (19 uses), so
+   * an inactive Bo1 beside a selected Bo3 recedes without going unreadable.
+   * Sitting it on `textSecondary` made the two options look equally chosen.
+   */
+  textDim: '#ADADB2',
   /** Below AA by design — decorative and structural only, never information. */
   textFaint: '#67676B',
+  /**
+   * Helper copy under a field — the sentence explaining what the field does.
+   *
+   * Quieter than `textFaint` (10 uses in the design) because it sits *below* a
+   * label that is already quiet, and two greys at the same value read as one
+   * block of text rather than as a label and its explanation.
+   */
+  textHint: '#5A5A5D',
 };
 
 /**

@@ -43,6 +43,20 @@ export const MATCH_STYLES = ['casual', 'online', 'tournament', 'testing'] as con
 export type MatchStyle = (typeof MATCH_STYLES)[number];
 
 /**
+ * The styles the log form offers — the design's three.
+ *
+ * `testing` is not among them. It is still a legal value and rows already
+ * holding it are untouched and still render, exactly as `EVENT_STYLES` handles
+ * a tier written before the M6 split: **narrow the picker, never rewrite
+ * history.** The list above stays the vocabulary the column may contain; this
+ * one is the vocabulary the form may write.
+ *
+ * Keeping them as one list is what would force the choice between offering a
+ * style the design removed and deleting data that already exists.
+ */
+export const LOGGED_MATCH_STYLES = ['casual', 'online', 'tournament'] as const;
+
+/**
  * The tier of an organised event — `events.event_type`.
  *
  * Only reachable through an event, because that is the only place the question
@@ -62,8 +76,22 @@ export const EVENT_STYLES = [
 ] as const;
 export type EventStyle = (typeof EVENT_STYLES)[number];
 
-/** Match format. Null when it was not recorded. */
-export const BEST_OF_OPTIONS = [1, 3, 5] as const;
+/**
+ * The formats the log form offers.
+ *
+ * **Bo5 is gone, and so is "not recorded".** Riftbound is played Bo1 or Bo3;
+ * Bo5 was a guess at a format the game does not use, and every match logged
+ * without a best-of produced a record that could not say how many games it
+ * took. The form now always writes one of these two.
+ *
+ * The *column* stays nullable — matches logged before this hold `null` or `5`,
+ * and both are true records of what was entered. Readers must keep tolerating
+ * them; only the picker is narrowed.
+ */
+export const BEST_OF_OPTIONS = [1, 3] as const;
+
+/** What a new match defaults to. A single game is the common case. */
+export const DEFAULT_BEST_OF = 1;
 
 export const events = sqliteTable(
   'events',
@@ -71,8 +99,15 @@ export const events = sqliteTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     format: text('format').notNull().default('constructed'),
-    /** The tier: Nexus Night, Skirmish, Locals, Regional Qualifier or Final. */
-    eventType: text('event_type').$type<EventStyle>().notNull().default('nexus-night'),
+    /**
+     * The tier: Nexus Night, Skirmish, Locals, Regional Qualifier or Final.
+     *
+     * Nullable since migration 17. An event created from the log form is only
+     * given a name, so "which tier" genuinely has no answer yet — and a default
+     * would make one up. Set it on the event screen, where the question is
+     * being asked rather than assumed.
+     */
+    eventType: text('event_type').$type<EventStyle>(),
     startedAt: text('started_at').notNull(),
     location: text('location'),
     rounds: integer('rounds'),

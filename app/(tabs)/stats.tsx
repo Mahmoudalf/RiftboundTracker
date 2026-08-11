@@ -219,7 +219,10 @@ export default function StatsScreen() {
                   </Text>
                   <Text style={styles.eventMeta}>
                     {metaLine(
-                      eventStyleLabel(event.eventType),
+                      // Dropped when unset, not rendered as "not recorded":
+                      // this is a meta line in a list, and an event named from
+                      // the log form has no tier until someone sets one.
+                      event.eventType ? eventStyleLabel(event.eventType) : null,
                       matchDate(event.startedAt),
                       event.finalPlacement ? `Placed ${event.finalPlacement}` : null
                     )}
