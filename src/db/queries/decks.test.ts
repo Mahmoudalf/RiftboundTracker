@@ -26,6 +26,7 @@ import {
   setDeckNotes,
   setVersionLabel,
   setVersionNotes,
+  versionCardNames,
   versionDiff,
   VersionHasMatchesError,
 } from './decks';
@@ -302,7 +303,7 @@ describe('saveDeckEdit', () => {
  */
 describe('version locking', () => {
   /** What M4's match logger will do. Until then, the lock is set by hand. */
-  function logMatch(versionId: string) {
+  function logGame(versionId: string) {
     lockVersion(versionId);
   }
 
@@ -382,7 +383,7 @@ describe('version locking', () => {
         { card: a, quantity: 3, zone: 'main' },
       ],
     });
-    logMatch(built.versionId);
+    logGame(built.versionId);
 
     const result = saveDeckEdit(built.versionId, {
       slots: [
@@ -429,7 +430,7 @@ describe('version locking', () => {
     const [a, b, c] = [1, 2, 3].map((n) => seedCard({ id: `c${n}`, name: `Card ${n}` }));
 
     const built = saveDeckEdit(versionId, withCards(versionId, legend, [[a!, 3]]));
-    logMatch(built.versionId);
+    logGame(built.versionId);
 
     const forked = saveDeckEdit(built.versionId, withCards(built.versionId, legend, [[b!, 3]]));
     expect(forked.outcome).toBe('forked');
@@ -454,7 +455,7 @@ describe('version locking', () => {
 
     // Playing a version changes nothing about this: it already could not be
     // rewritten. The lock only still governs the escape hatch.
-    logMatch(again.versionId);
+    logGame(again.versionId);
     expect(
       saveDeckEdit(again.versionId, withCards(again.versionId, legend, [[a!, 1]])).outcome
     ).toBe('forked');
@@ -467,7 +468,7 @@ describe('version locking', () => {
 
     let current = versionId;
     for (const card of cards) {
-      logMatch(current);
+      logGame(current);
       current = saveDeckEdit(current, withCards(current, legend, [[card, 1]])).versionId;
     }
 
@@ -521,7 +522,7 @@ describe('version locking', () => {
     const alt = seedCard({ id: 'p2', name: 'Statikk Shock (Alternate Art)', alternateArt: true });
 
     const built = saveDeckEdit(versionId, withCards(versionId, legend, [[standard, 2]]));
-    logMatch(built.versionId);
+    logGame(built.versionId);
 
     const before = db.getAllSync<Record<string, unknown>>(
       'SELECT * FROM deck_version_cards WHERE deck_version_id = ? ORDER BY id',
@@ -615,7 +616,7 @@ describe('version locking', () => {
     const a = seedCard({ id: 'a', name: 'Card A' });
     const b = seedCard({ id: 'b', name: 'Card B' });
 
-    logMatch(v1);
+    logGame(v1);
     const v2 = saveDeckEdit(v1, withCards(v1, legend, [[a, 2]])).versionId;
 
     setCurrentVersion(deckId, v1);
@@ -644,7 +645,7 @@ describe('version locking', () => {
     const b = seedCard({ id: 'b', name: 'B' });
 
     const built = saveDeckEdit(versionId, withCards(versionId, legend, [[a, 2]]));
-    logMatch(built.versionId);
+    logGame(built.versionId);
 
     const result = saveDeckEdit(built.versionId, withCards(built.versionId, legend, [[b, 2]]), {
       amendLocked: true,
@@ -668,7 +669,7 @@ describe('version locking', () => {
     const a = seedCard({ id: 'a', name: 'A' });
 
     const built = saveDeckEdit(versionId, withCards(versionId, legend, [[ghost, 2]]));
-    logMatch(built.versionId);
+    logGame(built.versionId);
 
     // A card-library resync drops the printing. It is now invisible to the
     // editor, so the edited list cannot contain it.
@@ -699,7 +700,7 @@ describe('version locking', () => {
   it('refuses to delete a version that has matches (invariant 2)', () => {
     const { versionId, legend } = makeDeck();
     const a = seedCard({ id: 'a', name: 'A' });
-    logMatch(versionId);
+    logGame(versionId);
     const second = saveDeckEdit(versionId, withCards(versionId, legend, [[a, 1]])).versionId;
 
     expect(() => deleteVersion(versionId)).toThrow(VersionHasMatchesError);
@@ -711,7 +712,7 @@ describe('version locking', () => {
     const { deckId, versionId, legend } = makeDeck();
     const a = seedCard({ id: 'a', name: 'A' });
 
-    logMatch(versionId);
+    logGame(versionId);
     const v2 = saveDeckEdit(versionId, withCards(versionId, legend, [[a, 1]])).versionId;
     expect(getDeck(deckId)!.currentVersionId).toBe(v2);
 
@@ -742,7 +743,7 @@ describe('version locking', () => {
 
     const built = saveDeckEdit(versionId, withCards(versionId, legend, [[alt, 3], [unrelated, 1]]));
     db.runSync("DELETE FROM cards WHERE id IN ('p-alt', 'ghost-2')");
-    logMatch(built.versionId);
+    logGame(built.versionId);
 
     const forked = saveDeckEdit(built.versionId, withCards(built.versionId, legend, [[std, 3]]));
     expect(forked.outcome).toBe('forked');
@@ -836,7 +837,7 @@ describe('version locking', () => {
     const a = seedCard({ id: 'a', name: 'Card A' });
     const b = seedCard({ id: 'b', name: 'Card B' });
 
-    logMatch(v1);
+    logGame(v1);
     const v2 = saveDeckEdit(v1, withCards(v1, legend, [[a, 1]])).versionId;
     setCurrentVersion(deckId, v1);
     const v3 = saveDeckEdit(v1, withCards(v1, legend, [[b, 1]])).versionId;
@@ -870,9 +871,9 @@ describe('version locking', () => {
     });
 
     saveDeckEdit(v1, list(a));
-    logMatch(v1);
+    logGame(v1);
     const v2 = saveDeckEdit(v1, list(a, b)).versionId;
-    logMatch(v2);
+    logGame(v2);
     const v3 = saveDeckEdit(v2, list(a, b, c)).versionId;
 
     // Back to v1 and fork a sibling of v2.
@@ -899,7 +900,7 @@ describe('version locking', () => {
   it('can point the deck back at an older version', () => {
     const { deckId, versionId, legend } = makeDeck();
     const a = seedCard({ id: 'a', name: 'A' });
-    logMatch(versionId);
+    logGame(versionId);
     const v2 = saveDeckEdit(versionId, withCards(versionId, legend, [[a, 1]])).versionId;
 
     expect(getDeck(deckId)!.currentVersionId).toBe(v2);
@@ -919,7 +920,7 @@ describe('version locking', () => {
         { card: champion, quantity: 1, zone: 'champion' },
       ],
     });
-    logMatch(versionId);
+    logGame(versionId);
     const v2 = saveDeckEdit(versionId, {
       slots: [
         { card: legend, quantity: 1, zone: 'legend' },
@@ -953,6 +954,56 @@ describe('loadDeckList', () => {
 
     expect(loadDeckList(built.versionId).slots.filter((s) => s.zone === 'main')).toEqual([]);
     expect(missingCards(built.versionId)).toHaveLength(1);
+  });
+});
+
+/**
+ * The name source for an opening hand.
+ *
+ * `matches.opening_hand` stores card ids alone. That is only safe because
+ * this exists — the hand is always drawn from one deck version, and
+ * `deck_version_cards.card_name` has carried the name since migration 5 for
+ * precisely this class of problem. If this ever started joining `cards`, every
+ * recorded hand would quietly lose its cards the next time a printing left the
+ * library, and the match log would be back to storing pointers into a table the
+ * app is free to throw away.
+ */
+describe('versionCardNames', () => {
+  it('still names a card after its printing leaves the library', () => {
+    const { versionId, legend } = makeDeck();
+    const ghost = seedCard({ id: 'ghost', name: 'Vanishing Act' });
+    const built = saveDeckEdit(versionId, {
+      slots: [
+        { card: legend, quantity: 1, zone: 'legend' },
+        { card: ghost, quantity: 2, zone: 'main' },
+      ],
+    });
+
+    db.runSync('DELETE FROM cards WHERE id = ?', ['ghost']);
+
+    // `loadDeckList` cannot see it any more — this still can, which is the
+    // whole point of reading the list rather than the mirror.
+    expect(loadDeckList(built.versionId).slots.filter((s) => s.zone === 'main')).toEqual([]);
+    expect(versionCardNames(built.versionId).get('ghost')).toBe('Vanishing Act');
+  });
+
+  it('leaves a nameless row out rather than inventing a placeholder', () => {
+    const { versionId, legend } = makeDeck();
+    const built = saveDeckEdit(versionId, {
+      slots: [{ card: legend, quantity: 1, zone: 'legend' }],
+    });
+
+    // A row written before migration 5 has no name stored.
+    db.runSync(
+      `INSERT INTO deck_version_cards (id, deck_version_id, card_id, riftbound_id, quantity, zone)
+       VALUES ('old-row', ?, 'nameless', 'rb-nameless', 1, 'main')`,
+      [built.versionId]
+    );
+
+    const names = versionCardNames(built.versionId);
+    // Absent, so a caller can tell "unknown card" from a card called "Unknown".
+    expect(names.has('nameless')).toBe(false);
+    expect(names.get(legend.id)).toBe(legend.name);
   });
 });
 

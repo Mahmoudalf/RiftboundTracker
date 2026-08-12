@@ -5,12 +5,12 @@ A mobile app for tracking and analysing **Riftbound** deck performance across de
 Existing tools are card databases and deckbuilders. None of them answer the question every serious
 player actually has: **"did my change actually make the deck better?"**
 
-Riftbound Tracker treats a deck as a living object with a version history. Every match is bound to
+Riftbound Tracker treats a deck as a living object with a version history. Every game is bound to
 the exact decklist that played it, so you can see your deck's total record *and* the record of each
 individual version, alongside the concrete card diff that separates them.
 
-> Play 30 matches on v1 → swap 4 cards → play 40 more on v2.
-> The app shows you 70 matches total, both versions side by side, and exactly what changed between them.
+> Play 30 games on v1 → swap 4 cards → play 40 more on v2.
+> The app shows you 70 games total, both versions side by side, and exactly what changed between them.
 
 ---
 
@@ -18,7 +18,7 @@ individual version, alongside the concrete card diff that separates them.
 
 🚧 **Pre-alpha — M2 complete.** The card gallery works: all 1,451 cards, browsable, searchable, and
 filterable entirely offline. Decks can be built end to end — Legend → Champion → 40/12/3 — with live
-legality checking that names the exact problem. Versioning and match tracking are next (M3–M4).
+legality checking that names the exact problem. Versioning and game tracking are next (M3–M4).
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for milestones.
 

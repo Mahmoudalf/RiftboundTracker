@@ -14,7 +14,7 @@ import {
   lockVersion,
   saveDeckEdit,
   versionDiff,
-  versionMatchCounts,
+  versionGameCounts,
 } from './decks';
 import { versionStats } from './version-stats';
 
@@ -144,7 +144,7 @@ function buildRealisticDeck() {
 /** What deck detail reads on every focus, regardless of tab. */
 function loadOverview(deckId: string) {
   listVersions(deckId);
-  versionMatchCounts(deckId);
+  versionGameCounts(deckId);
   // Reads every *live* deck's card rows, not just this one — copies are shared,
   // so what this deck owns depends on what the others took.
   deckCoverage(deckId);

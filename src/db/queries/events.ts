@@ -1,10 +1,10 @@
 import { newId } from '@/lib/id';
 
 import { conn } from '../connection';
-import type { EventRow, EventStyle, MatchRow } from '../schema/matches';
+import type { EventRow, EventStyle, GameRow } from '../schema/games';
 
+import { listGames } from './games';
 import { hydrateEvent } from './hydrate';
-import { listMatches } from './matches';
 
 /**
  * Events — a specific tournament, Nexus Night or Skirmish.
@@ -75,7 +75,7 @@ export function listEvents(): EventSummary[] {
     .getAllSync<Record<string, unknown>>(
       `SELECT e.*, ${RECORD_SELECT}
          FROM events e
-         LEFT JOIN matches m ON m.event_id = e.id AND m.deleted_at IS NULL
+         LEFT JOIN games m ON m.event_id = e.id AND m.deleted_at IS NULL
         WHERE e.deleted_at IS NULL
         GROUP BY e.id
         ORDER BY e.started_at DESC, e.rowid DESC`
@@ -87,7 +87,7 @@ export function getEvent(eventId: string): EventSummary | null {
   const row = conn().getFirstSync<Record<string, unknown>>(
     `SELECT e.*, ${RECORD_SELECT}
        FROM events e
-       LEFT JOIN matches m ON m.event_id = e.id AND m.deleted_at IS NULL
+       LEFT JOIN games m ON m.event_id = e.id AND m.deleted_at IS NULL
       WHERE e.id = ? AND e.deleted_at IS NULL
       GROUP BY e.id`,
     [eventId]
@@ -202,6 +202,6 @@ export function deleteEvent(eventId: string): void {
 }
 
 /** The rounds, oldest first — an event reads forwards, unlike a match list. */
-export function eventMatches(eventId: string): MatchRow[] {
-  return listMatches({ eventId }).slice().reverse();
+export function eventGames(eventId: string): GameRow[] {
+  return listGames({ eventId }).slice().reverse();
 }

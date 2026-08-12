@@ -4,7 +4,7 @@ import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Pressable } from '@/components/ui/Pressable';
-import { useToast } from '@/features/matches/useToast';
+import { useToast } from '@/features/games/useToast';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 

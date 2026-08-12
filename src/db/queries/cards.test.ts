@@ -8,7 +8,7 @@ import { MIGRATIONS } from '../migrations';
 import type { CardRow } from '../schema/cards';
 import { applyMigrationsUpTo, createTestDatabase, type TestDatabase } from '../testing';
 
-import { queryCards, setFacets } from './cards';
+import { cardNamesByIds, queryCards, setFacets } from './cards';
 import { cardColumns, toBindValue } from './hydrate';
 
 /**
@@ -136,5 +136,32 @@ describe.skipIf(!hasSeed)('sorting', () => {
     const byEnergy = queryCards({ types: ['Spell'], sort: 'energy' });
     const costs = byEnergy.map((c) => c.energy).filter((e): e is number => e !== null);
     expect([...costs].sort((a, b) => a - b)).toEqual(costs);
+  });
+});
+
+/**
+ * Name lookup for the analytics layer, which works in card ids throughout and
+ * only needs a label at the very last step.
+ */
+describe.skipIf(!hasSeed)('cardNamesByIds', () => {
+  it('resolves many ids in one query and drops the ones it cannot', () => {
+    const sample = queryCards({ types: ['Spell'], sort: 'name' }).slice(0, 3);
+    expect(sample).toHaveLength(3);
+
+    const names = cardNamesByIds([...sample.map((c) => c.id), 'not-a-card']);
+
+    expect(names.size).toBe(3);
+    for (const card of sample) expect(names.get(card.id)).toBe(card.name);
+    // Absent rather than mapped to a placeholder, so a caller can tell a card
+    // that left the library from one with an odd name.
+    expect(names.has('not-a-card')).toBe(false);
+  });
+
+  it('tolerates duplicate ids and an empty request', () => {
+    const [card] = queryCards({ types: ['Spell'], sort: 'name' });
+    // The caller passes whatever the analytics produced; de-duplicating there
+    // as well would be a second place to get it wrong.
+    expect(cardNamesByIds([card!.id, card!.id]).size).toBe(1);
+    expect(cardNamesByIds([]).size).toBe(0);
   });
 });

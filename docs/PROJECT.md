@@ -17,14 +17,14 @@ Neither serves the *learning* half. Once a deck exists, there is nothing that an
 
 > *Did that change actually make the deck better?*
 
-A player who logs 30 matches, swaps four cards, and logs 40 more has two problems. Spreadsheets
+A player who logs 30 games, swaps four cards, and logs 40 more has two problems. Spreadsheets
 lose the link between a result and the exact list that produced it, so the history gets overwritten
 the moment the deck changes. And most tracking apps treat a deck as a single mutable entity — edit
 it and your old win rate silently becomes a statistic about a decklist that no longer exists.
 
 ## 2. The solution
 
-**A deck is a living object with a version history.** Every match is permanently bound to the exact
+**A deck is a living object with a version history.** Every game is permanently bound to the exact
 decklist that played it. The app can therefore show, simultaneously and without contradiction:
 
 - the deck's **total** performance across its entire life
@@ -38,7 +38,7 @@ That last point is the difference between a useful tool and a misleading one. Se
 
 The app is judged on two things, in this order:
 
-1. **Logging a match takes under 10 seconds**, tab bar to confirmation. If it takes longer, players
+1. **Logging a game takes under 10 seconds**, tab bar to confirmation. If it takes longer, players
    stop logging, and an app with no data is worthless. This is a hard budget, measured with a
    stopwatch on a physical device — not a nice-to-have.
 2. **Navigation and editing feel effortless.** Smooth 60 fps lists, gesture-driven sheets, haptic
@@ -62,7 +62,7 @@ Feature count is explicitly *not* a success criterion.
 | **Deck import/export** | Paste a decklist to create a deck; share yours as text or a code |
 | **Collection tracker** | Track owned cards; the builder flags what you're missing |
 | **Goldfish** | Draw sample opening hands from a version to test consistency |
-| **Event mode** | Group matches into a tournament with rounds and final placement |
+| **Event mode** | Group games into a tournament with rounds and final placement |
 
 ### Explicitly out of scope
 
@@ -75,12 +75,12 @@ Feature count is explicitly *not* a success criterion.
 
 ## 5. Core concept — version locking
 
-> **A deck version becomes immutable the moment its first match is logged.**
+> **A deck version becomes immutable the moment its first game is logged.**
 
 ```
-Edit a version with no matches yet    →  changes save in place. No new version, no clutter.
-Edit a version that has matches       →  saving forks a new version.
-                                         The old version keeps its matches, forever, untouched.
+Edit a version with no games yet      →  changes save in place. No new version, no clutter.
+Edit a version that has games         →  saving forks a new version.
+                                         The old version keeps its games, forever, untouched.
 ```
 
 Everything else in the app follows from this one rule. It is what makes every number the app shows
@@ -93,17 +93,17 @@ Three guards keep it from becoming annoying:
   identical card list creates no version.
 - **Escape hatch** — if you genuinely need to correct a mis-entered list rather than fork it,
   "Amend this version" is available behind a confirm that spells out the consequence.
-- **Deletion rules** — a version with matches can be archived but never deleted.
+- **Deletion rules** — a version with games can be archived but never deleted.
 
 The user should learn this model by using the app, never by reading about it. The editor shows a
-quiet banner (*"v2 · 30 matches tracked — saving will create v3"*), and the save sheet leads with
+quiet banner (*"v2 · 30 games tracked — saving will create v3"*), and the save sheet leads with
 the diff rather than a form. See [`DESIGN.md`](DESIGN.md) §Flow 2.
 
 Full schema and mechanics: [`DATA-MODEL.md`](DATA-MODEL.md).
 
 ## 6. Statistical honesty
 
-A deck tracker that announces *"v3 is better!"* off eight matches is worse than no tracker at all —
+A deck tracker that announces *"v3 is better!"* off eight games is worse than no tracker at all —
 it launders noise into confidence and actively makes the player's decisions worse.
 
 Non-negotiable rules, enforced in the analytics layer rather than left to UI discretion:
@@ -112,7 +112,7 @@ Non-negotiable rules, enforced in the analytics layer rather than left to UI dis
   `63% · 19–11 · 95% CI 45–78%`
 - Below **n = 20**, a version's stats render in a muted "provisional" style.
 - A version comparison **never declares a winner** when the confidence intervals overlap. It says so
-  plainly, and estimates how many more matches would settle it.
+  plainly, and estimates how many more games would settle it.
 - Version deltas are labelled **correlational**. The metagame moves and the pilot improves; the app
   should say that rather than sell false precision.
 
@@ -143,7 +143,7 @@ The UI never waits on a network request. Cloud sync is an optional backup layer,
 
 - **Card mirror** — pulled from Riftcodex, disposable, identical on every device, re-syncable at any
   time. Never travels through Supabase.
-- **User data** — decks, versions, matches, collection. Precious, unique per user, soft-deleted,
+- **User data** — decks, versions, games, collection. Precious, unique per user, soft-deleted,
   synced last-write-wins on `updated_at`.
 
 Three findings from the API investigation drive this design:
@@ -165,7 +165,7 @@ Details and measurements: [`API.md`](API.md).
 | **Drizzle + expo-sqlite** over WatermelonDB / Realm | Real typed migrations and reactive queries without adopting a sync framework the app doesn't need |
 | **Supabase** over a custom backend | Postgres + Auth + row-level security with no servers to operate; schema mirrors the local one 1:1 |
 | **Version snapshots** over stored diffs | A version is ≤57 rows. Storage is irrelevant at this scale, any version renders without replaying history, and diffs are cheaper to compute than to keep correct |
-| **Last-write-wins sync** over CRDTs | Versions are immutable and matches are append-mostly, so genuine conflicts are rare. A CRDT would be over-engineering |
+| **Last-write-wins sync** over CRDTs | Versions are immutable and games are append-mostly, so genuine conflicts are rare. A CRDT would be over-engineering |
 | **iOS + Android only** for v1 | Concentrates all UI effort on native feel. The Expo codebase can export to web later |
 | **Optional account** | The app must be fully usable before anyone signs up. Sign-in claims existing local data rather than replacing it |
 

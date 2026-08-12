@@ -21,7 +21,7 @@ import { DeckSlotRow } from '@/components/decks/DeckSlotRow';
 import { VersionCompareSheet } from '@/components/decks/VersionCompareSheet';
 import { VersionNodeDetail } from '@/components/decks/VersionNodeDetail';
 import { VersionTimeline, type TimelineNode } from '@/components/decks/VersionTimeline';
-import { MatchRow } from '@/components/matches/MatchRow';
+import { GameRow } from '@/components/games/GameRow';
 import { WinRateBar } from '@/components/stats/WinRateBar';
 import { DetailsSheet } from '@/components/ui/DetailsSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -44,23 +44,23 @@ import {
   setVersionLabel,
   setVersionNotes,
   versionDiff,
-  versionMatchCounts,
+  versionGameCounts,
   VersionHasMatchesError,
   type MissingCard,
 } from '@/db/queries/decks';
-import { deckRecord, listMatches, type DeckRecord } from '@/db/queries/matches';
+import { deckRecord, listGames, type DeckRecord } from '@/db/queries/games';
 import {
   versionStatLabel,
   versionStats,
   type VersionStat,
 } from '@/db/queries/version-stats';
 import type { DeckRow, DeckVersionRow } from '@/db/schema/decks';
-import type { MatchRow as MatchRowType } from '@/db/schema/matches';
+import type { GameRow as MatchRowType } from '@/db/schema/games';
 import {
   TOAST_CONFIRM_MS,
   TOAST_UNDOABLE_MS,
   useToast,
-} from '@/features/matches/useToast';
+} from '@/features/games/useToast';
 import { rateOf } from '@/lib/analytics/summary';
 import { isLandscapeCard } from '@/lib/card-art';
 import { baseName } from '@/lib/card-identity';
@@ -192,11 +192,11 @@ export default function DeckDetailScreen() {
     if (!row?.currentVersionId) return;
 
     const rows = listVersions(row.id);
-    const counts = versionMatchCounts(row.id);
+    const counts = versionGameCounts(row.id);
     setVersions(rows);
     setList(loadDeckList(row.currentVersionId));
     setMissing(missingCards(row.currentVersionId));
-    const deckMatches = listMatches({ deckId: row.id });
+    const deckMatches = listGames({ deckId: row.id });
     setMatches(deckMatches);
     setRecord(deckRecord(row.id));
     setVersionPerformance(versionStats(row.id));
@@ -810,7 +810,7 @@ export default function DeckDetailScreen() {
           <View style={styles.overview}>
             {matches.length === 0 ? (
               <Text style={styles.hint}>
-                No matches yet. Tap the + in the tab bar to log one — it attaches to whichever
+                No games yet. Tap the + in the tab bar to log one — it attaches to whichever
                 version this deck currently points at.
               </Text>
             ) : (
@@ -822,10 +822,10 @@ export default function DeckDetailScreen() {
                   )}
                 </Text>
                 {matches.map((match) => (
-                  <MatchRow
+                  <GameRow
                     key={match.id}
-                    match={match}
-                    onPress={() => router.push(`/match/${match.id}`)}
+                    game={match}
+                    onPress={() => router.push(`/game/${match.id}`)}
                   />
                 ))}
               </>
@@ -927,7 +927,7 @@ export default function DeckDetailScreen() {
           <View style={styles.overview}>
             {matches.length === 0 ? (
               <Text style={styles.hint}>
-                Nothing to measure yet. Log a match and the record, the interval, and the
+                Nothing to measure yet. Log a game and the record, the interval, and the
                 per-version breakdown all appear here.
               </Text>
             ) : (

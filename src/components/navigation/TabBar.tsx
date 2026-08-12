@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
-import { markLogStart } from '@/features/matches/timing';
+import { markLogStart } from '@/features/games/timing';
 import { color, elevation, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -54,7 +54,7 @@ export function TabBar({ state, navigation }: TabBarProps) {
     if (Platform.OS !== 'web') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    router.push('/match/new');
+    router.push('/game/new');
   };
 
   // Split the tabs either side of the center action.
@@ -136,7 +136,7 @@ export function TabBar({ state, navigation }: TabBarProps) {
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Log a match"
+          accessibilityLabel="Log a game"
           accessibilityHint="Opens the match log sheet"
           onPress={onLogMatch}
           style={({ pressed }) => [

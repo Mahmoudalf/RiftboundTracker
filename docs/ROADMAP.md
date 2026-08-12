@@ -1,5 +1,25 @@
 # Roadmap
 
+> ### Vocabulary changed on 2026-08-12 — read this before anything below
+>
+> | Term | Means | Table |
+> | --- | --- | --- |
+> | **Game** | One encounter between two players. Bo1 or Bo3 | `games` |
+> | **Match** | One play inside a game. Riftbound scores to **8** to win a match | `matches` |
+> | **Game style** | Casual · Online · Tournament | `games.game_style` |
+> | **Event** | A named occasion — *the Nexus Night on the 9th* — with rounds and a placement | `events` |
+>
+> A **Bo3 is one game of up to three matches.** Before this date the app used the two words the
+> other way round, so **every entry below dated earlier than 2026-08-12 says "match" where it now
+> means "game"**, and "game" where it now means "match".
+>
+> Those entries are **not rewritten**. A roadmap is a record of decisions as they were made, and
+> restating them in words nobody used at the time would be the same fabrication migration 15
+> refused when it chose to lose a label rather than invent an occasion. Read them with the old
+> vocabulary; the code, the schema and `DATA-MODEL.md` all use the new one.
+>
+> See [The vocabulary inversion](#the-vocabulary-inversion-2026-08-12) for what moved and why.
+
 **M0 – M5 is the complete usable product.** M6 – M8 is expansion and release.
 
 | Milestone | Theme | Status |
@@ -10,7 +30,7 @@
 | [M3](#m3--versioning) | Versioning | ✅ Done |
 | [M4](#m4--matches) | Match tracking | ✅ Done |
 | [M5](#m5--analytics) | Analytics | ✅ Done |
-| [M6](#m6--extras) | Extras | 🟡 In progress — import/export done |
+| [M6](#m6--extras) | Extras | ✅ Done |
 | [M7](#m7--cloud) | Cloud sync | ⬜ Not started |
 | [M8](#m8--ship) | Polish & ship | ⬜ Not started |
 
@@ -463,6 +483,11 @@ removed with M4:
       to *In-depth match logging* in M6, which is now the table's documented owner. The audit item
       stands, only its deadline moved: if M6 ships without it, `match_games` is dead schema
 
+      **Resolved.** M6's in-depth pass writes every column of `match_games` except
+      `battlefields`, which the user dropped from scope — the per-game Battlefield each side
+      *played* is already recorded in its own column, and what a deck *brought* is the deck's own
+      Battlefield zone. That one column is dead schema, named here rather than left to be found
+
 **Done when:** a stopwatch confirms **under 10 seconds** from tab bar to confirmation toast. If it's
 slower, the flow gets redesigned before moving on.
 
@@ -508,22 +533,76 @@ comparison of two small samples refuses to declare a winner.
 
 In priority order — each is independently shippable.
 
-- [ ] **In-depth match logging** — an opt-in second tier of detail behind the fast path, for players
-      who want to analyse a match rather than only record it:
-      - Opening hand and mulligans
-      - Match score, not just the result — *won by scoring to 8 while the opponent was on 6*
-      - Which Battlefields each player brought, and which were played
-      - The turn each player landed their Chosen Champion
-      - On the play / on the draw
+- [x] **In-depth match logging (2026-08-12)** — the opt-in second tier, at
+      `/match/[id]/games`, reached from a logged match. Kept out of the log form exactly as
+      planned: that flow has a ten-second budget and none of these answers even *exists* at the
+      table — you know the score after the game, and nobody reconstructs an opening hand while an
+      opponent waits to shuffle.
 
-      Kept out of M4 deliberately. The two-tap flow has a ten-second budget and every field on that
-      surface competes with it; these belong in a separate pass over a match already logged, not in
-      the path taken while an opponent is waiting to shuffle. `match_games` (migration 6) is the
-      table most of it lands in.
+      | Field | Where it lands | How it is asked |
+      | --- | --- | --- |
+      | Opening deal and mulligans | `match_games.opening_hand` / `mulliganed` | A sheet over the deck version's own cards. One tap keeps, two sends back, three undoes |
+      | Match score | `score_for` / `score_against` | Two 0–8 rows per game — Riftbound scores to 8 |
+      | On the play / on the draw | `on_play` | **Already shipped** — restored to the log form when gap 13 closed, per game |
 
-      **Note:** on-play/on-draw moves here from M4's sheet, and it is the one field with a
-      downstream cost — `DATA-MODEL.md` §4 lists an on-play split as an M5 metric, and it will
-      report n = 0 until this ships.
+      **Battlefields brought vs. played was dropped, on the user's call.** The log form already
+      asks which Battlefield each side *played*, per game, and "brought" is the deck's own
+      Battlefield zone — the app can read it without asking. `match_games.battlefields` therefore
+      stays unwritten; it is the only column of migration 10 with no consumer, and it is recorded
+      here as such rather than left to be rediscovered.
+
+      **The data layer was already finished, and that is the finding.** `match_games` had every
+      column (migrations 10 and 16) and `src/lib/analytics/hands.ts` had four tested exported
+      functions — `handCoverage`, `cardHandStats`, `performanceByMulliganCount`,
+      `championTurnStats` — with **no consumer anywhere in the app**. Same shape as gaps 6 and 7:
+      the query layer built ahead of the screens, passing its tests, reachable by nobody. What this
+      milestone actually shipped is entry, readback and display.
+
+      Worth recording:
+
+      - **`saveMatchGames` replaces rows rather than patching them**, so any field the depth screen
+        failed to hand back would be deleted by an edit that looks like it only *added* detail —
+        turn order and both Battlefields, silently, with nothing on either screen to show it. That
+        is now the first thing the test suite asserts about the pass
+      - **Per-game detail was invisible on the match screen until now.** The log form has written
+        game rows since M4 and nothing ever read them back, so turn order and both Battlefields
+        were recorded and then unreachable. Match detail renders them as prose, and anything
+        unrecorded is simply absent — four repetitions of "Not recorded" say only that the screen
+        has fields
+      - **The Chosen Champion is offered in the opening deal**, which `zone === 'main'` alone would
+        have excluded. `DeckList` keeps it in its own zone; the rules put its copy in the Main Deck
+        (103.2.b.1), which is why the 3-copy limit counts it. It can be dealt, so it can be
+        recorded. The same zone/rules mismatch `lib/goldfish.ts` documents, resolved the other way
+        here: goldfish must not *shuffle* a card the list does not say is in the deck, while a hand
+        is a record of what was dealt and has to be able to name it
+      - **Nothing is enforced.** Over 4 dealt or over 2 recycled turns the counter into a warning
+        naming the rule it breaks, and still saves — the call the legality bar makes. A miscounted
+        hand is a typo the user can see; a tap that silently does nothing is a bug they cannot
+      - **A score that disagrees with the result is named, not corrected.** A game won with the
+        opponent ahead on points is either a mis-tap or a concession and the app cannot tell which;
+        rewriting it would replace a fact with a guess, and refusing to save would block a real
+        outcome
+
+      **Champion landing turn was removed the next day (migration 19).** It shipped as two 1–12
+      rows per match and lasted about a day. The user's call, and the right one: a landing turn
+      cannot say whether it was *early* or *late* without the board it landed on — turn 5 is on
+      curve for a deck that ramps and behind for one that does not — so the average would have read
+      as information without being any. The analytics side handled it as well as it could be
+      handled, splitting at the deck's own median rather than at a fixed turn, which is the right
+      treatment of a number that should not have been collected in the first place.
+
+      Same call M6's goldfish made when it modelled Rune channelling faithfully and then deleted
+      it: *with no opponent and no board, it produced numbers that looked like information and were
+      not.* Two features now, removed for the same reason, and worth naming as a pattern — this
+      app's failure mode is collecting a figure because it is easy to collect.
+
+      **Dropped, not left as dead schema.** Both columns, plus `championTurnStats` and its four
+      tests. `match_games` spent two milestones "shipped but unwritable" (gaps 11 and 12) and the
+      lesson was that a column nothing writes and nothing reads is a cost every future reader pays.
+      `matches.battlefields` stays the one exception and is labelled dead schema in `games.ts`
+      where somebody will actually see it. Migration 19 has its own upgrade test: a game with two
+      fully-populated matches driven v17 → latest, asserting every surviving value, that the drop
+      shifted no column, and that it took no index with it
 
 - [x] **Deck import/export** — built on `@piltoverarchive/riftbound-deck-codes` (Apache-2.0, zero deps,
       offline). `src/lib/deck-code.ts` owns the mapping rules; export shares and copies, import
@@ -661,6 +740,46 @@ In priority order — each is independently shippable.
       be gone from one screen and present on another
 
 Import lands first: it's the fastest path from install to a user who has something to track.
+
+### The two decisions the analytics rest on
+
+Both are load-bearing, both are invisible on screen, and both would produce plausible wrong numbers
+if taken the other way.
+
+**What the two hand arrays mean.** Riftbound deals 4 and recycles up to 2 to the bottom — the rule
+`lib/goldfish.ts` already simulates. So `mulliganed` is the cards out of *that opening 4* that went
+back, and `openingHand` is the ones that stayed. The two together are the deal, which makes
+`seen = kept + mulliganed` count each card once per game it was genuinely offered.
+
+The tempting alternative — `openingHand` as the final hand you played with — is wrong in a way that
+only shows up in the ratios: the replacement cards drawn after a mulligan would be counted as
+"kept", inflating the denominator of every card that happens to replace a thrown one. A card you
+drew *because* of a mulligan was never part of the keep decision. The doc comment in `hands.ts` said
+"the opening seven" before this milestone, which is Magic's number, not Riftbound's — a stale
+assumption inherited from nowhere in this codebase.
+
+**Names come from the deck version, not the card mirror.** `match_games.opening_hand` stores card
+ids alone, which would normally be the migration-5 mistake again: an id stops rendering the moment
+its printing leaves the mirror, and a match is a permanent record. It is safe only because an
+opening hand is always drawn from one deck version, and `deck_version_cards.card_name` has carried
+that name since migration 5 for exactly this reason. `versionCardNames()` reads it **without
+joining `cards`**, unlike `loadDeckList`, and has a test that deletes a printing and asserts the
+hand still names it. Storing a fourth copy of the name on the game row was the alternative.
+
+### What the analytics now show
+
+Four sections that previously rendered as "not captured yet", plus one correction:
+
+| Section | Reads |
+| --- | --- |
+| Opening hands and mulligans | `performanceByMulliganCount` — 0, 1 or 2 cards back, each with its own interval, and a caption saying plainly that the mulligan is the response to a bad hand and not its cause |
+| Cards you throw back | `cardHandStats`, capped at six and hiding anything seen fewer than three times — one mulligan of a card drawn once tops any list at 100 % and buries the real problem |
+| How close the games were | `scoreStats`, new. Close (≤ 2 points) versus the rest, plus mean conceded in wins and mean scored in losses — read from opposite sides of the result on purpose, since pooling them folds in the 8 the winner scores by definition and measures how often you lose rather than how close it was. Draws are excluded from both: a margin of zero says nothing about a game nobody won |
+| *Going first or second* | Its empty state claimed turn order was "part of the in-depth logging still to come". It has been on the log form since gap 13 closed, so it was blaming a missing feature for an unanswered question and telling the user to wait for something they already had |
+
+`AnalyticsPanel` takes matches and games as **separate props**. The first four sections are
+per-match and the last four per-game, and a Bo3 is one match and up to three games — pooling them
+would weight long matches higher in precisely the breakdowns whose point is a trustworthy n.
 
 ---
 
@@ -841,6 +960,323 @@ Every one of these is a layout change the design specifies and the app does not 
   which also postdates it.
 - Progress fills (`progressFill`, `progressSegmentDone`) were left white: the design does not say
   whether progress counts as "current state" and so earns the accent.
+
+## Advanced logging, and the hand as cards (2026-08-12)
+
+From a new section in the Hi-Fi design: **`1_ML_Advance` · advanced logging mode — mulligan /
+opening-hand tracking + score.** It answers a tension the app has carried since M4 rather than
+picking a side of it.
+
+**A `LOGGING MODE` toggle at the head of the log form.** Simplified is the default and is exactly
+the form that shipped; Advanced adds the opening hand, the mulligan and a per-match score inside
+each match card. The ten-second budget was never a claim that nobody wants the detail — it was a
+claim that the detail cannot be *mandatory*. A mode makes the trade explicit and per-game, and it
+is retained across "log another", so switching to Advanced for a tournament holds for the rounds
+that follow.
+
+This supersedes the M6 reasoning that per-match detail belongs only in a pass over a game already
+logged. Both entry points now exist and both write the same rows through the same control:
+
+| Where | For |
+| --- | --- |
+| Log form, Advanced mode | Recording while the game is in front of you |
+| `/game/[id]/matches` | Filling in a game logged in Simplified mode, or correcting the table entry |
+
+### The hand is drawn as cards
+
+The design draws each slot as a 60px name-only tile. **They carry art here**, which is the change
+the user asked for and a stated deviation: every other place this app shows a card — the gallery,
+the binder grid, the Legend and Battlefield pickers — shows the printing, and an opening hand
+rendered as four lines of 10px text would be the one surface asking you to recognise your own deck
+from a list of names. You recognise a card by its art long before you finish reading its name, and
+an opening hand is precisely a recognition task. The cost is height: 78px of width at the printed
+0.716 ratio is 109px of art against the design's flat 60. Four still fit across a 390pt screen.
+
+`CardSlot` goes through the same `cardImage` / `isLandscapeCard` / `uprightArt` helpers as
+`CardPickerSheet` and `CardGridItem`, so a Battlefield stands upright here for the same reason it
+does there. A mulliganed slot keeps its art under a dimming wash rather than swapping to a card
+back — the card that went back is still the card you were dealt, and hiding it would lose the one
+thing the row records.
+
+### What the columns mean now, and why it changed
+
+| Column | Was | Is |
+| --- | --- | --- |
+| `opening_hand` | The cards **kept** out of the deal | **All four dealt** |
+| `mulliganed` | The cards sent back — *disjoint* from the above | The subset of `opening_hand` that went back |
+| `replacements` | — | What was drawn in their place (**migration 20**) |
+
+The design's two rows force this and are right to: the four dealt cards are one observation, and
+splitting them across two columns meant neither could be rendered as the hand it was.
+
+**The arithmetic had to move with it.** `seen = kept + mulliganed` was correct while the two were
+disjoint and is double-counting now — a card thrown back every single time would be seen twice per
+match and report a **50 % mulligan rate**, a plausible-looking number for the most obviously wrong
+card in the deck. `cardHandStats` makes one pass over the deal instead, and there is a test named
+for exactly that failure.
+
+`replacements` earns its own column rather than being appended to the hand: a card drawn *because*
+of a mulligan was never part of the keep decision, and folding it in would inflate the denominator
+of every card that happens to replace a thrown one. Same reasoning that separated the two arrays in
+the first place.
+
+### Rules the control enforces
+
+- **A mulligan is chosen from the hand, never from the deck.** Offering the whole pool would let
+  someone record sending back a card they were never dealt, and the two rows would stop describing
+  the same hand.
+- **Clearing a dealt slot clears any mulligan pointing at it.** The mulligan row stores *indexes*
+  into the deal, so a slot emptied underneath one would leave it pointing at nothing — blank on
+  screen while still counting as a card sent back.
+- **Choosing the card already in a slot corrects it**, the design's own words and the app's re-tap
+  idiom. Choosing a card already sent back from the other slot *moves* it rather than recording it
+  twice.
+- **A replacement survives only while there is a card for it to have replaced**, and its slot does
+  not open until something has gone back.
+- **Over two recycled is named, not blocked** — the counter turns to a warning and the entry saves.
+  The legality bar's call.
+- **Changing deck clears every drafted hand.** Keeping them would record a hand of cards the deck
+  being saved has never contained.
+
+`HandPicker` — the text-list hand editor built the day before — is deleted. It was the same feature
+without the previews, and two hand editors would be two places for these rules to drift.
+
+### A row at a time, not a slot at a time
+
+The first cut opened the full-screen picker once **per slot**, so recording a hand was four trips
+through a modal. `CardPickerSheet` grew a `multi` mode: tapping any slot in a row opens that row's
+picker seeded with what is already chosen, and one visit fills the row. Up to 4 for the opening
+hand, up to 2 each for the mulligan and the replacements.
+
+**It counts copies rather than holding a set**, and that is the load-bearing part. A four-card hand
+can contain two copies of the same card, and a plain toggle could not record it — the one hand a
+player is most likely to remember would be the one the app refused to take. Tapping a tile adds a
+copy and shows a count badge; tapping once past its cap returns it to none, so a tile at the limit
+still clears rather than going inert.
+
+Two caps bind, whichever is smaller: the total for the row, and the card's own. The mulligan's
+per-card cap is **how many copies of it were dealt**, so you cannot send back two of a card you were
+dealt once.
+
+The counts-to-hand conversion lives in `OpeningHand` beside the value type, not in either screen —
+`applyDealt`, `applyMulligan`, `applyReplacements`. Replacing a deal **re-derives** the mulligan by
+card rather than carrying the old indexes across, which would leave them pointing at whatever now
+sits in those positions and silently mark a card the user never sent back.
+
+### Score is a dropdown, not a chip row
+
+Caught by the user against the design and corrected. `1_ML_Advance` draws the score as **two equal
+columns, each a 46px field with a `⌄` chevron** — You and Them side by side, opening in place. It
+shipped as two rows of 0–8 chips, which is a different control: eighteen targets in the middle of a
+form, for a question with one answer per side.
+
+`ScoreRow` is the design's version, built on the same `SelectField` / `OptionRow` pair every other
+field on the screen uses, with one open at a time so two lists of numbers never stack. The little
+"You" / "Them" labels are sentence case at `textMuted` per the design, not the mono uppercase
+`fieldLabel` used elsewhere on the card — they name a column inside a field, not a section.
+
+**`NumberRow` is deleted.** Built for the Champion landing turn, inherited by the score, and
+outlived by both — the turn went with migration 19 and the score is now a dropdown. An exported
+component with no consumer is exactly what gap 15 named.
+
+**And it sits after the Battlefields, not before them.** Also caught by the user. The advanced
+blocks went in as a single slot ahead of the Battlefield fields, which put the score before you had
+said where the match was played. `MatchCard` takes **two** slots now, and the card reads in the
+order the match happened — the design's own:
+
+```
+who went first → opening hand → mulligan → your BF → their BF → score → who won
+```
+
+Both of these were caught by eye against the design after I had already called the feature landed,
+which is the failure the roadmap's own rule is about: a screenshot is evidence, and my reading of a
+spec I implemented from is not.
+
+### The mulligan row reads as a before and an after
+
+The design marks only the two cards that went back — accent border, `MULL` badge — and leaves a
+filled replacement plain, drawing just its empty dashed state. A deliberate addition: the
+replacements get the mirror treatment in the win green with a **`DRAW`** badge, so the strip of four
+says which half is which without counting slots.
+
+Three details make it a mirror rather than a second colour:
+
+- **The dimming wash stays on the mulliganed card only.** What went away is dimmed; what arrived is
+  at full strength. The row is a before and an after and should not read at one weight.
+- **Both badges carry a word.** Red against green is the one pairing this app has banned since M1 —
+  it is the most common form of colour blindness — so `MULL` and `DRAW` have to survive in
+  greyscale, the same rule as the W/L/D letters on a result badge.
+- **`#7BDBA6` is `win` lifted by the same amount `#FF8080` lifts `accent`**, so the two badges read
+  as one idiom rather than two colours that happen to sit near each other.
+
+One note for whoever meets it next: `deckPool` on the log form is deliberately **not** wrapped in
+`useMemo`. The React Compiler could not preserve a manual memo there and responded by skipping
+optimization of the entire 900-line component — a far worse trade than the memo was buying. Left
+plain, the compiler memoizes it along with everything else.
+
+## The vocabulary inversion (2026-08-12)
+
+The two central nouns were the wrong way round, and had been since M4.
+
+| Term | Was | Is |
+| --- | --- | --- |
+| The encounter — Bo1 or Bo3 | `matches` / "match" | **`games` / "game"** |
+| One play inside it, scored to 8 | `match_games` / "game" | **`matches` / "match"** |
+| Casual · Online · Tournament | `matches.event_type` / "match style" | **`games.game_style` / "game style"** |
+| The named occasion and its tier | `events` / `events.event_type` | **unchanged** |
+
+**I argued against this and was wrong to lean on the evidence I had.** The case for keeping the old
+arrangement was the standard TCG convention, the Riftbound scoring rule (you score to 8 to win a
+*game*), and the Hi-Fi design, which labels the per-play card "Game 1" and its history list "Match
+history". That reading was reasonable and the user's call overrode it — it is their vocabulary, and
+consistency with how they and their playgroup speak is worth more than consistency with Magic.
+
+What the check *did* turn up is that this file and `components/matches/GameCard.tsx` both claimed
+*"the design titles these Match 1 / Match 2"* and logged it as a deliberate deviation. **That was
+false.** The design source contains "Game 1" twice and no "Match N" anywhere. The note was written
+from memory in an earlier session and never verified. The deviation is real but runs the other way,
+and it is now recorded that way in `MatchCard.tsx`.
+
+### Migration 18
+
+Pure renames — no table rebuilt, no row copied, no index lost. SQLite's `ALTER TABLE RENAME`
+rewrites the schema entry in place and carries the data, the indexes and the row ids with it, so
+this cannot lose a game, a match or an event however long the history is.
+
+```
+matches      → games          (games_won → matches_won, games_lost → matches_lost,
+                               event_type → game_style)
+match_games  → matches        (match_id → game_id, game_number → match_number)
+```
+
+Order is load-bearing twice: `matches` has to vacate its name before `match_games` can take it, and
+the eight old indexes are dropped first so no index name is left held by a table it no longer
+describes.
+
+**`event_type` on the games table became `game_style`, and that is the rename worth the most.** It
+never meant the event's tier — it held Casual / Online / Tournament — while `events.event_type`
+genuinely does. One column name meaning two different things across two tables is precisely how M6's
+careful split between the two vocabularies was going to be undone by accident.
+
+### What the audit turned up
+
+Four findings, all from running the suite rather than from reading:
+
+| # | Finding | |
+| --- | --- | --- |
+| 1 | **Migration tests were writing current-schema names into historical databases.** The v14→v15 tests insert into `matches` and read `event_type` — correct at v15, and a blanket rename had quietly pointed them at `games`, which does not exist for another three migrations. A migration test that uses today's names stops testing the migration | Reverted, with the reason stated inline |
+| 2 | **A migration test called a query function.** `events.test.ts` asserted through `getEvent()` against a v15 database; `getEvent` joins `games`. That test was really exercising two schemas at once and broke the moment either moved. Now reads the row with SQL | Fixed, and it is a better test for it |
+| 3 | **`AnalyticsPanel`'s two props ended up named the exact inverse of what they hold** — `matches: GameRow[]` beside `games: MatchRow[]`. Typechecked perfectly, since both are just arrays of rows | Swapped |
+| 4 | **The v16→v17 migration test now covers 18 as well.** It calls `migrate()`, which runs everything outstanding, so its rounds get renamed out from under it. Reading them back from `games` asserts that 17 does not drop them *and* that 18 carries every one across | Kept, deliberately |
+
+The route tree moved with the vocabulary: `/match/new` → `/game/new`, `/match/[id]` →
+`/game/[id]`, and the in-depth screen `/match/[id]/games` → `/game/[id]/matches`. Directories
+followed — `src/components/matches/` → `src/components/games/`, `src/features/matches/` →
+`src/features/games/`, `lib/match-progress.ts` → `lib/game-progress.ts`.
+
+**Migrations 1–17 keep the old table names, and must.** They describe the databases they actually
+ran against; rewriting them would make them stop applying to any device that has not reached 18.
+
+## Post-M6 audit (2026-08-13)
+
+Ran before starting M7, over the whole tree rather than the last change. Method: an exported-symbol
+scan counting references across every other file, a column scan over the Drizzle schema against
+production code, and a new **schema-versus-migrations** test.
+
+### The schema and the migrations agree — now provably
+
+`src/db/schema-audit.test.ts` builds a database from all 20 migrations and compares
+`PRAGMA table_info` against `getTableColumns()` for all 11 tables, in **both directions**, plus
+NOT NULL. 33 assertions, all passing.
+
+Nothing had ever forced those two to agree. `hydrate.ts` derives its column map from the *schema*
+while a device's actual columns come from the *migrations*, so a column declared in one and not the
+other hydrates as `undefined` with no error anywhere — the M1 bug that blanked every card in the
+gallery, where 12 of 29 fields came back undefined including `imageUrl`. The test is cheap and
+parameterised, so a twelfth table is covered by adding one line.
+
+### Removed
+
+| | Why |
+| --- | --- |
+| `components/cards/CardGridItem.tsx` (264 lines) | Nothing imported it. `CardGrid` renders its own tiles; this was superseded during the Hi-Fi rebuild and left behind |
+| `components/collection/BinderRail.tsx` (135 lines) | Nothing imported it. The rail was the pre-split Collection design — the tab uses `BinderRow`, the binder screen `BinderTile` |
+| `__resetCardSync()` | **Was in the production bundle.** A test seam no test has ever called, exported at top level so Metro kept it. The gap-21 shape exactly |
+
+Both components were absent from the bundle already — Metro drops unimported files — so the only
+cost was maintenance. `__resetCardSync` was not.
+
+### Found, not acted on — these need a decision
+
+**1. Binder rename and delete are unreachable.** ✅ *Closed — see below.* `renameBinder()` and `deleteBinder()` exist, are
+tested, and **no screen imports them**. The collection screens import only `createBinder`,
+`listBinders`, `ownedCounts`, `setCompletion`, `collapsePromotional` — and `adjustCardQuantity`,
+`binderQuantities`, `missingFromLibrary`, `ownedFinishes` on the binder screen. This file claims
+*"Binders are create / rename / recolour / delete (soft)"*, and that is **false**: a binder created
+by mistake cannot be renamed or removed. Same class as gaps 6 and 7 — the query layer built ahead
+of the screens — and it is a functional gap, not dead code, so the fix is to wire it up.
+
+**2. Four columns on `games` that nothing ever writes**, all M4-era:
+
+| Column | Note |
+| --- | --- |
+| `mulligans` | Superseded by `matches.mulliganed`, which holds the actual cards |
+| `duration_seconds` | No screen has ever asked for it |
+| `tags` | Never written on a game (`cards.tags` is a different thing) |
+| `opp_label` | Never written — **but `GameRow.tsx` and `summary.ts` read it**, so there is a live fallback path for data nothing can produce |
+
+`opp_label` is the interesting one: the "Unknown opponent" branch it feeds can never fire.
+
+**3. The `sets` table is written on every sync and never read.** `listSets()` was deleted at some
+point; `hydrateSet()` and `setColumns` are its orphaned hydrator, now referenced only by their own
+test. `setCompletion()` computes set progress from `cards`, so `sets` is genuinely redundant rather
+than merely unread. `sets.api_version` and `sync_meta.api_version` are declared and never touched at
+all.
+
+**4. `matches.battlefields`** stays dead by design and is labelled as such in `games.ts`.
+
+### Binder rename and delete, wired (2026-08-13)
+
+An **Edit** pill in the binder header opens a sheet with the name field and a destructive *Delete
+this binder*. Delete confirms through an `Alert` that counts what is filed there — *"The 23 copies
+filed here stop counting towards what you own. The cards themselves are not affected"* — then pops
+back, since the screen it was on no longer describes anything.
+
+**The gallery is excluded by construction, not by a flag.** `/binder/gallery` renders the card
+library through this same screen and sets `binderId = null` because there is no row behind it. The
+Edit control is gated on that same `binderId`, and every write already refuses when it is null — so
+the guard cannot drift from the thing it guards. A second `isGallery` boolean would have been two
+facts to keep in step.
+
+A plain `Sheet` rather than the `DetailsSheet` the deck and event screens use: that one draws a
+Notes field, and a binder has no notes. A box for a column the row does not have is worse than no
+box.
+
+#### A bug found in the act of closing the finding
+
+`renameBinder(id, name, accent?)` wrote `accent = accent ?? null` **unconditionally**, so the
+two-argument call — the obvious one, and the one an optional third parameter invites — silently
+stripped the colour off any binder whose name was corrected. It had never fired because the
+function had no consumer at all; the first screen to call it made exactly that call.
+
+An omitted `accent` now leaves the column alone and an explicit `null` clears it, with a test naming
+both. Worth recording as a general shape: **an unreachable function is not a tested function, even
+with passing tests.** `renameBinder` had unit tests throughout — they simply always passed the third
+argument, which is the one thing a real caller would not do.
+
+### Checked and clean
+
+- **Soft deletes.** Every read of a soft-deleted table filters `deleted_at IS NULL`. Three
+  apparent misses are all deliberate: `undoGame` counts tombstones on purpose (that is what stops a
+  mis-tap unlocking a version), it looks up the row it is about to hard-delete, and
+  `MAX(version_number)` deliberately includes deleted versions so a number is never reused — which
+  is the "unique and ascending, not dense" invariant.
+- **The `dirty` flag.** Every write to a synced table sets it. The four apparent misses are false:
+  `binder_cards` and `deck_version_cards` carry no sync columns by design — they are child rows that
+  travel with their parent — and the other two set it through an interpolated clause.
+- **Internal-only exports.** `toFtsQuery`, `legendOf`, `championOf`, `SIGNATURE_LIMIT`,
+  `upsertCards`, `isSyncDue`, `SYNC_TTL_MS` are exported but used only inside their own module.
+  Over-exposed rather than dead; left alone.
 
 ## Known gaps
 

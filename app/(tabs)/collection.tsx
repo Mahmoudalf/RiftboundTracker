@@ -152,12 +152,11 @@ export default function CollectionScreen() {
 
       <BinderSheet
         visible={naming}
-        binder={null}
         onClose={() => setNaming(false)}
-        onSave={(name, accent) => {
+        onSave={(name) => {
           // Straight into it: a binder you just named is empty, and the next
           // thing anyone wants is to put something in it.
-          const id = createBinder({ name, accent });
+          const id = createBinder({ name });
           setNaming(false);
           load();
           router.push(`/binder/${id}`);

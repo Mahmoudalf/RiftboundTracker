@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { MatchRow, MatchResult } from '@/db/schema/matches';
+import type { GameRow, Result } from '@/db/schema/games';
 
 import {
   bestOfSegments,
@@ -12,7 +12,7 @@ import {
   streaks,
   styleSegments,
 } from './summary';
-import { matchesNeeded, wilson } from './wilson';
+import { gamesNeeded, wilson } from './wilson';
 
 /**
  * The analytics layer.
@@ -22,18 +22,18 @@ import { matchesNeeded, wilson } from './wilson';
  * looks like rigour.
  */
 
-function match(overrides: Partial<MatchRow> & { result: MatchResult }): MatchRow {
+function match(overrides: Partial<GameRow> & { result: Result }): GameRow {
   return {
     id: Math.random().toString(36).slice(2),
     deckId: 'deck', deckVersionId: 'version', playedAt: '2026-08-01T10:00:00.000Z',
-    bestOf: null, gamesWon: null, gamesLost: null, onPlay: null,
+    bestOf: null, matchesWon: null, matchesLost: null, onPlay: null,
     oppLegendCardId: null, oppChampionCardId: null, oppLegendName: null,
     oppChampionName: null, oppDomains: null, oppLabel: null,
-    eventId: null, eventType: 'casual', mulligans: null, durationSeconds: null,
+    eventId: null, gameStyle: 'casual', mulligans: null, durationSeconds: null,
     notes: null, tags: null, createdAt: '', updatedAt: '', deletedAt: null,
     userId: null, dirty: true, updatedByDevice: null,
     ...overrides,
-  } as MatchRow;
+  } as GameRow;
 }
 
 const wins = (n: number) => Array.from({ length: n }, () => match({ result: 'win' }));
@@ -74,17 +74,17 @@ describe('wilson', () => {
   });
 });
 
-describe('matchesNeeded', () => {
+describe('gamesNeeded', () => {
   it('estimates how many more games would tighten the interval', () => {
-    const needed = matchesNeeded(7, 10, 0.2);
+    const needed = gamesNeeded(7, 10, 0.2);
     expect(needed).toBeGreaterThan(0);
 
     // And once it is tight enough, nothing more is needed.
-    expect(matchesNeeded(60, 100, 0.2)).toBe(1);
+    expect(gamesNeeded(60, 100, 0.2)).toBe(1);
   });
 
   it('gives up rather than printing a discouraging number', () => {
-    expect(matchesNeeded(1, 2, 0.01, 50)).toBeNull();
+    expect(gamesNeeded(1, 2, 0.01, 50)).toBeNull();
   });
 });
 
@@ -180,9 +180,9 @@ describe('matchupSegments', () => {
 describe('styleSegments and bestOfSegments', () => {
   it('groups by match style', () => {
     const segments = styleSegments([
-      match({ result: 'win', eventType: 'tournament' }),
-      match({ result: 'loss', eventType: 'tournament' }),
-      match({ result: 'win', eventType: 'online' }),
+      match({ result: 'win', gameStyle: 'tournament' }),
+      match({ result: 'loss', gameStyle: 'tournament' }),
+      match({ result: 'win', gameStyle: 'online' }),
     ]);
 
     expect(segments[0]).toMatchObject({ key: 'tournament' });
@@ -201,7 +201,7 @@ describe('styleSegments and bestOfSegments', () => {
 
 describe('streaks', () => {
   /** Every query in this app returns newest-first, so that is the input. */
-  const newestFirst = (...results: MatchResult[]) => results.map((result) => match({ result }));
+  const newestFirst = (...results: Result[]) => results.map((result) => match({ result }));
 
   it('counts the current run, signed', () => {
     expect(streaks(newestFirst('win', 'win', 'loss')).current).toBe(2);

@@ -5,7 +5,7 @@ import { WinRateBar } from '@/components/stats/WinRateBar';
 import { Pressable } from '@/components/ui/Pressable';
 import type { DeckVersionRow } from '@/db/schema/decks';
 import { rateOf, separable, type Rate } from '@/lib/analytics/summary';
-import { matchesNeeded } from '@/lib/analytics/wilson';
+import { gamesNeeded } from '@/lib/analytics/wilson';
 import type { DeckDiff } from '@/lib/deck-diff';
 import { MAIN_DECK_SIZE } from '@/lib/legality';
 import { color, radius, space } from '@/theme/tokens';
@@ -62,7 +62,7 @@ export function VersionCompareSheet({
       return `v${better?.versionNumber} is measurably ahead — the intervals do not overlap.`;
     }
     const thinner = rateA.decided <= rateB.decided ? rateA : rateB;
-    const more = matchesNeeded(thinner.wins, thinner.decided);
+    const more = gamesNeeded(thinner.wins, thinner.decided);
     return more === null
       ? 'Too close to call — the intervals overlap, and no realistic number of matches would separate them.'
       : `Too close to call — the intervals overlap. About ${more} more ${

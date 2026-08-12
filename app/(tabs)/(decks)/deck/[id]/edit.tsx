@@ -32,13 +32,13 @@ import {
   missingCards,
   renameDeck,
   saveDeckEdit,
-  versionMatchCounts,
+  versionGameCounts,
   type SaveOptions,
 } from '@/db/queries/decks';
 import type { CardRow } from '@/db/schema/cards';
 import { saveMessage } from '@/features/decks/save-message';
 import { reconcileWithStored, useDeckEditor } from '@/features/decks/useDeckEditor';
-import { TOAST_CONFIRM_MS, useToast } from '@/features/matches/useToast';
+import { TOAST_CONFIRM_MS, useToast } from '@/features/games/useToast';
 import { baseName, cardKey } from '@/lib/card-identity';
 import { diffLists, type DeckDiff } from '@/lib/deck-diff';
 import {
@@ -135,7 +135,7 @@ export default function DeckEditorScreen() {
     if (!version) return null;
     return {
       version,
-      matchCount: versionMatchCounts(deck.id).get(version.id) ?? 0,
+      matchCount: versionGameCounts(deck.id).get(version.id) ?? 0,
     };
   }, [deck]);
 

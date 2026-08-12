@@ -1,6 +1,6 @@
-import type { MatchGameRow } from '@/db/schema/matches';
+import type { MatchRow } from '@/db/schema/games';
 
-import { rateOf, type Rate, type Segment } from './summary';
+import { rateOf, type Coverage, type Rate, type Segment } from './summary';
 
 /**
  * Opening hands and mulligans.
@@ -10,34 +10,59 @@ import { rateOf, type Rate, type Segment } from './summary';
  * mulliganed twice means nothing until you know whether it was drawn twice or
  * twenty times.
  *
- * So every figure here is a rate over the games where the card **was seen**,
+ * So every figure here is a rate over the matches where the card **was seen**,
  * with the same interval and provisional treatment as every other statistic in
  * the app. A card in one opening hand is not a pattern.
+ *
+ * ---
+ *
+ * **What the three arrays mean, because the arithmetic depends on it.**
+ * Riftbound deals **4**, lets you recycle **up to 2** to the bottom, then draws
+ * you back up — the same rule `lib/goldfish.ts` simulates.
+ *
+ * - `openingHand` — **all four cards dealt.**
+ * - `mulliganed` — the subset of those four that went back.
+ * - `replacements` — what was drawn in their place.
+ *
+ * So `seen = openingHand.length`, and a mulliganed id is a *member* of the
+ * opening hand rather than a card outside it. This changed with the design's
+ * advanced logging screen: `openingHand` used to hold only the cards **kept**,
+ * making `seen = kept + mulliganed` the right sum. The new reading is better —
+ * the four dealt cards are one observation, and splitting them across two
+ * columns meant neither could be rendered as the hand it was.
+ *
+ * `replacements` stays out of `seen` deliberately. A card you drew *because* of
+ * a mulligan was never part of the keep decision, and counting it would inflate
+ * the denominator of every card that happens to replace a thrown one.
  */
 
-/** A game only counts once its hand was actually recorded. */
-function recorded(games: readonly MatchGameRow[]): MatchGameRow[] {
-  return games.filter((g) => g.openingHand !== null || g.mulliganed !== null);
+/** A match only counts once its hand was actually recorded. */
+function recorded(matches: readonly MatchRow[]): MatchRow[] {
+  return matches.filter((m) => m.openingHand !== null || m.mulliganed !== null);
 }
 
-export interface HandCoverage {
-  recorded: number;
-  total: number;
-}
+/**
+ * The same shape every other split reports its fill rate with.
+ *
+ * An alias rather than a second interface — two identical declarations are two
+ * things that can drift, and a coverage figure means the same thing here as it
+ * does in a play/draw split.
+ */
+export type HandCoverage = Coverage;
 
-export function handCoverage(games: readonly MatchGameRow[]): HandCoverage {
+export function handCoverage(games: readonly MatchRow[]): HandCoverage {
   return { recorded: recorded(games).length, total: games.length };
 }
 
 export interface CardHandStat {
   cardId: string;
-  /** Games where the card was in the opening seven, kept or thrown. */
+  /** Matches where the card was dealt in the opening 4, kept or thrown. */
   seen: number;
   kept: number;
   mulliganed: number;
-  /** Of the games it was seen in, how often it went back. */
+  /** Of the matches it was seen in, how often it went back. */
   mulliganRate: number;
-  /** Performance in games where it was kept. Null when never kept. */
+  /** Performance in matches where it was kept. Null when never kept. */
   whenKept: Rate | null;
 }
 
@@ -49,39 +74,61 @@ export interface CardHandStat {
  * tops the list at 100 % and buries the card you actually have a problem with.
  */
 export function cardHandStats(
-  games: readonly MatchGameRow[],
+  matches: readonly MatchRow[],
   minimumSeen = 3
 ): CardHandStat[] {
-  const kept = new Map<string, MatchGameRow[]>();
+  /** Every match the card was dealt in, and the subset where it went back. */
+  const dealtIn = new Map<string, MatchRow[]>();
   const thrown = new Map<string, number>();
 
-  for (const game of recorded(games)) {
-    for (const id of game.openingHand ?? []) {
-      const rows = kept.get(id) ?? [];
-      rows.push(game);
-      kept.set(id, rows);
+  for (const match of recorded(matches)) {
+    const mulliganed = new Set(match.mulliganed ?? []);
+
+    /*
+     * One pass over the deal, not two.
+     *
+     * `openingHand` now holds all four dealt and `mulliganed` is a subset of
+     * it, so adding the two would count a thrown card twice — once as seen and
+     * again as thrown — and report a mulligan rate of 50 % for a card that goes
+     * back every single time.
+     */
+    for (const id of match.openingHand ?? []) {
+      const rows = dealtIn.get(id) ?? [];
+      rows.push(match);
+      dealtIn.set(id, rows);
+      if (mulliganed.has(id)) thrown.set(id, (thrown.get(id) ?? 0) + 1);
     }
-    for (const id of game.mulliganed ?? []) {
+
+    /*
+     * A card recorded as mulliganed but absent from the deal still counts.
+     *
+     * It should not happen — the log form only offers the four dealt cards —
+     * but rows written before the two columns meant what they mean now hold
+     * exactly that shape, and dropping them would silently shrink a sample.
+     */
+    for (const id of mulliganed) {
+      if ((match.openingHand ?? []).includes(id)) continue;
+      dealtIn.set(id, dealtIn.get(id) ?? []);
       thrown.set(id, (thrown.get(id) ?? 0) + 1);
     }
   }
 
-  const ids = new Set([...kept.keys(), ...thrown.keys()]);
   const stats: CardHandStat[] = [];
 
-  for (const cardId of ids) {
-    const keptGames = kept.get(cardId) ?? [];
+  for (const [cardId, rows] of dealtIn) {
     const mulliganed = thrown.get(cardId) ?? 0;
-    const seen = keptGames.length + mulliganed;
+    const seen = Math.max(rows.length, mulliganed);
     if (seen < minimumSeen) continue;
+
+    const keptRows = rows.filter((match) => !(match.mulliganed ?? []).includes(cardId));
 
     stats.push({
       cardId,
       seen,
-      kept: keptGames.length,
+      kept: seen - mulliganed,
       mulliganed,
       mulliganRate: mulliganed / seen,
-      whenKept: keptGames.length > 0 ? rateOf(keptGames) : null,
+      whenKept: keptRows.length > 0 ? rateOf(keptRows) : null,
     });
   }
 
@@ -95,8 +142,8 @@ export function cardHandStats(
  * and the one most likely to be read as causal when it is not. A hand you
  * mulligan was a bad hand; the mulligan is the response, not the cause.
  */
-export function performanceByMulliganCount(games: readonly MatchGameRow[]): Segment[] {
-  const buckets = new Map<number, MatchGameRow[]>();
+export function performanceByMulliganCount(games: readonly MatchRow[]): Segment[] {
+  const buckets = new Map<number, MatchRow[]>();
 
   for (const game of recorded(games)) {
     const count = game.mulliganed?.length ?? 0;
@@ -117,42 +164,85 @@ export function performanceByMulliganCount(games: readonly MatchGameRow[]): Segm
     }));
 }
 
-/**
- * Average turn the Chosen Champion landed, and how it went.
+/*
+ * `championTurnStats()` lived here — average landing turn for each side, split
+ * at the deck's own median.
  *
- * Split at the median rather than at a fixed turn, because "early" depends on
- * the deck — a control deck landing its Champion on turn 6 may be on curve.
+ * Removed with the field in migration 19. It was correct and it was tested, and
+ * that is exactly why it went rather than lingering: an exported analytic with
+ * no column behind it is what gap 15 named. The reasoning is in the migration —
+ * a landing turn without the board it landed on cannot say whether it was early
+ * or late, so the average looked like information without being any.
  */
-export interface ChampionTurnStat {
-  recorded: number;
-  averageTurn: number | null;
-  earlier: Rate;
-  later: Rate;
-  median: number | null;
+
+/**
+ * A game decided by this many points or fewer was close.
+ *
+ * Riftbound scores to 8, so 2 is a quarter of the distance — one contested
+ * battlefield. Stated as a constant because it is a judgement, not a rule, and
+ * the screen that renders it should be able to name the threshold it used.
+ */
+export const CLOSE_MARGIN = 2;
+
+export interface ScoreStat {
+  coverage: Coverage;
+  /** Mean points the opponent took off you in games you won. Null if none. */
+  concededInWins: number | null;
+  /** Mean points you took off them in games you lost. Null if none. */
+  scoredInLosses: number | null;
+  /** Close games versus the rest, each with its own interval. */
+  segments: Segment[];
 }
 
-export function championTurnStats(games: readonly MatchGameRow[]): ChampionTurnStat {
-  const withTurn = games.filter((g) => g.championTurn !== null);
-  if (withTurn.length === 0) {
-    return {
-      recorded: 0,
-      averageTurn: null,
-      median: null,
-      earlier: rateOf([]),
-      later: rateOf([]),
-    };
+/**
+ * How close the games actually were.
+ *
+ * The result column says you won; it cannot say whether you won 8–7 or 8–0, and
+ * a deck that wins narrowly and loses badly is a different deck from one that
+ * does the reverse — with the identical record.
+ *
+ * Both means are reported over **decided games only** and from their own side
+ * of the result, because "average points conceded" pools two unlike things if a
+ * loss is included: in a loss the opponent scored 8 by definition, and averaging
+ * that in measures how often you lose rather than how close it was.
+ */
+export function scoreStats(games: readonly MatchRow[]): ScoreStat {
+  const scored = games.filter((g) => g.scoreFor !== null && g.scoreAgainst !== null);
+
+  const mean = (values: number[]) =>
+    values.length === 0 ? null : values.reduce((sum, v) => sum + v, 0) / values.length;
+
+  const close: MatchRow[] = [];
+  const clear: MatchRow[] = [];
+  for (const game of scored) {
+    // Draws have a margin of zero and would land in `close` unread — they carry
+    // no win or loss, so they would widen the sample without informing it.
+    if (game.result === 'draw') continue;
+    const margin = Math.abs(game.scoreFor! - game.scoreAgainst!);
+    (margin <= CLOSE_MARGIN ? close : clear).push(game);
   }
 
-  const turns = withTurn.map((g) => g.championTurn!).sort((a, b) => a - b);
-  const median = turns[Math.floor(turns.length / 2)]!;
-  const average = turns.reduce((sum, t) => sum + t, 0) / turns.length;
+  const segments: Segment[] = [];
+  if (close.length > 0) {
+    segments.push({
+      key: 'close',
+      label: `Decided by ${CLOSE_MARGIN} or fewer`,
+      rate: rateOf(close),
+    });
+  }
+  if (clear.length > 0) {
+    segments.push({ key: 'clear', label: 'Decided by more', rate: rateOf(clear) });
+  }
 
   return {
-    recorded: withTurn.length,
-    averageTurn: average,
-    median,
-    earlier: rateOf(withTurn.filter((g) => g.championTurn! <= median)),
-    later: rateOf(withTurn.filter((g) => g.championTurn! > median)),
+    coverage: { recorded: scored.length, total: games.length },
+    concededInWins: mean(
+      scored.filter((g) => g.result === 'win').map((g) => g.scoreAgainst!)
+    ),
+    scoredInLosses: mean(
+      scored.filter((g) => g.result === 'loss').map((g) => g.scoreFor!)
+    ),
+    segments,
   };
 }
 

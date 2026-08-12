@@ -10,12 +10,12 @@ import {
   createEvent,
   deleteEvent,
   eventForName,
-  eventMatches,
+  eventGames,
   getEvent,
   listEvents,
   updateEvent,
 } from './events';
-import { deleteMatch, listMatches, logMatch, undoMatch } from './matches';
+import { deleteGame, listGames, logGame, undoGame } from './games';
 
 /**
  * Events, against real SQLite.
@@ -103,12 +103,12 @@ function makeDeck() {
 }
 
 function log(deck: { deckId: string; versionId: string }, result: 'win' | 'loss' | 'draw', eventId?: string) {
-  return logMatch({
+  return logGame({
     deckId: deck.deckId,
     deckVersionId: deck.versionId,
     result,
     // A match style, not an event style — the two vocabularies are separate.
-    eventType: 'tournament',
+    gameStyle: 'tournament',
     eventId: eventId ?? null,
   });
 }
@@ -129,6 +129,14 @@ describe('migration 15: the style split', () => {
       "INSERT INTO decks (id, name, domains, created_at, updated_at) VALUES ('d','D','[]','2026-01-01','2026-01-01')"
     );
 
+    /*
+     * `matches` and `event_type`, deliberately — not `games` and `game_style`.
+     *
+     * This database is pinned at v14. Migration 18 is what renames the table
+     * and the column, and it has not run here. Writing the *current* names into
+     * a test of a *historical* schema is how a migration test quietly stops
+     * testing the migration.
+     */
     const styles = ['casual', 'skirmish', 'nexus-night', 'locals', 'tournament', 'online', 'testing'];
     styles.forEach((style, i) => {
       old.runSync(
@@ -166,7 +174,6 @@ describe('migration 15: the style split', () => {
   it('leaves events alone, even ones holding a style no longer offered', () => {
     const old = createTestDatabase();
     applyMigrationsUpTo(old, MIGRATIONS, 14);
-    setTestConnection(old);
 
     old.runSync(
       `INSERT INTO events (id, name, event_type, started_at, created_at, updated_at)
@@ -175,10 +182,25 @@ describe('migration 15: the style split', () => {
 
     applyMigrationsUpTo(old, MIGRATIONS, 15);
 
-    // Not rewritten to fit the new vocabulary; `eventStyleLabel` renders it.
-    expect(getEvent('e1')?.eventType).toBe('tournament');
+    /*
+     * Read with SQL rather than through `getEvent()`.
+     *
+     * This database is pinned at v15 and `getEvent` is written against the
+     * *current* schema — it joins `games`, which will not exist for another
+     * three migrations. A migration test that calls a query function is really
+     * testing two schemas at once and breaks the next time either moves, which
+     * is exactly what migration 18 did to it.
+     *
+     * The assertion is unchanged: the tier is not rewritten to fit the new
+     * vocabulary. `eventStyleLabel` renders whatever it finds.
+     */
+    expect(
+      old.getFirstSync<{ event_type: string | null }>(
+        'SELECT event_type FROM events WHERE id = ?',
+        ['e1']
+      )?.event_type
+    ).toBe('tournament');
 
-    setTestConnection(null);
     old.close();
   });
 });
@@ -262,23 +284,23 @@ describe('an event and its rounds', () => {
 
     const summary = getEvent(event)!;
     expect(summary).toMatchObject({ wins: 2, losses: 1, draws: 1, total: 4 });
-    expect(eventMatches(event)).toHaveLength(4);
+    expect(eventGames(event)).toHaveLength(4);
     // The unattached match is still a match, just not this event's.
-    expect(listMatches()).toHaveLength(5);
+    expect(listGames()).toHaveLength(5);
   });
 
   it('reads its rounds oldest first', () => {
     const deck = makeDeck();
     const event = createEvent({ name: 'T', eventType: 'nexus-night' });
 
-    logMatch({
+    logGame({
       deckId: deck.deckId,
       deckVersionId: deck.versionId,
       result: 'win',
       eventId: event,
       playedAt: '2026-08-09T10:00:00.000Z',
     });
-    logMatch({
+    logGame({
       deckId: deck.deckId,
       deckVersionId: deck.versionId,
       result: 'loss',
@@ -287,13 +309,13 @@ describe('an event and its rounds', () => {
     });
 
     // Round 1 first: an event is read forwards, unlike a match list.
-    expect(eventMatches(event).map((m) => m.result)).toEqual(['win', 'loss']);
+    expect(eventGames(event).map((m) => m.result)).toEqual(['win', 'loss']);
   });
 
   it('reports an event with no rounds as empty rather than missing', () => {
     const id = createEvent({ name: 'Not started', eventType: 'skirmish' });
     expect(getEvent(id)).toMatchObject({ wins: 0, losses: 0, draws: 0, total: 0 });
-    expect(eventMatches(id)).toEqual([]);
+    expect(eventGames(id)).toEqual([]);
   });
 
   it('drops an undone match from the record', () => {
@@ -302,7 +324,7 @@ describe('an event and its rounds', () => {
     log(deck, 'win', event);
     const mistake = log(deck, 'loss', event);
 
-    undoMatch(mistake);
+    undoGame(mistake);
 
     expect(getEvent(event)).toMatchObject({ wins: 1, losses: 0, total: 1 });
   });
@@ -313,7 +335,7 @@ describe('an event and its rounds', () => {
     log(deck, 'win', event);
     const mistake = log(deck, 'loss', event);
 
-    deleteMatch(mistake);
+    deleteGame(mistake);
 
     expect(getEvent(event)).toMatchObject({ wins: 1, losses: 0, total: 1 });
   });
@@ -331,12 +353,12 @@ describe('an event and its rounds', () => {
 
     deleteEvent(event);
 
-    expect(listMatches()).toHaveLength(2);
+    expect(listGames()).toHaveLength(2);
     // The link survives on the tombstone, exactly as a deleted binder keeps its
     // cards — so nothing is lost if the delete is ever reversed.
     expect(
       db.getFirstSync<{ n: number }>(
-        'SELECT COUNT(*) AS n FROM matches WHERE event_id = ?',
+        'SELECT COUNT(*) AS n FROM games WHERE event_id = ?',
         [event]
       )!.n
     ).toBe(2);
@@ -359,7 +381,7 @@ describe('an event and its rounds', () => {
     deleteDeck(deck.deckId);
 
     expect(getEvent(event)).toMatchObject({ wins: 0, total: 0 });
-    expect(eventMatches(event)).toEqual([]);
+    expect(eventGames(event)).toEqual([]);
     // The event itself survives — it happened, even if the deck is gone.
     expect(listEvents()).toHaveLength(1);
   });

@@ -55,7 +55,7 @@ export function listBinders(): Binder[] {
     }));
 }
 
-export function createBinder(input: { name: string; accent?: string | null }): string {
+export function createBinder(input: { name: string }): string {
   const id = newId();
   const timestamp = now();
   const next =
@@ -64,18 +64,32 @@ export function createBinder(input: { name: string; accent?: string | null }): s
     )?.n ?? -1) + 1;
 
   conn().runSync(
-    `INSERT INTO binders (id, name, accent, sort_order, created_at, updated_at, dirty)
-     VALUES (?, ?, ?, ?, ?, ?, 1)`,
-    [id, input.name.trim() || 'Binder', input.accent ?? null, next, timestamp, timestamp]
+    `INSERT INTO binders (id, name, sort_order, created_at, updated_at, dirty)
+     VALUES (?, ?, ?, ?, ?, 1)`,
+    [id, input.name.trim() || 'Binder', next, timestamp, timestamp]
   );
   return id;
 }
 
-export function renameBinder(binderId: string, name: string, accent?: string | null): void {
-  conn().runSync(
-    `UPDATE binders SET name = ?, accent = ?, updated_at = ?, dirty = 1 WHERE id = ?`,
-    [name.trim() || 'Binder', accent ?? null, now(), binderId]
-  );
+/**
+ * Rename a binder. That is the whole of it.
+ *
+ * It took an optional `accent` and wrote `accent = accent ?? null`
+ * **unconditionally**, so the two-argument call — the obvious one, and the one
+ * an optional third parameter invites — silently stripped the colour off any
+ * binder whose name was corrected. It had never fired: the function had no
+ * consumer at all until the post-M6 audit, and the first screen to call it made
+ * exactly that call.
+ *
+ * The colour is gone entirely as of migration 21, so the trap is gone with it
+ * rather than merely guarded.
+ */
+export function renameBinder(binderId: string, name: string): void {
+  conn().runSync('UPDATE binders SET name = ?, updated_at = ?, dirty = 1 WHERE id = ?', [
+    name.trim() || 'Binder',
+    now(),
+    binderId,
+  ]);
 }
 
 /**

@@ -1,15 +1,15 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { ChoiceRow, OptionRow, SectionLabel, SelectField } from '@/components/ui/Field';
 import type { CardRow } from '@/db/schema/cards';
-import type { MatchResult } from '@/db/schema/matches';
+import type { Result } from '@/db/schema/games';
 import { baseName } from '@/lib/card-identity';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
 /**
- * One game of a match.
+ * One match inside a game — a single play, scored to 8.
  *
  * Built from the design's own declarations: card `border 1px rgba(255,255,255,.12)
  * · radius 14 · padding 14`; header baseline-aligned with a mono summary on the
@@ -17,8 +17,14 @@ import { text } from '@/theme/typography';
  * the result row 52px, weight 700.
  *
  * Deviations, stated rather than smuggled:
- *  - The design titles these "Match 1 / Match 2". Inside a match log that names
- *    the wrong thing, so they are "Game 1 / Game 2" here.
+ *  - **The design titles these "Game 1 / Game 2"; they are "Match 1 / Match 2"
+ *    here.** This file used to claim the reverse — that the design said "Match
+ *    1" and the app corrected it to "Game 1" — and that was simply false: the
+ *    design source contains "Game 1" twice and no "Match N" anywhere. The note
+ *    was written from memory and survived into `ROADMAP.md` unchecked. The
+ *    deviation is real, but it runs the other way, and it follows from the
+ *    vocabulary settled on 2026-08-12: a game is the encounter, a match is one
+ *    play inside it. The design predates that decision.
  *  - Their Battlefield opens the card picker instead of an inline search list.
  *    The design's list is a mock with six entries; the real one is every
  *    Battlefield in the library, and a filtered scrolling list nested inside the
@@ -26,27 +32,45 @@ import { text } from '@/theme/typography';
  *    already has the search the design draws.
  */
 
-export interface GameCardProps {
+export interface MatchCardProps {
   title: string;
   /** Right-hand mono line: result and turn order, or what is still missing. */
   summary: string;
   onPlay: boolean | null;
   onChangeOnPlay: (value: boolean | null) => void;
+  /*
+   * Advanced mode's two blocks, and they are **two** because the design puts
+   * them either side of the Battlefields:
+   *
+   *   who went first → hand → mulligan → your BF → their BF → score → who won
+   *
+   * They shipped as one slot before the Battlefields, which read as though the
+   * score were something you know before you have said where the match was
+   * played. Passed in rather than built here so this component stays the
+   * *shape* of a match card and the log screen keeps ownership of what a match
+   * records.
+   */
+  /** The opening hand and mulligan, straight after turn order. */
+  hand?: ReactNode;
+  /** The final score, after both Battlefields and immediately before the result. */
+  score?: ReactNode;
   /** The three Battlefields this deck brought. */
   ourFields: readonly CardRow[];
   ourField: CardRow | null;
   onChangeOurField: (value: CardRow | null) => void;
   theirField: CardRow | null;
   onPickTheirField: () => void;
-  result: MatchResult | null;
-  onChangeResult: (value: MatchResult) => void;
+  result: Result | null;
+  onChangeResult: (value: Result) => void;
 }
 
-export function GameCard({
+export function MatchCard({
   title,
   summary,
   onPlay,
   onChangeOnPlay,
+  hand,
+  score,
   ourFields,
   ourField,
   onChangeOurField,
@@ -54,7 +78,7 @@ export function GameCard({
   onPickTheirField,
   result,
   onChangeResult,
-}: GameCardProps) {
+}: MatchCardProps) {
   const [fieldOpen, setFieldOpen] = useState(false);
 
   return (
@@ -76,6 +100,8 @@ export function GameCard({
           onSelect={onChangeOnPlay}
         />
       </View>
+
+      {hand}
 
       <View style={styles.block}>
         <SectionLabel>Your battlefield — from this deck</SectionLabel>
@@ -134,9 +160,11 @@ export function GameCard({
         />
       </View>
 
+      {score}
+
       <View style={styles.block}>
         <SectionLabel>Who won?</SectionLabel>
-        <ChoiceRow<MatchResult | null>
+        <ChoiceRow<Result | null>
           options={[
             { key: 'win', label: 'W · Win', value: 'win' },
             { key: 'loss', label: 'L · Loss', value: 'loss' },

@@ -617,6 +617,134 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX IF NOT EXISTS events_deleted_idx ON events(deleted_at);
     `,
   },
+  {
+    version: 18,
+    up: /* sql */ `
+      -- The vocabulary inverts.
+      --
+      -- A **game** is one encounter between two players, Bo1 or Bo3. A
+      -- **match** is one play inside it, scored to 8. Every table and column
+      -- here said the opposite: \`matches\` held the encounter and
+      -- \`match_games\` held the plays, so \`matches.games_won\` read as
+      -- "games won by this match" and \`match_games.match_id\` pointed a game
+      -- at a match.
+      --
+      -- Nothing is rebuilt and no row is copied. These are pure renames —
+      -- SQLite's ALTER TABLE RENAME rewrites the schema entry in place and
+      -- carries the data, the indexes and the row ids with it, so this cannot
+      -- lose a game, a match or an event however large the history is.
+      --
+      -- Order matters twice over. \`matches\` must vacate its name before
+      -- \`match_games\` can take it, and the old indexes are dropped first so
+      -- no name is held by a table it no longer describes.
+
+      DROP INDEX IF EXISTS matches_deck_idx;
+      DROP INDEX IF EXISTS matches_version_idx;
+      DROP INDEX IF EXISTS matches_played_idx;
+      DROP INDEX IF EXISTS matches_deleted_idx;
+      DROP INDEX IF EXISTS matches_opp_idx;
+      DROP INDEX IF EXISTS matches_event_idx;
+      DROP INDEX IF EXISTS match_games_match_idx;
+      DROP INDEX IF EXISTS match_games_number_idx;
+
+      -- The encounter becomes a game.
+      ALTER TABLE matches RENAME TO games;
+      ALTER TABLE games RENAME COLUMN games_won  TO matches_won;
+      ALTER TABLE games RENAME COLUMN games_lost TO matches_lost;
+
+      -- \`event_type\` on this table never meant the event's tier — it held
+      -- Casual / Online / Tournament, which is the style of the game. The
+      -- tier lives on \`events.event_type\` and is untouched. One column name
+      -- meaning two different things across two tables is exactly how the
+      -- M6 split's careful distinction was going to be undone by accident.
+      ALTER TABLE games RENAME COLUMN event_type TO game_style;
+
+      -- The play becomes a match, and now points *up* at its game.
+      ALTER TABLE match_games RENAME TO matches;
+      ALTER TABLE matches RENAME COLUMN match_id     TO game_id;
+      ALTER TABLE matches RENAME COLUMN game_number  TO match_number;
+
+      CREATE INDEX IF NOT EXISTS games_deck_idx    ON games(deck_id);
+      CREATE INDEX IF NOT EXISTS games_version_idx ON games(deck_version_id);
+      CREATE INDEX IF NOT EXISTS games_played_idx  ON games(played_at);
+      CREATE INDEX IF NOT EXISTS games_deleted_idx ON games(deleted_at);
+      CREATE INDEX IF NOT EXISTS games_opp_idx     ON games(opp_legend_card_id);
+      CREATE INDEX IF NOT EXISTS games_event_idx   ON games(event_id);
+
+      CREATE INDEX IF NOT EXISTS matches_game_idx ON matches(game_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS matches_number_idx
+        ON matches(game_id, match_number);
+    `,
+  },
+  {
+    version: 19,
+    up: /* sql */ `
+      -- The Champion's landing turn is dropped, one day after it shipped.
+      --
+      -- It reads like the most interesting fact about a match and is the least
+      -- interpretable one. Turn 5 is early for a deck that ramps and late for
+      -- one that does not, and without the board it landed on -- what was
+      -- contested, what was answered, what either player was holding -- the
+      -- number cannot say which it was. An average over it would look like
+      -- information and would not be any. Same call M6's goldfish made when it
+      -- built Rune channelling faithfully and then removed it.
+      --
+      -- Dropped rather than left as dead schema. \`match_games\` spent two
+      -- milestones "shipped but unwritable" (gaps 11 and 12) and the lesson was
+      -- that a column nothing writes and nothing reads is a cost paid by every
+      -- future reader. \`matches.battlefields\` is the one exception and it is
+      -- named as such in the schema.
+      --
+      -- ALTER TABLE DROP COLUMN needs SQLite 3.35+ and refuses on an indexed,
+      -- PK, unique or CHECK-referenced column. Neither of these is any of those
+      -- -- both are plain nullable integers, and the only indexes on this table
+      -- are on \`game_id\` and \`(game_id, match_number)\`.
+      --
+      -- Anything already recorded in them is discarded. The field existed for a
+      -- single day and no released build ever wrote it.
+      ALTER TABLE matches DROP COLUMN champion_turn;
+      ALTER TABLE matches DROP COLUMN opp_champion_turn;
+    `,
+  },
+  {
+    version: 20,
+    up: /* sql */ `
+      -- What you drew after recycling.
+      --
+      -- The design's advanced logging screen (1_ML_Advance) draws the mulligan
+      -- as four slots: the first two are which of your opening four went back,
+      -- the last two are the cards you drew in their place. That last pair had
+      -- nowhere to live -- \`opening_hand\` is the deal and \`mulliganed\` is the
+      -- subset of it that went away, so a replacement belonged to neither.
+      --
+      -- It is worth its own column rather than being appended to
+      -- \`opening_hand\`: a card you drew *because* of a mulligan was never part
+      -- of the keep decision, and folding it in would inflate the denominator
+      -- of every card that happens to replace a thrown one. Same reasoning that
+      -- decided the two arrays in the first place.
+      ALTER TABLE matches ADD COLUMN replacements TEXT;
+    `,
+  },
+  {
+    version: 21,
+    up: /* sql */ `
+      -- Binders lose their colour.
+      --
+      -- \`accent\` held a domain name and **nothing has ever rendered it**. It
+      -- was drawn for the horizontal binder rail on the old Cards tab, and that
+      -- rail went when Collection split into a summary screen and a grid — but
+      -- the column, the picker and the parameter all stayed, so every binder
+      -- has been storing a colour no screen reads since migration 12.
+      --
+      -- Removed rather than wired up, on the owner's call: binders are a short
+      -- list read by name, and the app already teaches seven domain colours
+      -- that mean something about cards. A storage box borrowing that
+      -- vocabulary would imply a meaning it does not have.
+      --
+      -- Not indexed, not in a CHECK, so DROP COLUMN takes it cleanly.
+      ALTER TABLE binders DROP COLUMN accent;
+    `,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

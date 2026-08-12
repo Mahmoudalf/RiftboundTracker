@@ -4,8 +4,21 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { CardPickerSheet } from '@/components/decks/CardPickerSheet';
-import { GameCard } from '@/components/matches/GameCard';
-import { MatchupCard, MatchupDivider } from '@/components/matches/MatchupCard';
+import { MatchCard } from '@/components/games/MatchCard';
+import { MatchupCard, MatchupDivider } from '@/components/games/MatchupCard';
+import {
+  applyDealt,
+  applyMulligan,
+  applyReplacements,
+  BLANK_HAND,
+  DEAL_SIZE,
+  handCounts,
+  MAX_RECYCLED,
+  OpeningHand,
+  type Counts,
+  type OpeningHandValue,
+} from '@/components/games/OpeningHand';
+import { ScoreRow } from '@/components/games/ScoreRow';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ChoiceRow, OptionRow, SectionLabel, SelectField } from '@/components/ui/Field';
 import { Pressable } from '@/components/ui/Pressable';
@@ -14,37 +27,37 @@ import { Sheet, SheetRow } from '@/components/ui/Sheet';
 import { listBattlefields, listChampionsForLegend, listLegends } from '@/db/queries/cards';
 import { listDecks, loadDeckList } from '@/db/queries/decks';
 import { eventForName } from '@/db/queries/events';
-import { saveMatchGames } from '@/db/queries/match-games';
 import {
   battlefieldFields,
   deckRecord,
-  logMatch,
+  logGame,
   opponentBattlefieldFields,
   opponentChampionFields,
   opponentFields,
-  undoMatch,
-} from '@/db/queries/matches';
+  undoGame,
+} from '@/db/queries/games';
+import { saveMatches } from '@/db/queries/matches';
 import type { CardRow } from '@/db/schema/cards';
 import {
   BEST_OF_OPTIONS,
   DEFAULT_BEST_OF,
-  LOGGED_MATCH_STYLES,
-  type MatchResult,
-  type MatchStyle,
-} from '@/db/schema/matches';
-import { markLogAnother, markLogged, markSheetReady } from '@/features/matches/timing';
-import { useToast } from '@/features/matches/useToast';
+  LOGGED_GAME_STYLES,
+  type Result,
+  type GameStyle,
+} from '@/db/schema/games';
+import { markLogAnother, markLogged, markSheetReady } from '@/features/games/timing';
+import { useToast } from '@/features/games/useToast';
 import { baseName, cardKey } from '@/lib/card-identity';
-import { matchStyleLabel } from '@/lib/format';
-import { gameScoreLine, gamesToWin, matchProgress, visibleGames } from '@/lib/match-progress';
+import { gameStyleLabel } from '@/lib/format';
+import { matchScoreLine, matchesToWin, gameProgress, visibleMatches } from '@/lib/game-progress';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
 /**
- * Log a match, top to bottom.
+ * Log a game, top to bottom.
  *
  * The order is the design's: **the matchup → how it was played → your deck →
- * their deck → the games → what came of it.** It follows the shape of the match
+ * their deck → the matches → what came of it.** It follows the shape of the game
  * itself, so each answer is one you already have by the time you are asked.
  *
  * That is a deliberate trade against the earlier layout, which put WIN and LOSS
@@ -53,10 +66,10 @@ import { metaLine, text } from '@/theme/typography';
  * going first or second — were the ones most easily skipped. A logged match
  * with no opponent is a row in a total and nothing else.
  *
- * **The result is never asked for.** It is read off the games, so it cannot
+ * **The result is never asked for.** It is read off the matches, so it cannot
  * disagree with them, and a Bo3 recorded as 2–0 cannot also claim three games
  * were played. Games appear one at a time and stop appearing once the match is
- * settled; see `lib/match-progress`.
+ * settled; see `lib/game-progress`.
  *
  * ---
  *
@@ -81,11 +94,47 @@ import { metaLine, text } from '@/theme/typography';
  * go, and offering to file them under a tournament would be asking a question
  * with no answer.
  */
-const ORGANISED: MatchStyle[] = ['tournament'];
+const ORGANISED: GameStyle[] = ['tournament'];
 
 const haptic = (style: Haptics.ImpactFeedbackStyle) => {
   if (Platform.OS !== 'web') void Haptics.impactAsync(style);
 };
+
+/**
+ * Turn a drafted hand into the three columns, or into three nulls.
+ *
+ * The empty-vs-unrecorded line is drawn here, once, rather than at each of the
+ * call sites. A hand nobody filled in is `null` everywhere — `handCoverage`
+ * counts on it — while a hand that was filled in and mulliganed nothing is a
+ * real observation with an empty `mulliganed` array.
+ *
+ * Slots left blank inside a hand that *was* started are dropped rather than
+ * padded with a placeholder: four slots with two cards in them is a hand
+ * somebody recorded half of, and inventing the other two would be worse than
+ * a short array.
+ */
+function handFields(hand: OpeningHandValue | null): {
+  openingHand: string[] | null;
+  mulliganed: string[] | null;
+  replacements: string[] | null;
+} {
+  const dealt = hand?.dealt.filter((card): card is CardRow => card !== null) ?? [];
+  if (!hand || dealt.length === 0) {
+    return { openingHand: null, mulliganed: null, replacements: null };
+  }
+
+  return {
+    openingHand: dealt.map((card) => card.id),
+    // Indexes into `dealt`, resolved to ids here so the stored row does not
+    // depend on the order a UI happened to render them in.
+    mulliganed: hand.mulliganed
+      .map((index) => hand.dealt[index]?.id)
+      .filter((id): id is string => Boolean(id)),
+    replacements: hand.replacements
+      .filter((card): card is CardRow => card !== null)
+      .map((card) => card.id),
+  };
+}
 
 /** One card per name — art is not a distinction worth making about an opponent. */
 function dedupe(cards: CardRow[]): CardRow[] {
@@ -98,23 +147,69 @@ function dedupe(cards: CardRow[]): CardRow[] {
   });
 }
 
-type Picker = { kind: 'legend' | 'champion' } | { kind: 'theirField'; game: number };
+type Picker =
+  | { kind: 'legend' | 'champion' }
+  | { kind: 'theirField'; match: number }
+  /**
+   * One of the three hand rows, picked whole.
+   *
+   * No slot index: the picker fills the row, so which slot was tapped to open
+   * it does not change what it does.
+   */
+  | HandRow;
 
-/** One game's answers. Everything optional except, eventually, the result. */
-interface GameDraft {
-  result: MatchResult | null;
+/** The three rows of a hand, each picked whole. */
+type HandRow = { kind: 'dealt' | 'mulligan' | 'replacement'; match: number };
+
+const isHandRow = (p: Picker): p is HandRow =>
+  p.kind === 'dealt' || p.kind === 'mulligan' || p.kind === 'replacement';
+
+/**
+ * How much the form asks for.
+ *
+ * The design's own control, and the answer to a tension this app has carried
+ * since M4: the fast path has a ten-second budget, and opening hands cannot be
+ * recorded inside it. A mode makes the trade explicit and per-game rather than
+ * settling it once for everybody.
+ */
+type LoggingMode = 'simplified' | 'advanced';
+
+/** One match's answers. Everything optional except, eventually, the result. */
+interface MatchDraft {
+  result: Result | null;
   onPlay: boolean | null;
   ourField: CardRow | null;
   theirField: CardRow | null;
+  /** Advanced mode only. `hand.dealt` holds all four, `mulliganed` indexes them. */
+  hand: OpeningHandValue;
+  scoreFor: number | null;
+  scoreAgainst: number | null;
 }
 
-const BLANK_GAME: GameDraft = { result: null, onPlay: null, ourField: null, theirField: null };
+const BLANK_MATCH: MatchDraft = {
+  result: null,
+  onPlay: null,
+  ourField: null,
+  theirField: null,
+  hand: BLANK_HAND,
+  scoreFor: null,
+  scoreAgainst: null,
+};
 
 export default function LogMatchScreen() {
   const decks = useMemo(() => listDecks(), []);
   const [deckIndex, setDeckIndex] = useState(0);
 
-  const [matchStyle, setMatchStyle] = useState<MatchStyle>('casual');
+  const [gameStyle, setGameStyle] = useState<GameStyle>('casual');
+  /**
+   * Simplified by default, and kept across "log another".
+   *
+   * Defaulting to Advanced would put four card slots in front of somebody
+   * logging a casual game between rounds, which is the ten-second budget gone.
+   * Retaining it through `reset()` is the other half: a player who switched to
+   * Advanced for a tournament is still in that tournament on the next round.
+   */
+  const [mode, setMode] = useState<LoggingMode>('simplified');
   const [bestOf, setBestOf] = useState<number>(DEFAULT_BEST_OF);
   const [opponent, setOpponent] = useState<CardRow | null>(null);
   const [oppChampion, setOppChampion] = useState<CardRow | null>(null);
@@ -130,33 +225,68 @@ export default function LogMatchScreen() {
    */
   const [eventName, setEventName] = useState('');
   /**
-   * The games, in order. The match result is never asked for — it falls out of
+   * The matches, in order. The game result is never asked for — it falls out of
    * these, so it can never disagree with them.
    *
    * Answers are kept even when a game stops being shown. Correcting game 1 in a
    * 2–0 Bo3 brings game 3 back exactly as it was left, because nothing here
    * tracks "which game am I on" separately from the answers themselves.
    */
-  const [games, setGames] = useState<GameDraft[]>([BLANK_GAME]);
+  const [games, setGames] = useState<MatchDraft[]>([BLANK_MATCH]);
   const [reviewing, setReviewing] = useState(false);
   const [deckOpen, setDeckOpen] = useState(false);
 
-  const progress = matchProgress(games, bestOf);
-  const shown = visibleGames(games, bestOf);
+  const progress = gameProgress(games, bestOf);
+  const shown = visibleMatches(games, bestOf);
   const result = progress.result;
 
-  const gameAt = (i: number): GameDraft => games[i] ?? BLANK_GAME;
+  const gameAt = (i: number): MatchDraft => games[i] ?? BLANK_MATCH;
   const openingField = gameAt(0).ourField;
 
-  const setGame = (i: number, patch: Partial<GameDraft>) => {
+  const setGame = (i: number, patch: Partial<MatchDraft>) => {
     setGames((prev) => {
       // Pad rather than index-assign: a game can be revealed before the array
       // has grown to reach it.
       const next = [...prev];
-      while (next.length <= i) next.push(BLANK_GAME);
-      next[i] = { ...(next[i] ?? BLANK_GAME), ...patch };
+      while (next.length <= i) next.push(BLANK_MATCH);
+      next[i] = { ...(next[i] ?? BLANK_MATCH), ...patch };
       return next;
     });
+  };
+
+  const setHand = (match: number, next: OpeningHandValue) => {
+    setGame(match, { hand: next });
+  };
+
+  /**
+   * What the open picker is choosing over, and what it may choose.
+   *
+   * The mulligan row is the interesting one: its pool is the cards that were
+   * *dealt*, not the deck, and each card is capped at the number of copies of
+   * it in the hand. Without that cap you could send back two copies of a card
+   * you were dealt once.
+   */
+  const dealtCards = (match: number): CardRow[] =>
+    gameAt(match).hand.dealt.filter((card): card is CardRow => card !== null);
+
+  const pickerPool = (p: HandRow): CardRow[] =>
+    p.kind === 'mulligan' ? dedupe(dealtCards(p.match)) : deckPool;
+
+  const pickerCounts = (p: HandRow): Counts => {
+    const hand = gameAt(p.match).hand;
+    if (p.kind === 'dealt') return handCounts.dealt(hand);
+    if (p.kind === 'mulligan') return handCounts.mulliganed(hand);
+    return handCounts.replacements(hand);
+  };
+
+  /** The open picker, when it is one of the three hand rows. */
+  const handRow: HandRow | null = picker && isHandRow(picker) ? picker : null;
+
+  const onCounts = (p: HandRow, counts: Counts) => {
+    const hand = gameAt(p.match).hand;
+    if (p.kind === 'dealt') setHand(p.match, applyDealt(hand, counts, deckPool));
+    else if (p.kind === 'mulligan') setHand(p.match, applyMulligan(hand, counts));
+    else setHand(p.match, applyReplacements(hand, counts, deckPool));
   };
 
   const showToast = useToast((s) => s.show);
@@ -184,17 +314,46 @@ export default function LogMatchScreen() {
     [opponent]
   );
 
+  /*
+   * No `useMemo` here, deliberately — the React Compiler memoizes it.
+   *
+   * Wrapped by hand, the compiler reported *"existing memoization could not be
+   * preserved"* and **skipped optimizing this whole component**, which is a
+   * worse trade than the one the memo was buying: one manual memo kept, every
+   * other value in a 900-line screen recomputed. Left plain, the compiler
+   * memoizes this on `selected` along with everything else.
+   *
+   * It matters that it is memoized at all: this is a `loadDeckList` read, and
+   * an unmemoized one would hit SQLite on every keystroke in the note field.
+   */
+  const poolVersionId = selected?.deck.currentVersionId ?? null;
+  const deckPool = ((): CardRow[] => {
+    if (!poolVersionId) return [];
+    const seen = new Set<string>();
+    const pool = loadDeckList(poolVersionId)
+      .slots.filter((slot) => slot.zone === 'main' || slot.zone === 'champion')
+      .map((slot) => slot.card)
+      .filter((card) => {
+        const key = cardKey(card);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    pool.sort((a, b) => baseName(a.name).localeCompare(baseName(b.name)));
+    return pool;
+  })();
+
   const reset = () => {
     // "Log another": you are still at the same event, with the same deck and
     // Battlefields. The opponent is what changes between rounds.
     setOpponent(null);
     setOppChampion(null);
-    setGames([BLANK_GAME]);
+    setGames([BLANK_MATCH]);
     setNotes('');
     saving.current = false;
   };
 
-  const save = (result: MatchResult, andAnother: boolean) => {
+  const save = (result: Result, andAnother: boolean) => {
     const versionId = selected?.deck.currentVersionId;
     if (!selected || !versionId || saving.current) return;
     saving.current = true;
@@ -209,7 +368,7 @@ export default function LogMatchScreen() {
 
     const deck = selected.deck;
     /*
-     * Only the games that counted.
+     * Only the matches that counted.
      *
      * Answers kept behind a correction are still in state — a Bo3 corrected
      * from 2–0 to 1–1 must not save the game 3 that the first version of the
@@ -226,23 +385,23 @@ export default function LogMatchScreen() {
      * evidence that its event exists. Styles that are not organised play never
      * carry one, however the field was left.
      */
-    const eventId = ORGANISED.includes(matchStyle) ? eventForName(eventName) : null;
+    const eventId = ORGANISED.includes(gameStyle) ? eventForName(eventName) : null;
 
-    const id = logMatch({
+    const id = logGame({
       deckId: deck.id,
       deckVersionId: versionId,
       result,
       /*
        * The match-level turn order and Battlefields mirror game 1.
        *
-       * These columns predate per-game logging and every analytics split reads
-       * them. Game 1 is the one they always described — the opener, before
+       * These columns predate per-match logging and every analytics split reads
+       * them. Match 1 is the one they always described — the opener, before
        * either player had sided — so the existing splits keep meaning what they
        * meant rather than being orphaned.
        */
       onPlay: first?.onPlay ?? null,
       bestOf,
-      eventType: matchStyle,
+      gameStyle: gameStyle,
       eventId,
       notes: notes.trim() || null,
       ...opponentFields(opponent),
@@ -251,17 +410,27 @@ export default function LogMatchScreen() {
       ...opponentBattlefieldFields(first?.theirField ?? null),
     });
 
-    saveMatchGames(
+    saveMatches(
       id,
-      played.flatMap((game, i) =>
-        game.result
+      played.flatMap((match, i) =>
+        match.result
           ? [
               {
-                gameNumber: i + 1,
-                result: game.result,
-                onPlay: game.onPlay,
-                battlefieldCardId: game.ourField?.id ?? null,
-                oppBattlefieldCardId: game.theirField?.id ?? null,
+                matchNumber: i + 1,
+                result: match.result,
+                onPlay: match.onPlay,
+                battlefieldCardId: match.ourField?.id ?? null,
+                oppBattlefieldCardId: match.theirField?.id ?? null,
+                /*
+                 * Advanced-mode answers, written only when they were asked
+                 * for — `handFields` returns nulls in simplified mode, and a
+                 * null is "not recorded" rather than "recorded as empty".
+                 * Saving `[]` here would tell the analytics that somebody sat
+                 * down and wrote out a hand of no cards.
+                 */
+                ...handFields(mode === 'advanced' ? match.hand : null),
+                scoreFor: mode === 'advanced' ? match.scoreFor : null,
+                scoreAgainst: mode === 'advanced' ? match.scoreAgainst : null,
               },
             ]
           : []
@@ -275,7 +444,7 @@ export default function LogMatchScreen() {
     showToast(
       `Logged · ${deck.name}${version} now ${record.wins}–${record.losses} (${rate}%)`,
       // Stays up the long default: a mis-tap on a result needs time to notice.
-      { action: { label: 'Undo', onPress: () => undoMatch(id) } }
+      { action: { label: 'Undo', onPress: () => undoGame(id) } }
     );
     markLogged();
 
@@ -289,10 +458,10 @@ export default function LogMatchScreen() {
 
   if (decks.length === 0) {
     return (
-      <Screen title="Log a match" back={false} compact>
+      <Screen title="Log a game" back={false} compact>
         <EmptyState
           title="No decks yet"
-          body="A match is attached to the exact deck version that played it, so there needs to be a deck first."
+          body="A game is attached to the exact deck version that played it, so there needs to be a deck first."
           actions={[
             { label: 'Build a deck', onPress: () => router.replace('/deck/new'), primary: true },
             { label: 'Close', onPress: () => router.back() },
@@ -304,7 +473,7 @@ export default function LogMatchScreen() {
 
   return (
     <Screen
-      title="Log a match"
+      title="Log a game"
       back={false}
       compact
       action={
@@ -324,13 +493,28 @@ export default function LogMatchScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.block}>
+          <SectionLabel>Logging mode</SectionLabel>
+          <ChoiceRow<LoggingMode>
+            options={[
+              { key: 'simplified', label: 'Simplified', value: 'simplified' },
+              { key: 'advanced', label: 'Advanced', value: 'advanced' },
+            ]}
+            value={mode}
+            onSelect={setMode}
+          />
+          <Text style={styles.helper}>
+            Advanced mode tracks opening hands, mulligans and per-match score alongside the result.
+          </Text>
+        </View>
+
+        <View style={styles.block}>
           <SectionLabel>The matchup</SectionLabel>
           <MatchupCard
             side="you"
             title={selected?.deck.name ?? 'No deck'}
             subtitle={metaLine(
               selected?.version ? `v${selected.version.versionNumber}` : null,
-              // Game 1's, the one the matchup opened on.
+              // Match 1's, the one the matchup opened on.
               openingField ? baseName(openingField.name) : null
             )}
             imageUrl={selected?.legendImageUrl ?? null}
@@ -344,24 +528,24 @@ export default function LogMatchScreen() {
                 ? baseName(oppChampion.name)
                 : opponent
                   ? 'Champion not recorded'
-                  : 'Skip it and the match still counts'
+                  : 'Skip it and the game still counts'
             }
             imageUrl={opponent?.imageUrl ?? null}
           />
         </View>
 
         <View style={styles.block}>
-          <SectionLabel>Match style</SectionLabel>
-          <ChoiceRow<MatchStyle>
-            options={LOGGED_MATCH_STYLES.map((key) => ({
+          <SectionLabel>Game style</SectionLabel>
+          <ChoiceRow<GameStyle>
+            options={LOGGED_GAME_STYLES.map((key) => ({
               key,
-              label: matchStyleLabel(key),
+              label: gameStyleLabel(key),
               value: key,
             }))}
-            value={matchStyle}
+            value={gameStyle}
             onSelect={(next) => {
               haptic(Haptics.ImpactFeedbackStyle.Light);
-              setMatchStyle(next);
+              setGameStyle(next);
             }}
             tall
           />
@@ -380,7 +564,7 @@ export default function LogMatchScreen() {
             now, and simply records no event, because "which tournament" is a
             detail about a match that certainly happened.
           */}
-          {ORGANISED.includes(matchStyle) ? (
+          {ORGANISED.includes(gameStyle) ? (
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Event (optional)</Text>
               <TextInput
@@ -439,8 +623,15 @@ export default function LogMatchScreen() {
                   onPress={() => {
                     setDeckIndex(i);
                     setDeckOpen(false);
-                    // The old deck's Battlefields are not in the new one.
-                    setGames((prev) => prev.map((g) => ({ ...g, ourField: null })));
+                    /*
+                     * The old deck's Battlefields are not in the new one, and
+                     * neither are the cards drafted into an opening hand.
+                     * Keeping them would record a hand of cards the deck being
+                     * saved has never contained.
+                     */
+                    setGames((prev) =>
+                      prev.map((m) => ({ ...m, ourField: null, hand: BLANK_HAND }))
+                    );
                   }}
                 />
               ))}
@@ -482,7 +673,7 @@ export default function LogMatchScreen() {
         </View>
 
         {/*
-          The games, one card at a time.
+          The matches, one card at a time.
 
           A game appears once the one before it is answered, and stops appearing
           the moment the match can no longer turn on it — a Bo3 at 2–0 has no
@@ -493,9 +684,9 @@ export default function LogMatchScreen() {
           {Array.from({ length: shown }, (_, i) => {
             const game = gameAt(i);
             return (
-              <GameCard
+              <MatchCard
                 key={i}
-                title={bestOf > 1 ? `Game ${i + 1}` : 'The game'}
+                title={bestOf > 1 ? `Match ${i + 1}` : 'The match'}
                 summary={metaLine(
                   game.result === 'win'
                     ? 'W'
@@ -512,12 +703,35 @@ export default function LogMatchScreen() {
                 ourField={game.ourField}
                 onChangeOurField={(value) => setGame(i, { ourField: value })}
                 theirField={game.theirField}
-                onPickTheirField={() => setPicker({ kind: 'theirField', game: i })}
+                onPickTheirField={() => setPicker({ kind: 'theirField', match: i })}
                 result={game.result}
                 onChangeResult={(value) => {
                   haptic(Haptics.ImpactFeedbackStyle.Light);
                   setGame(i, { result: value });
                 }}
+                /*
+                 * Two slots, either side of the Battlefields, so the card reads
+                 * in the order the match happened: who started, what you were
+                 * dealt, what went back, where it was played, how it finished,
+                 * who won. The design's own order.
+                 */
+                hand={
+                  mode === 'advanced' ? (
+                    <OpeningHand
+                      value={game.hand}
+                      onPickRow={(row) => setPicker({ kind: row, match: i })}
+                    />
+                  ) : null
+                }
+                score={
+                  mode === 'advanced' ? (
+                    <ScoreRow
+                      scoreFor={game.scoreFor}
+                      scoreAgainst={game.scoreAgainst}
+                      onChange={(next) => setGame(i, next)}
+                    />
+                  ) : null
+                }
               />
             );
           })}
@@ -539,7 +753,7 @@ export default function LogMatchScreen() {
             placeholderTextColor={color.textMuted}
             style={styles.notes}
             multiline
-            accessibilityLabel="Match note"
+            accessibilityLabel="Game note"
           />
         </View>
 
@@ -558,7 +772,7 @@ export default function LogMatchScreen() {
             </Text>
             <Text style={styles.outcomeMeta}>
               {result
-                ? metaLine(gameScoreLine(games, bestOf), 'derived from the games')
+                ? metaLine(matchScoreLine(games, bestOf), 'derived from the matches')
                 : 'No games logged yet'}
             </Text>
           </View>
@@ -579,8 +793,8 @@ export default function LogMatchScreen() {
 
           <Text style={styles.hint}>
             {result
-              ? 'Nothing is saved yet — the next screen reads the match back first.'
-              : `Answer each game above. ${gamesToWin(bestOf)} won takes the match.`}
+              ? 'Nothing is saved yet — the next screen reads the game back first.'
+              : `Answer each game above. ${matchesToWin(bestOf)} won takes the match.`}
           </Text>
         </View>
       </ScrollView>
@@ -600,7 +814,7 @@ export default function LogMatchScreen() {
         actions={
           <>
             {/* Only an organised style has a next round to log. */}
-            {ORGANISED.includes(matchStyle) ? (
+            {ORGANISED.includes(gameStyle) ? (
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
@@ -626,13 +840,13 @@ export default function LogMatchScreen() {
         }
       >
         <View style={styles.sheetOutcome}>
-          <SectionLabel>Match outcome</SectionLabel>
+          <SectionLabel>Game outcome</SectionLabel>
           <Text style={styles.sheetOutcomeValue}>
             {result === 'win' ? 'Win' : result === 'loss' ? 'Loss' : 'Draw'}
           </Text>
-          {/* Derived from the games — never asked for twice. */}
+          {/* Derived from the matches — never asked for twice. */}
           <Text style={styles.outcomeMeta}>
-            {metaLine(gameScoreLine(games, bestOf), 'derived from the games')}
+            {metaLine(matchScoreLine(games, bestOf), 'derived from the matches')}
           </Text>
         </View>
 
@@ -647,7 +861,7 @@ export default function LogMatchScreen() {
         />
         <SheetRow
           label="Format"
-          value={metaLine(matchStyleLabel(matchStyle), `Bo${bestOf}`)}
+          value={metaLine(gameStyleLabel(gameStyle), `Bo${bestOf}`)}
           mono
         />
         {/* Every game gets its own line. A Bo3 read back as one turn order and
@@ -656,7 +870,7 @@ export default function LogMatchScreen() {
         {games.slice(0, progress.played).map((game, i) => (
           <SheetRow
             key={i}
-            label={bestOf > 1 ? `Game ${i + 1}` : 'The game'}
+            label={bestOf > 1 ? `Match ${i + 1}` : 'The match'}
             value={metaLine(
               game.result === 'win' ? 'Won' : game.result === 'loss' ? 'Lost' : 'Drew',
               game.onPlay === null
@@ -669,7 +883,36 @@ export default function LogMatchScreen() {
             )}
           />
         ))}
-        {ORGANISED.includes(matchStyle) ? (
+        {/*
+          Advanced mode's own read-back, and only when it was used.
+
+          Rendering "Score: not recorded · Mulligan: not recorded" under a
+          simplified log would be reporting the absence of questions that were
+          never asked, which is a different thing from a skipped answer.
+        */}
+        {mode === 'advanced'
+          ? games.slice(0, progress.played).map((match, i) => {
+              const score =
+                match.scoreFor !== null && match.scoreAgainst !== null
+                  ? `${match.scoreFor}–${match.scoreAgainst}`
+                  : null;
+              const dealt = match.hand.dealt.filter(Boolean).length;
+              const hand =
+                dealt === 0
+                  ? null
+                  : `Replaced ${match.hand.mulliganed.length} of ${dealt}`;
+              if (!score && !hand) return null;
+              return (
+                <SheetRow
+                  key={`adv-${i}`}
+                  label={bestOf > 1 ? `Match ${i + 1} detail` : 'Detail'}
+                  value={metaLine(score, hand) || 'Not recorded'}
+                  mono={!hand}
+                />
+              );
+            })
+          : null}
+        {ORGANISED.includes(gameStyle) ? (
           <SheetRow label="Event" value={eventName.trim() || 'Not recorded'} />
         ) : null}
         {notes.trim() ? <SheetRow label="Note" value={notes.trim()} /> : null}
@@ -682,14 +925,24 @@ export default function LogMatchScreen() {
             ? 'Their Legend'
             : picker?.kind === 'champion'
               ? 'Their Chosen Champion'
-              : 'Battlefield they played'
+              : picker?.kind === 'dealt'
+                ? 'Your opening hand'
+                : picker?.kind === 'replacement'
+                  ? 'What you drew back'
+                  : picker?.kind === 'mulligan'
+                    ? 'Which cards went back?'
+                    : 'Battlefield they played'
         }
         subtitle={
           picker?.kind === 'champion' && opponent
             ? `Champions that partner ${baseName(opponent.name)}`
-            : picker?.kind === 'theirField' && bestOf > 1
-              ? `Game ${picker.game + 1}`
-              : undefined
+            : picker?.kind === 'mulligan'
+              ? 'Only the cards you were dealt.'
+              : picker?.kind === 'dealt' || picker?.kind === 'replacement'
+                ? `From ${selected?.deck.name ?? 'this deck'}`
+                : picker?.kind === 'theirField' && bestOf > 1
+                  ? `Match ${picker.match + 1}`
+                  : undefined
         }
         cards={
           picker?.kind === 'legend'
@@ -698,7 +951,15 @@ export default function LogMatchScreen() {
               ? championChoices
               : picker?.kind === 'theirField'
                 ? dedupe(listBattlefields())
-                : []
+                : /*
+                   * A mulligan is chosen from the hand, never from the deck.
+                   * Offering the whole pool would let somebody record sending
+                   * back a card they were never dealt, and the two rows would
+                   * stop describing the same hand.
+                   */
+                  handRow
+                  ? pickerPool(handRow)
+                  : []
         }
         selectedId={
           picker?.kind === 'legend'
@@ -706,13 +967,17 @@ export default function LogMatchScreen() {
             : picker?.kind === 'champion'
               ? (oppChampion?.id ?? null)
               : picker?.kind === 'theirField'
-                ? (gameAt(picker.game).theirField?.id ?? null)
+                ? (gameAt(picker.match).theirField?.id ?? null)
                 : null
         }
         emptyMessage={
           picker?.kind === 'champion'
             ? 'No Champion Unit in the library partners that Legend.'
-            : 'The card library has not finished downloading.'
+            : picker?.kind === 'mulligan'
+              ? 'Fill in the opening hand first — a card can only go back if it was dealt.'
+              : picker?.kind === 'dealt' || picker?.kind === 'replacement'
+                ? 'This deck version has no main-deck cards the library can resolve.'
+                : 'The card library has not finished downloading.'
         }
         onSelect={(card) => {
           if (picker?.kind === 'legend') {
@@ -721,9 +986,26 @@ export default function LogMatchScreen() {
           } else if (picker?.kind === 'champion') {
             setOppChampion(card);
           } else if (picker?.kind === 'theirField') {
-            setGame(picker.game, { theirField: card });
+            setGame(picker.match, { theirField: card });
           }
         }}
+        multi={
+          handRow
+            ? {
+                counts: pickerCounts(handRow),
+                limit: handRow.kind === 'dealt' ? DEAL_SIZE : MAX_RECYCLED,
+                /*
+                 * A card can be sent back only as often as it was dealt, and
+                 * drawn back only as often as something went away.
+                 */
+                maxPerCard: (card) =>
+                  handRow.kind === 'mulligan'
+                    ? dealtCards(handRow.match).filter((c) => c.id === card.id).length
+                    : MAX_RECYCLED,
+                onChange: (counts) => onCounts(handRow, counts),
+              }
+            : undefined
+        }
         onClose={() => setPicker(null)}
       />
     </Screen>

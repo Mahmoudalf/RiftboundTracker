@@ -155,6 +155,15 @@ export function ChoiceRow<T>({ options, value, onSelect, tall = false }: ChoiceR
   );
 }
 
+/*
+ * `NumberRow` lived here — a wrapping row of fixed-width numeric chips.
+ *
+ * Built for the Champion landing turn, inherited by the score, and outlived by
+ * both: the turn went with migration 19 and the score became the design's pair
+ * of dropdowns. An exported component with no consumer is what gap 15 named,
+ * so it is deleted rather than kept warm for a third caller that may never come.
+ */
+
 const styles = StyleSheet.create({
   sectionLabel: {
     ...text.microMeta,

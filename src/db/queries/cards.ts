@@ -225,6 +225,31 @@ export function getCard(id: string): CardRow | null {
   return row ? hydrateCard(row) : null;
 }
 
+/**
+ * Names for a set of card ids, in one query.
+ *
+ * Two columns and no hydration, for the same reason `binderQuantities()` exists:
+ * the analytics layer works in ids and only needs a label at the very end, and
+ * hydrating ~29 columns per card to read one of them measured as 88 % of a tap
+ * when the collection did it.
+ *
+ * Ids the mirror cannot resolve are **absent from the map** rather than mapped
+ * to a placeholder, so a caller can tell "gone from the library" apart from a
+ * card genuinely called something odd.
+ */
+export function cardNamesByIds(ids: readonly string[]): Map<string, string> {
+  if (ids.length === 0) return new Map();
+  const unique = [...new Set(ids)];
+  const placeholders = unique.map(() => '?').join(',');
+
+  const rows = conn().getAllSync<{ id: string; name: string }>(
+    `SELECT id, name FROM cards WHERE id IN (${placeholders})`,
+    [...unique]
+  );
+
+  return new Map(rows.map((row) => [row.id, row.name]));
+}
+
 /** How many cards a filter set would match, without selecting or hydrating them. */
 export function countMatchingCards(filters: CardFilters = {}): number {
   const { where, params } = buildFilter(filters);

@@ -6,7 +6,7 @@ import type { CardRow } from '../schema/cards';
 import { applyMigrationsUpTo, createTestDatabase, type TestDatabase } from '../testing';
 
 import { createDeck, saveDeckEdit } from './decks';
-import { logMatch } from './matches';
+import { logGame } from './games';
 import { versionStatLabel, versionStats } from './version-stats';
 
 /**
@@ -77,9 +77,9 @@ describe('versionStats', () => {
 
     // The build edit is a version of its own now, so matches attach to it.
     const v1 = saveDeckEdit(versionId, list(a)).versionId;
-    logMatch({ deckId, deckVersionId: v1, result: 'win' });
+    logGame({ deckId, deckVersionId: v1, result: 'win' });
     const v2 = saveDeckEdit(v1, list(b)).versionId;
-    logMatch({ deckId, deckVersionId: v2, result: 'loss' });
+    logGame({ deckId, deckVersionId: v2, result: 'loss' });
 
     const stats = versionStats(deckId);
     // Three versions now: the seeded v1, plus one per edit. v1 was never
@@ -109,13 +109,13 @@ describe('versionStats', () => {
     });
 
     const built = saveDeckEdit(versionId, list(standard)).versionId;
-    logMatch({ deckId, deckVersionId: built, result: 'win' });
-    logMatch({ deckId, deckVersionId: built, result: 'win' });
+    logGame({ deckId, deckVersionId: built, result: 'win' });
+    logGame({ deckId, deckVersionId: built, result: 'win' });
 
     // Same cards, different printing — and it still forks.
     const swapped = saveDeckEdit(built, list(alt));
     expect(swapped.outcome).toBe('forked');
-    logMatch({ deckId, deckVersionId: swapped.versionId, result: 'loss' });
+    logGame({ deckId, deckVersionId: swapped.versionId, result: 'loss' });
 
     const stats = versionStats(deckId);
     // The pooled pair, plus the seeded v1 that was never played.
@@ -149,7 +149,7 @@ describe('versionStats', () => {
         { card: b, quantity: 1, zone: 'main' },
       ],
     }).versionId;
-    logMatch({ deckId, deckVersionId: current, result: 'win' });
+    logGame({ deckId, deckVersionId: current, result: 'win' });
 
     // Same cards, same counts, written in a different order.
     const forked = saveDeckEdit(current, {

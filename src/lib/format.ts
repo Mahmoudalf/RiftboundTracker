@@ -1,4 +1,4 @@
-import type { EventStyle, MatchStyle } from '@/db/schema/matches';
+import type { EventStyle, GameStyle } from '@/db/schema/games';
 
 /**
  * Display formatting shared across screens.
@@ -15,7 +15,7 @@ import type { EventStyle, MatchStyle } from '@/db/schema/matches';
  * about a match you just played, and absolute after that, because "23 days ago"
  * is arithmetic rather than information.
  */
-export function matchDate(iso: string, now: Date = new Date()): string {
+export function gameDate(iso: string, now: Date = new Date()): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
 
@@ -34,7 +34,7 @@ export function matchDate(iso: string, now: Date = new Date()): string {
   });
 }
 
-const MATCH_STYLE_LABELS: Record<MatchStyle, string> = {
+const MATCH_STYLE_LABELS: Record<GameStyle, string> = {
   casual: 'Casual',
   online: 'Online',
   tournament: 'Tournament',
@@ -64,8 +64,8 @@ function humanise(value: string): string {
 }
 
 /** How the match was played: Casual, Online, Tournament, Testing. */
-export function matchStyleLabel(value: string): string {
-  return MATCH_STYLE_LABELS[value as MatchStyle] ?? humanise(value);
+export function gameStyleLabel(value: string): string {
+  return MATCH_STYLE_LABELS[value as GameStyle] ?? humanise(value);
 }
 
 /**

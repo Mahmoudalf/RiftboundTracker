@@ -3,19 +3,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
-import type { CardFace, MatchHistoryEntry } from '@/db/queries/history';
+import type { CardFace, GameHistoryEntry } from '@/db/queries/history';
 import { baseName } from '@/lib/card-identity';
 import { cardImage } from '@/lib/cdn';
-import { bestOfLabel, matchDate, matchStyleLabel } from '@/lib/format';
+import { bestOfLabel, gameDate, gameStyleLabel } from '@/lib/format';
 import { deckGradient } from '@/theme/domains';
 import { CARD_ASPECT, color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
 /**
- * One match, in the shape a player expects a match history to have.
+ * One game, in the shape a player expects a game history to have.
  *
  * The row is tinted by the result and carries a coloured edge, so a column of
- * them is scannable without reading a word — which is the entire job of a match
+ * them is scannable without reading a word — which is the entire job of a game
  * history. The result is still spelled out, because tint alone fails in
  * greyscale and for anyone who cannot separate the two hues.
  *
@@ -25,8 +25,8 @@ import { metaLine, text } from '@/theme/typography';
  * recognisable.
  */
 
-interface MatchHistoryRowProps {
-  entry: MatchHistoryEntry;
+interface GameHistoryRowProps {
+  entry: GameHistoryEntry;
   onPress?: () => void;
 }
 
@@ -35,7 +35,7 @@ function Face({ face }: { face: CardFace }) {
     /*
      * No art — either never recorded, or the printing has left the library.
      *
-     * When the match knows the opponent's domains, draw those instead of an
+     * When the game knows the opponent's domains, draw those instead of an
      * empty tile. This is the job `opp_domains` was denormalized for: the name
      * already survives the card mirror, and the domains make the identity
      * *visible* at a glance in a list that is otherwise scanned by colour.
@@ -93,14 +93,14 @@ function Side({ legend, champion, align }: { legend: CardFace; champion: CardFac
 
 const RESULT_LABEL = { win: 'WIN', loss: 'LOSS', draw: 'DRAW' } as const;
 
-export function MatchHistoryRow({ entry, onPress }: MatchHistoryRowProps) {
-  const { match, ours, theirs } = entry;
+export function GameHistoryRow({ entry, onPress }: GameHistoryRowProps) {
+  const { game, ours, theirs } = entry;
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={
-        `${RESULT_LABEL[match.result]} — ` +
+        `${RESULT_LABEL[game.result]} — ` +
         `${ours.legend.name ? baseName(ours.legend.name) : 'your deck'} versus ` +
         `${theirs.legend.name ? baseName(theirs.legend.name) : 'an unrecorded opponent'}`
       }
@@ -108,16 +108,16 @@ export function MatchHistoryRow({ entry, onPress }: MatchHistoryRowProps) {
       disabled={!onPress}
       style={({ pressed }) => [
         styles.row,
-        match.result === 'win' && styles.rowWin,
-        match.result === 'loss' && styles.rowLoss,
+        game.result === 'win' && styles.rowWin,
+        game.result === 'loss' && styles.rowLoss,
         pressed && onPress ? styles.pressed : null,
       ]}
     >
       <View
         style={[
           styles.edge,
-          match.result === 'win' && styles.edgeWin,
-          match.result === 'loss' && styles.edgeLoss,
+          game.result === 'win' && styles.edgeWin,
+          game.result === 'loss' && styles.edgeLoss,
         ]}
       />
 
@@ -126,17 +126,17 @@ export function MatchHistoryRow({ entry, onPress }: MatchHistoryRowProps) {
           <Text
             style={[
               styles.result,
-              match.result === 'win' && styles.resultWin,
-              match.result === 'loss' && styles.resultLoss,
+              game.result === 'win' && styles.resultWin,
+              game.result === 'loss' && styles.resultLoss,
             ]}
           >
-            {RESULT_LABEL[match.result]}
+            {RESULT_LABEL[game.result]}
           </Text>
           <Text style={styles.meta} numberOfLines={1}>
             {metaLine(
-              matchStyleLabel(match.eventType),
-              bestOfLabel(match.bestOf),
-              matchDate(match.playedAt)
+              gameStyleLabel(game.gameStyle),
+              bestOfLabel(game.bestOf),
+              gameDate(game.playedAt)
             )}
           </Text>
         </View>

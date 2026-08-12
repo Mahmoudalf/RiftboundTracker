@@ -3,7 +3,7 @@
 UI and UX are the primary success criteria for this app, not a finishing layer. Two hard rules
 govern every decision in this document:
 
-> **1. Logging a match takes under 10 seconds**, tab bar to confirmation.
+> **1. Logging a game takes under 10 seconds**, tab bar to confirmation.
 > **2. The version model must be invisible.** The user learns it by using the app, never by reading
 > about it.
 
@@ -94,7 +94,7 @@ dim-background badge. Contrast targets: 4.5:1 body text, 3:1 large text and UI b
 **The signature device.** Every Riftbound card carries a metadata line along its
 foot: `OGN • 007/298 • Greg Ghielmetti & Leah Chen • ©2025RGI`. Small, uppercase,
 widely tracked, bullet-separated. The app adopts that exact idiom for its own
-metadata — `v3 • 40 matches • 63%`, `Legend • Rare • Fury/Order` — so the
+metadata — `v3 • 40 games • 63%`, `Legend • Rare • Fury/Order` — so the
 interface speaks in the artifact's own vernacular instead of generic caption
 styling. Implemented as `text.meta` plus the `metaLine()` helper in
 `src/theme/typography.ts`; it is the one styling rule that should show up on
@@ -114,7 +114,7 @@ Four tabs plus a center action:
 └────────┴────────┴─────────┴────────┴─────────┘
 ```
 
-The center **(+)** opens the log-match sheet from anywhere in the app. It is **context-aware**:
+The center **(+)** opens the log-game sheet from anywhere in the app. It is **context-aware**:
 opened from a deck screen it pre-selects that deck and its current version. This is the single most
 important control in the app — it gets the most prominent position.
 
@@ -129,8 +129,9 @@ app/
   deck/[id]/edit.tsx        Deck editor
   deck/new.tsx              Create: Legend → Champion → build
 
-  match/new.tsx             Log match (modal bottom sheet)
-  match/[id].tsx            Match detail / edit
+  game/new.tsx              Log a game (modal bottom sheet)
+  game/[id]/index.tsx       Game detail / edit
+  game/[id]/matches.tsx     In-depth per-match detail
 
   card/[id].tsx             Card detail (modal, shared-element from grid)
   event/[id].tsx            Event / tournament detail
@@ -143,7 +144,7 @@ Deep links (`riftbound://deck/…`) come free with expo-router and enable deck s
 
 ## 5. Key flows
 
-### Flow 1 — Log a match
+### Flow 1 — Log a game
 
 *The flow that decides whether this app gets used at all.*
 
@@ -196,7 +197,7 @@ mid-edit is hostile. They're flagged, not forbidden.
 **Versioning, surfaced without a lecture.** Opening the editor on a locked version shows a quiet
 inline banner:
 
-> *v2 · 30 matches tracked — saving will create v3.*
+> *v2 · 30 games tracked — saving will create v3.*
 
 And the save sheet leads with the **diff**, not a form:
 
@@ -228,24 +229,24 @@ A vertical timeline, newest first. Each node is a version:
 ```
 │
 ◉  v3  −2 Bewitching Spirit                    current
-│   Jul 12 – now · 40 matches
+│   Jul 12 – now · 40 games
 │   ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░  63%   CI 47–77%
 │   +2 Statikk Shock  −2 Bewitching Spirit  +1 BORK  −1 Sump Dredger
 │
 ◉  v2  rune fix
-│   Jun 28 – Jul 12 · 30 matches
+│   Jun 28 – Jul 12 · 30 games
 │   ▓▓▓▓▓▓▓▓▓░░░░░░░░░  47%   CI 30–64%
 │   +2 Fury rune  −2 Order rune
 │
 ◉  v1  initial build
-│   Jun 02 – Jun 28 · 12 matches                          provisional
+│   Jun 02 – Jun 28 · 12 games                          provisional
 │   ▓▓▓▓▓▓▓▓░░░░░░░░░░  42%   CI 19–68%
 ```
 
 Long-press two nodes to enter **Compare** — side-by-side stats, the full card diff, and an honest
 verdict line:
 
-> *v3 is 16 points ahead of v2, but the intervals overlap. About 25 more matches on v3 would settle
+> *v3 is 16 points ahead of v2, but the intervals overlap. About 25 more games on v3 would settle
 > it. Note that the metagame also shifted between these versions.*
 
 The timeline reads as the *story of the deck*. Forking then feels like the natural act rather than a
@@ -283,7 +284,7 @@ onboarding surface: it explains the version concept in one sentence, and offers 
 a deck"* and *"Paste a decklist"* — because importing an existing list is the fastest route to a
 user who has something to track.
 
-Also designed: a deck with no matches yet (prompt to log the first), a version with too few matches
+Also designed: a deck with no games yet (prompt to log the first), a version with too few games
 for meaningful stats (says so, in the provisional style), and the card gallery mid-sync.
 
 ---
@@ -298,7 +299,7 @@ EmptyState · ProgressBar · ConfirmDialog
 `src/components/decks/` — DeckCard · DeckListSection · LegalityBar · VersionNode · DiffChips ·
 VersionCompare
 
-`src/components/matches/` — ResultButton · OpponentChipRail · MatchRow · GameStrip
+`src/components/games/` — GameRow · GameHistoryRow · MatchCard · MatchDetailCard · HandPicker · MatchupCard
 
 `src/components/charts/` — WinRateBar (with CI whisker) · RollingWinRateChart · MatchupMatrix ·
 Sparkline

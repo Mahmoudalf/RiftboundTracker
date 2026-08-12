@@ -11,7 +11,7 @@
  * call compiles to a no-op in a release bundle.
  *
  * The numbers are wall-clock on the device, which is the only honest measure —
- * they include the bridge, the render, and SQLite. `logMatch` itself measured
+ * they include the bridge, the render, and SQLite. `logGame` itself measured
  * 0.025 ms in Node, so anything visible here is interaction cost, not storage.
  */
 

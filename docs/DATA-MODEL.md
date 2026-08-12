@@ -2,6 +2,27 @@
 
 Schema, the version-locking mechanic, and the analytics engine.
 
+## Vocabulary
+
+Settled **2026-08-12**, and the reverse of what shipped before it. Every table, column, function and
+label in the app now uses these words; **migration 18** is where the database caught up.
+
+| Term | Means | Table |
+| --- | --- | --- |
+| **Game** | One encounter between two players. Bo1 or Bo3 | `games` |
+| **Match** | One play inside a game. Riftbound scores to **8** to win a match | `matches` |
+| **Game style** | Casual · Online · Tournament — how the game was played | `games.game_style` |
+| **Event** | A named occasion: *the Nexus Night on the 9th*. Holds rounds and a placement | `events` |
+| **Event style** | The tier of an event: Nexus Night · Skirmish · Locals · Regional Qualifier · Regional Final | `events.event_type` |
+
+So a **Bo3 is one game of up to three matches**. `games.best_of` is the format; `matches.match_number`
+counts the plays; the score to 8 is per match, never per game.
+
+Until migration 18 these were inverted — `matches` held the encounter and `match_games` held the
+plays, which made `matches.games_won` read as "games won by this match" and pointed
+`match_games.match_id` from a game at a match. Migrations 1–17 are history and still use the old
+names; they must, or they would stop describing the databases they actually ran against.
+
 The database is **SQLite on device** (expo-sqlite + Drizzle), mirrored 1:1 into **Postgres on
 Supabase** for optional sync. Everything below describes the local schema; the Postgres schema is
 the same tables plus a non-null `user_id` and row-level security.
@@ -137,55 +158,93 @@ retroactively, and a fabricated name would be worse than a null.
 at this scale, any version renders without replaying history, and a diff is far cheaper to compute
 on demand than to keep correct across edits, merges, and sync conflicts.
 
-### `matches`
+### `games`
+
+One encounter, Bo1 or Bo3. Called `matches` until migration 18.
 
 | Column | Notes |
 | --- | --- |
 | `id` | uuid |
 | `deck_id` → `decks.id` | **Denormalized deliberately** — see below |
-| `deck_version_id` → `deck_versions.id` | The exact list that played this match |
+| `deck_version_id` → `deck_versions.id` | The exact list that played this game |
 | `played_at` | ISO 8601 |
-| `result` | `win` \| `loss` \| `draw` |
-| `games_won?` / `games_lost?` | Optional BO3 summary |
-| `on_play?` | bool, nullable — nullable is the point |
-| `opp_legend_card_id?` → `cards.id` | |
-| `opp_champion_card_id?` → `cards.id` | |
+| `result` | `win` \| `loss` \| `draw`. Derived from the matches when they exist |
+| `best_of` | 1 or 3. Nullable — rows predating the narrowing may hold `5` or null |
+| `matches_won?` / `matches_lost?` | Summary, derived from `matches`. Was `games_won` / `games_lost` |
+| `on_play?` | bool, nullable — nullable is the point. Mirrors match 1 |
+| `opp_legend_card_id?` → `cards.id` | Name stored alongside (migration 7) |
+| `opp_champion_card_id?` → `cards.id` | Name stored alongside |
+| `battlefield_card_id?` / `opp_battlefield_card_id?` | The Battlefield each side played. Names alongside (migration 11) |
 | `opp_domains?` | json — set even when the exact Legend is unknown |
 | `opp_label?` | Free text, e.g. `"Yasuo aggro"` |
-| `event_id?` → `events.id` | |
-| `event_type` | The **match style**: `casual` \| `online` \| `tournament` \| `testing`. Not the event tier — see `events` below |
+| `event_id?` → `events.id` | The named occasion, if any |
+| `game_style` | `casual` \| `online` \| `tournament` \| `testing`. Was `event_type` |
 | `mulligans?` / `duration_seconds?` / `notes?` / `tags?` | All optional detail |
 
 `deck_id` is stored alongside `deck_version_id` on purpose: deck-level aggregates never need a join,
-and no version-level operation can orphan a match.
+and no version-level operation can orphan a game.
 
 **Every optional field is genuinely optional.** A user who only ever taps WIN/LOSS gets a fully
 correct overall win rate; the on-play split simply reports a smaller sample. Analytics must never
 assume a field is present.
 
-### `match_games`
+### `matches`
 
-Optional per-game BO3 detail: `id` · `match_id` · `game_number` · `on_play?` · `result` · `notes?`.
+One play inside a game, scored to 8. Called `match_games` until migration 18, where `match_id`
+became `game_id` and `game_number` became `match_number`.
+
+| Column | Notes |
+| --- | --- |
+| `id` | uuid |
+| `game_id` → `games.id` | Was `match_id`, which pointed the wrong way round |
+| `match_number` | 1-based. Unique per game. Was `game_number` |
+| `result` | `win` \| `loss` \| `draw` |
+| `on_play?` | Who went first, this match |
+| `score_for?` / `score_against?` | 0–8. Winning 8–6 and 8–0 are different matches (migration 10) |
+| `opening_hand?` | **All four cards dealt.** Card ids |
+| `mulliganed?` | The subset of `opening_hand` that went back |
+| `replacements?` | What was drawn in their place (migration 20) |
+| `battlefield_card_id?` / `opp_battlefield_card_id?` | This match's Battlefields, told apart (migration 16) |
+| `battlefields?` | **Dead schema.** What a deck *brought*, which the deck version already says |
+
+`champion_turn` / `opp_champion_turn` were here and were **dropped in migration 19**, a day after
+they shipped. A landing turn cannot say whether it was early or late without the board it landed
+on — turn 5 is on curve for a deck that ramps and behind for one that does not — so an average over
+it would have looked like information without being any. Dropped rather than kept as dead schema:
+`match_games` spent two milestones "shipped but unwritable" (gaps 11 and 12), and `battlefields`
+above is the one exception, named as such.
+| `notes?` | |
+
+`opening_hand` is the whole deal, so `seen = opening_hand.length` and a mulliganed id is a *member*
+of it rather than a card outside it — adding the two arrays would count a thrown card twice.
+`replacements` stays out of the denominator: a card drawn *because* of a mulligan was never part of
+the keep decision. They hold **card ids only**; names come from
+`deck_version_cards.card_name` via `versionCardNames()`, because a hand is always drawn from one
+deck version and that table already stores the name for exactly this reason.
+
+Null and `[]` are different answers throughout: null is *not recorded*, `[]` is recorded-and-empty.
 
 ### `events`
 
 `id` · `name` · `format` · `event_type` · `started_at` · `location?` · `rounds?` ·
 `final_placement?` · `notes?`, plus sync columns.
 
-**Two vocabularies, one column name.** `matches.event_type` is the *match style* — how the game
-was played: `casual`, `online`, `tournament`, `testing`. `events.event_type` is the *event style* —
-the tier of a specific occasion: `nexus-night`, `skirmish`, `locals`, `regional-qualifier`,
-`regional-final`. Both columns keep the name `event_type`; renaming either would be a migration for
-no gain.
+**`event_type` here is the event's tier**, not a game style: `nexus-night`, `skirmish`, `locals`,
+`regional-qualifier`, `regional-final`. The two were the same column name on two tables until
+migration 18 renamed the games side to `game_style` — one name meaning two things across two tables
+was how the M6 split's careful distinction was going to be undone by accident.
 
 They were one flat list of seven until migration 15, which was a category error: Skirmish and
 Nexus Night are not alternatives to Tournament, they are kinds of tournament. Splitting them makes
 "how do I do in tournaments" answerable and puts the tier where the question has an answer — on the
 occasion, not on each round.
 
-A match with `event_type = tournament` **must** carry an `event_id`; every other style may not have
-one. Deleting an event soft-deletes only the event: the rounds keep pointing at the tombstone, and
-reads filter on `events.deleted_at IS NULL`.
+An event may have **no tier** (migration 17): the log form names one in free text and never asks
+what kind it is, and defaulting would stamp every one a Nexus Night. A tournament game **may** carry
+an `event_id` but is never required to — the Hi-Fi handoff reversed M6 on that, and rightly: the
+game certainly happened, and which tournament it belonged to is a detail about it rather than a
+precondition for it. Deleting an event soft-deletes only the event: the rounds keep pointing at the
+tombstone, and reads filter on `events.deleted_at IS NULL`.
 
 ### `binders` · `binder_cards` (migration 12)
 
@@ -278,7 +337,7 @@ saveDeckEdit(deckId, editedCardSet):
       locked_at         = NULL)
   copy editedCardSet into deck_version_cards(new.id)
   decks.current_version_id = new.id
-  return FORKED(new)                    # current keeps its matches, forever, untouched
+  return FORKED(new)                    # current keeps its games, forever, untouched
 ```
 
 ### Locking
@@ -294,15 +353,15 @@ logMatch(match):
 
 These are worth asserting in tests and, where cheap, in the code:
 
-1. A version with matches is **never** mutated except via the explicit amend escape hatch. Not its
+1. A version with games is **never** mutated except via the explicit amend escape hatch. Not its
    card set, not its printings, not its row ids.
-2. `matches.deck_version_id` always resolves to a live (possibly archived) version. Versions with
-   matches can be **archived**, never deleted.
+2. `games.deck_version_id` always resolves to a live (possibly archived) version. Versions with
+   games can be **archived**, never deleted.
 3. `decks.current_version_id` always points at a version belonging to that deck.
 4. `version_number` is unique, ascending, and 1-based within a deck. **Not contiguous** — this was
    relaxed during the M3 audit. Going back to an older version and editing it forks a *sibling*, and
    deleting an unplayed sibling leaves a gap. Renumbering to close it would rename a version the user
-   already knows as v3, which is worse than a gap; and `matches` reference version *ids*, so nothing
+   already knows as v3, which is worse than a gap; and `games` reference version *ids*, so nothing
    downstream depends on the sequence being dense.
    Forks therefore number from `MAX(version_number) + 1`, not from the parent.
 5. A no-op save creates nothing. *(This is the invariant that prevents version spam — the failure
@@ -323,7 +382,7 @@ both. The first half is true. The conclusion was wrong.
 `deck_version_cards` is not only the rules-level definition of a list — it is the record of what was
 physically in the sleeve. Three planned readers treat it that way: the match detail screen renders
 the played list (M4), the collection tracker checks ownership against `card_id` (M6), and deck export
-emits printings (M6). Rewriting `card_id` on a version that matches were played with makes all three
+emits printings (M6). Rewriting `card_id` on a version that games were played with makes all three
 describe cards the player did not own at the time. That is not ignoring a cosmetic change; it is
 falsifying a record, and unlike a lost version number it cannot be recovered.
 
@@ -335,7 +394,7 @@ matches.
 ### Amend escape hatch
 
 For a genuinely mis-entered list, "Amend this version" mutates in place behind a destructive confirm
-that states the consequence plainly: *"The 30 matches logged on v2 will be attributed to the edited
+that states the consequence plainly: *"The 30 games logged on v2 will be attributed to the edited
 list."* Rare by design, but its absence would make the app feel like it's fighting the user.
 
 ### Diff engine
@@ -366,7 +425,7 @@ interface DeckDiff {
 ## 4. Analytics engine
 
 `src/lib/analytics/` — **pure TypeScript over arrays of match rows.** No SQL aggregation, no server.
-A heavy user has a few thousand matches; that's nothing to compute in memory, and pure functions are
+A heavy user has a few thousand games; that's nothing to compute in memory, and pure functions are
 trivially unit-testable.
 
 ### Metrics
@@ -399,7 +458,7 @@ Enforced in the analytics layer so no screen can accidentally opt out:
 - Every win rate carries its sample size and interval: `63% · 19–11 · 95% CI 45–78%`
 - Below **n = 20**, stats render in a muted "provisional" style
 - `compareVersions()` returns `verdict: 'inconclusive'` whenever the intervals overlap, plus
-  `matchesNeeded` — an estimate of how many more games would separate them
+  `gamesNeeded` — an estimate of how many more games would separate them
 - Version deltas are labelled **correlational**. The meta shifts and the pilot improves; the app
   should say so rather than sell false precision
 
@@ -409,7 +468,7 @@ interface VersionComparison {
   b: VersionStats
   winRateDelta: number
   verdict: 'inconclusive' | 'b-better' | 'a-better'
-  matchesNeeded?: number        // set when inconclusive
+  gamesNeeded?: number          // set when inconclusive
   diff: DeckDiff
 }
 ```
@@ -424,7 +483,7 @@ Local SQLite is the source of truth. Supabase is backup and multi-device, never 
 - The app is **fully functional signed out**. Signing in *claims* existing local rows by stamping
   `user_id` and uploading them — it never replaces local data
 - Pull-then-push, last-write-wins per row on `updated_at`; soft deletes propagate via `deleted_at`
-- Versions are immutable and matches are append-mostly, so real conflicts are rare — a CRDT would be
+- Versions are immutable and games are append-mostly, so real conflicts are rare — a CRDT would be
   over-engineering
 - The card mirror is **never** synced through Supabase; each device pulls it from Riftcodex
 
@@ -444,6 +503,6 @@ match · domain identity including dual-symbol cards · colorless battlefields a
 on-play split with nulls present · streaks · empty input safety · `compareVersions` returning
 `inconclusive` on overlapping intervals
 
-**Integration** (seeded fixture DB) — create deck → log 3 matches → edit → assert v2 exists, v1
-still holds exactly 3 matches, `locked_at` set on v1 · edit an unlocked version twice → assert still
+**Integration** (seeded fixture DB) — create deck → log 3 games → edit → assert v2 exists, v1
+still holds exactly 3 games, `locked_at` set on v1 · edit an unlocked version twice → assert still
 exactly one version.

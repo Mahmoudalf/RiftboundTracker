@@ -1,10 +1,10 @@
 import { rateOf, type Rate } from '@/lib/analytics/summary';
 import { cardSetKey } from '@/lib/deck-diff';
 
-import type { MatchRow } from '../schema/matches';
+import type { GameRow } from '../schema/games';
 
 import { listVersions, loadDeckList } from './decks';
-import { listMatches } from './matches';
+import { listGames } from './games';
 
 /**
  * Per-version performance, with identical card sets pooled.
@@ -30,14 +30,14 @@ export interface VersionStat {
   /** True when more than one version shares this card set. */
   pooled: boolean;
   rate: Rate;
-  matches: MatchRow[];
+  matches: GameRow[];
 }
 
 export function versionStats(deckId: string): VersionStat[] {
   const versions = listVersions(deckId);
-  const matches = listMatches({ deckId });
+  const matches = listGames({ deckId });
 
-  const byVersion = new Map<string, MatchRow[]>();
+  const byVersion = new Map<string, GameRow[]>();
   for (const match of matches) {
     const bucket = byVersion.get(match.deckVersionId) ?? [];
     bucket.push(match);

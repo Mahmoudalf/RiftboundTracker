@@ -2,7 +2,15 @@ import { FlashList } from '@shopify/flash-list';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Platform, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import {
+  Alert,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import { BinderTile } from '@/components/collection/BinderTile';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -14,9 +22,11 @@ import { queryCards, type CardSort } from '@/db/queries/cards';
 import {
   adjustCardQuantity,
   binderQuantities,
+  deleteBinder,
   listBinders,
   missingFromLibrary,
   ownedFinishes,
+  renameBinder,
   setCompletion,
   type FinishCounts,
 } from '@/db/queries/collection';
@@ -68,6 +78,15 @@ export default function BinderScreen() {
   const [name, setName] = useState<string | null>(null);
   const [open, setOpen] = useState<Field>(null);
   const [detail, setDetail] = useState<CardRow | null>(null);
+  /**
+   * The rename sheet, and the draft inside it.
+   *
+   * A draft rather than editing `name` directly: `name` is what the header
+   * shows and what `load()` refreshes from the database, so typing into it
+   * would rewrite the title live and then lose the edit on the next focus.
+   */
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState('');
 
   const load = useCallback(() => {
     setOwned(ownedFinishes());
@@ -118,6 +137,41 @@ export default function BinderScreen() {
     load();
   };
 
+  const onRename = () => {
+    if (!binderId) return;
+    const trimmed = draftName.trim();
+    // `renameBinder` already falls back to "Binder" on a blank name, so an
+    // emptied field cannot leave a nameless row — but closing without a change
+    // should not spend a write either.
+    if (trimmed && trimmed !== name) renameBinder(binderId, trimmed);
+    setEditing(false);
+    load();
+  };
+
+  const onDelete = () => {
+    if (!binderId) return;
+    const copies = [...held.values()].reduce((sum, counts) => sum + counts.total, 0);
+
+    Alert.alert(
+      `Delete ${name ?? 'this binder'}?`,
+      copies > 0
+        ? `The ${copies} ${copies === 1 ? 'copy' : 'copies'} filed here stop counting towards what you own. The cards themselves are not affected — only this binder.`
+        : 'It has nothing filed in it.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteBinder(binderId);
+            setEditing(false);
+            router.back();
+          },
+        },
+      ]
+    );
+  };
+
   const setLabel =
     filters.sets.length === 0
       ? 'All'
@@ -136,6 +190,30 @@ export default function BinderScreen() {
         binderId ? null : `${cardCount.toLocaleString()} in library`,
         isSyncing ? 'syncing' : null
       )}
+      /*
+       * Only a real binder gets an Edit control.
+       *
+       * `/binder/gallery` is the card library rendered through this screen —
+       * there is no row behind it to rename and nothing to delete, and
+       * `binderId` is null for exactly that reason. Gating on it rather than on
+       * a separate flag means the guard cannot drift from the thing it guards:
+       * every write below already refuses when it is null.
+       */
+      action={
+        binderId ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Edit this binder"
+            onPress={() => {
+              setDraftName(name ?? '');
+              setEditing(true);
+            }}
+            style={({ pressed }) => [styles.edit, pressed && styles.pressed]}
+          >
+            <Text style={styles.editLabel}>Edit</Text>
+          </Pressable>
+        ) : null
+      }
     >
       <View style={styles.controls}>
         <View style={styles.search}>
@@ -369,11 +447,117 @@ export default function BinderScreen() {
             })
           : null}
       </Sheet>
+
+      {/*
+        Rename and delete, and nothing else.
+
+        A binder is a name and an accent; there is no notes field, which is why
+        this is a plain `Sheet` rather than the `DetailsSheet` the deck and
+        event screens use — that one draws a Notes box, and a box for a field
+        the row does not have is worse than no box.
+      */}
+      <Sheet
+        visible={editing}
+        title="Binder details"
+        subtitle="Renaming changes nothing about the cards filed in it."
+        onClose={() => setEditing(false)}
+        actions={
+          <>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setEditing(false)}
+              style={({ pressed }) => [styles.sheetSecondary, pressed && styles.pressed]}
+            >
+              <Text style={styles.sheetSecondaryLabel}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onRename}
+              style={({ pressed }) => [styles.sheetPrimary, pressed && styles.pressed]}
+            >
+              <Text style={styles.sheetPrimaryLabel}>Save</Text>
+            </Pressable>
+          </>
+        }
+      >
+        <Text style={styles.fieldLabel}>Name</Text>
+        <TextInput
+          value={draftName}
+          onChangeText={setDraftName}
+          placeholder="Trade binder"
+          placeholderTextColor={color.textHint}
+          style={styles.nameInput}
+          autoCorrect={false}
+          returnKeyType="done"
+          onSubmitEditing={onRename}
+          accessibilityLabel="Binder name"
+        />
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={onDelete}
+          style={({ pressed }) => [styles.delete, pressed && styles.pressed]}
+        >
+          <Text style={styles.deleteLabel}>Delete this binder</Text>
+        </Pressable>
+        <Text style={styles.deleteHint}>
+          The cards go with it, so what you own drops by whatever was filed here. Nothing is
+          removed from the library.
+        </Text>
+      </Sheet>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  // 36px pill in the header, matching the log form's Close and the event
+  // screen's Edit — this is the same kind of control in the same place.
+  edit: {
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: space[4],
+    borderRadius: radius.full,
+    backgroundColor: color.raised,
+  },
+  editLabel: { ...text.smallMedium, color: color.text },
+
+  fieldLabel: { ...text.fieldLabel, color: color.textFaint, paddingBottom: space[2] },
+  nameInput: {
+    ...text.body,
+    color: color.text,
+    height: 52,
+    paddingHorizontal: space[4],
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  delete: { minHeight: 44, justifyContent: 'center', marginTop: space[5] },
+  deleteLabel: { ...text.bodyMedium, color: color.danger },
+  // Prose, so `caption` — not the 9.5px uppercase micro face the palette
+  // reserves for decoration. The same mistake the empty Battlefield state made.
+  deleteHint: { ...text.caption, color: color.textMuted, paddingTop: space[1] },
+
+  sheetSecondary: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  sheetSecondaryLabel: { ...text.bodyMedium, color: color.textSecondary },
+  sheetPrimary: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.lg,
+    backgroundColor: color.accent,
+  },
+  sheetPrimaryLabel: { ...text.bodyMedium, color: color.onAccent },
+
   controls: { paddingHorizontal: BODY_PAD, paddingBottom: space[3], gap: space[2] },
 
   search: {

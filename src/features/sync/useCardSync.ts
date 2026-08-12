@@ -102,8 +102,13 @@ export function useCardSync() {
   };
 }
 
-/** Test seam — resets the module-level guards between cases. */
-export function __resetCardSync() {
-  inFlight = null;
-  bootstrapPromise = null;
-}
+/*
+ * A `__resetCardSync()` test seam lived here — it cleared the module-level
+ * guards between cases.
+ *
+ * **No test ever called it**, and because it was a plain top-level export it
+ * shipped in the production Hermes bundle: confirmed by finding the symbol
+ * there. Exactly the shape of gap 21, where `version-selfcheck` sat in the
+ * bundle for five milestones behind a `__DEV__` guard that hid the button while
+ * the top-level import kept the module in the graph.
+ */

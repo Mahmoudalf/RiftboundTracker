@@ -19,7 +19,6 @@ export const binders = sqliteTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     /** A domain name, or null. Binders are picked out of a rail by colour. */
-    accent: text('accent'),
     notes: text('notes'),
     sortOrder: integer('sort_order').notNull().default(0),
 

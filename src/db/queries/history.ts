@@ -1,7 +1,7 @@
 import { conn } from '../connection';
-import type { MatchRow } from '../schema/matches';
+import type { GameRow } from '../schema/games';
 
-import { hydrateMatch } from './hydrate';
+import { hydrateGame } from './hydrate';
 
 /**
  * Match history — a match plus both decks' faces, ready to render.
@@ -32,14 +32,14 @@ export interface CardFace {
   domains?: string[] | null;
 }
 
-export interface MatchHistoryEntry {
-  match: MatchRow;
+export interface GameHistoryEntry {
+  game: GameRow;
   ours: { legend: CardFace; champion: CardFace };
   theirs: { legend: CardFace; champion: CardFace };
 }
 
-export interface MatchHistoryPage {
-  entries: MatchHistoryEntry[];
+export interface GameHistoryPage {
+  entries: GameHistoryEntry[];
   /** Every match that matches the filter, not just the window. */
   total: number;
 }
@@ -67,9 +67,9 @@ interface RawRow extends Record<string, unknown> {
   our_champion_name: string | null;
 }
 
-export function matchHistory(
+export function gameHistory(
   options: { deckId?: string; limit?: number } = {}
-): MatchHistoryPage {
+): GameHistoryPage {
   const where = ['m.deleted_at IS NULL'];
   const params: (string | number)[] = [];
   if (options.deckId) {
@@ -79,7 +79,7 @@ export function matchHistory(
 
   const total =
     conn().getFirstSync<{ n: number }>(
-      `SELECT COUNT(*) AS n FROM matches m WHERE ${where.join(' AND ')}`,
+      `SELECT COUNT(*) AS n FROM games m WHERE ${where.join(' AND ')}`,
       params
     )?.n ?? 0;
 
@@ -106,7 +106,7 @@ export function matchHistory(
             (SELECT dvc.card_name FROM deck_version_cards dvc
               WHERE dvc.deck_version_id = m.deck_version_id AND dvc.zone = 'champion'
               LIMIT 1) AS our_champion_name
-       FROM matches m
+       FROM games m
       WHERE ${where.join(' AND ')}
       ORDER BY m.played_at DESC, m.created_at DESC${limit}`,
     params
@@ -146,9 +146,9 @@ export function matchHistory(
   };
 
   const entries = rows.map((row) => {
-    const match = hydrateMatch(row);
+    const game = hydrateGame(row);
     return {
-      match,
+      game,
       ours: {
         legend: face(row.our_legend_id, row.our_legend_name),
         champion: face(row.our_champion_id, row.our_champion_name),
@@ -158,7 +158,7 @@ export function matchHistory(
         // when the art is gone — `opp_legend_name` already survives the mirror,
         // and a domain chip makes the identity visible rather than merely
         // spelled out.
-        legend: { ...face(row.opp_legend_card_id, row.opp_legend_name), domains: match.oppDomains },
+        legend: { ...face(row.opp_legend_card_id, row.opp_legend_name), domains: game.oppDomains },
         champion: face(row.opp_champion_card_id, row.opp_champion_name),
       },
     };

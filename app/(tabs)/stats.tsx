@@ -3,7 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { MatchHistoryRow } from '@/components/matches/MatchHistoryRow';
+import { GameHistoryRow } from '@/components/games/GameHistoryRow';
 import { AnalyticsPanel } from '@/components/stats/AnalyticsPanel';
 import { Dropdown, type DropdownOption } from '@/components/ui/Dropdown';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -11,10 +11,11 @@ import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import { listDecks } from '@/db/queries/decks';
 import { listEvents, type EventSummary } from '@/db/queries/events';
-import { HISTORY_PAGE, matchHistory, type MatchHistoryEntry } from '@/db/queries/history';
-import { deckRecord, listMatches, type DeckRecord } from '@/db/queries/matches';
-import type { MatchRow } from '@/db/schema/matches';
-import { eventStyleLabel, matchDate, recordLine } from '@/lib/format';
+import { deckRecord, listGames, type DeckRecord } from '@/db/queries/games';
+import { HISTORY_PAGE, gameHistory, type GameHistoryEntry } from '@/db/queries/history';
+import { matchesForGames } from '@/db/queries/matches';
+import type { MatchRow, GameRow } from '@/db/schema/games';
+import { eventStyleLabel, gameDate, recordLine } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
@@ -35,10 +36,10 @@ import { metaLine, text } from '@/theme/typography';
  * can carry a confidence interval.
  */
 
-type Tab = 'matches' | 'analytics' | 'events';
+type Tab = 'games' | 'analytics' | 'events';
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'matches', label: 'Matches' },
+  { key: 'games', label: 'Games' },
   { key: 'analytics', label: 'Analytics' },
   { key: 'events', label: 'Events' },
 ];
@@ -54,14 +55,16 @@ interface DeckOption {
 }
 
 export default function StatsScreen() {
-  const [tab, setTab] = useState<Tab>('matches');
+  const [tab, setTab] = useState<Tab>('games');
   const [deckId, setDeckId] = useState<string>(ALL_DECKS);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [decks, setDecks] = useState<DeckOption[]>([]);
-  const [history, setHistory] = useState<MatchHistoryEntry[]>([]);
+  const [history, setHistory] = useState<GameHistoryEntry[]>([]);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [window, setWindow] = useState(HISTORY_PAGE);
   /** Every match for the current deck, unwindowed — analytics reads all of it. */
+  const [allGames, setAllGames] = useState<GameRow[]>([]);
+  /** Their games, for the breakdowns that are per-game rather than per-match. */
   const [allMatches, setAllMatches] = useState<MatchRow[]>([]);
   const [record, setRecord] = useState<DeckRecord | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -98,17 +101,21 @@ export default function StatsScreen() {
           : (options[0]?.id ?? ALL_DECKS);
 
       const scoped = active === ALL_DECKS ? {} : { deckId: active };
-      const page = matchHistory({ ...scoped, limit: window });
+      const page = gameHistory({ ...scoped, limit: window });
       // Analytics summarises every match, so it reads unwindowed. Cheap: the
       // whole layer costs under a millisecond over 2,000 rows.
-      const everything = listMatches(scoped);
+      const everything = listGames(scoped);
 
       setEvents(listEvents());
       setDecks(options);
       setDeckId(active);
       setHistory(page.entries);
       setHistoryTotal(page.total);
-      setAllMatches(everything);
+      setAllGames(everything);
+      // One `IN (...)` rather than a query per match. Read here beside the
+      // matches so the panel stays a function of its props — the same reason
+      // `allGames` is not loaded inside it.
+      setAllMatches(matchesForGames(everything.map((m) => m.id)));
       setRecord(
         active === ALL_DECKS
           ? options.reduce<DeckRecord>(
@@ -141,7 +148,7 @@ export default function StatsScreen() {
       <Screen title="Stats">
         <EmptyState
           title="No decks yet"
-          body="Stats are built from matches, and a match is always attached to a deck. Build one first."
+          body="Stats are built from games, and a game is always attached to a deck. Build one first."
           actions={[
             { label: 'Build a deck', onPress: () => router.push('/deck/new'), primary: true },
           ]}
@@ -156,7 +163,7 @@ export default function StatsScreen() {
       value: deck.id,
       label: deck.name,
       meta: metaLine(
-        recordLine(deck.record.wins, deck.record.losses, deck.record.draws) ?? 'No matches',
+        recordLine(deck.record.wins, deck.record.losses, deck.record.draws) ?? 'No games',
         deck.archived ? 'Archived' : null
       ),
     })),
@@ -167,7 +174,7 @@ export default function StatsScreen() {
       title="Stats"
       meta={metaLine(
         record ? recordLine(record.wins, record.losses, record.draws) : null,
-        record ? `${record.total} ${record.total === 1 ? 'match' : 'matches'}` : null
+        record ? `${record.total} ${record.total === 1 ? 'game' : 'games'}` : null
       )}
     >
       <View style={styles.controls}>
@@ -201,7 +208,7 @@ export default function StatsScreen() {
         events.length === 0 ? (
           <EmptyState
             title="No events yet"
-            body="An event groups the rounds of one tournament or games night, so you can see how that day went rather than only how the deck does overall. Log a match, pick an organised match style, and name one."
+            body="An event groups the rounds of one tournament or games night, so you can see how that day went rather than only how the deck does overall. Log a game, pick an organised game style, and name one."
           />
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
@@ -223,7 +230,7 @@ export default function StatsScreen() {
                       // this is a meta line in a list, and an event named from
                       // the log form has no tier until someone sets one.
                       event.eventType ? eventStyleLabel(event.eventType) : null,
-                      matchDate(event.startedAt),
+                      gameDate(event.startedAt),
                       event.finalPlacement ? `Placed ${event.finalPlacement}` : null
                     )}
                   </Text>
@@ -237,11 +244,11 @@ export default function StatsScreen() {
         )
       ) : tab === 'analytics' ? (
         <ScrollView showsVerticalScrollIndicator={false}>
-          <AnalyticsPanel matches={allMatches} />
+          <AnalyticsPanel games={allGames} matches={allMatches} />
         </ScrollView>
       ) : history.length === 0 ? (
         <EmptyState
-          title="No matches yet"
+          title="No games yet"
           body={
             deckId === ALL_DECKS
               ? 'Tap the + in the tab bar after a game.'
@@ -251,14 +258,14 @@ export default function StatsScreen() {
       ) : (
         <FlashList
           data={history}
-          keyExtractor={(entry) => entry.match.id}
+          keyExtractor={(entry) => entry.game.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           renderItem={({ item }) => (
-            <MatchHistoryRow
+            <GameHistoryRow
               entry={item}
-              onPress={() => router.push(`/match/${item.match.id}`)}
+              onPress={() => router.push(`/game/${item.game.id}`)}
             />
           )}
           ListFooterComponent={

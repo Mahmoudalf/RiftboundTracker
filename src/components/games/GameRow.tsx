@@ -1,14 +1,14 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
-import type { MatchRow as MatchRowType } from '@/db/schema/matches';
+import type { GameRow as GameRowType } from '@/db/schema/games';
 import { baseName } from '@/lib/card-identity';
-import { bestOfLabel, matchDate, matchStyleLabel } from '@/lib/format';
+import { bestOfLabel, gameDate, gameStyleLabel } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
 /**
- * One logged match.
+ * One logged game.
  *
  * The result is the only thing that gets colour, and it carries a letter as
  * well — W/L/D reads correctly in greyscale and to anyone who cannot separate
@@ -20,24 +20,24 @@ import { metaLine, text } from '@/theme/typography';
  * printing leaves the card library.
  */
 
-interface MatchRowProps {
-  match: MatchRowType;
+interface GameRowProps {
+  game: GameRowType;
   onPress?: () => void;
 }
 
 const RESULT_LETTER = { win: 'W', loss: 'L', draw: 'D' } as const;
 
-export function MatchRow({ match, onPress }: MatchRowProps) {
-  const opponent = match.oppLegendName
-    ? baseName(match.oppLegendName)
-    : (match.oppLabel ?? 'Unknown opponent');
+export function GameRow({ game, onPress }: GameRowProps) {
+  const opponent = game.oppLegendName
+    ? baseName(game.oppLegendName)
+    : (game.oppLabel ?? 'Unknown opponent');
 
-  const champion = match.oppChampionName ? baseName(match.oppChampionName) : null;
+  const champion = game.oppChampionName ? baseName(game.oppChampionName) : null;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${match.result} against ${opponent}, ${matchDate(match.playedAt)}`}
+      accessibilityLabel={`${game.result} against ${opponent}, ${gameDate(game.playedAt)}`}
       onPress={onPress}
       disabled={!onPress}
       style={({ pressed }) => [styles.row, pressed && onPress ? styles.pressed : null]}
@@ -45,18 +45,18 @@ export function MatchRow({ match, onPress }: MatchRowProps) {
       <View
         style={[
           styles.badge,
-          match.result === 'win' && styles.win,
-          match.result === 'loss' && styles.loss,
+          game.result === 'win' && styles.win,
+          game.result === 'loss' && styles.loss,
         ]}
       >
         <Text
           style={[
             styles.badgeText,
-            match.result === 'win' && styles.winText,
-            match.result === 'loss' && styles.lossText,
+            game.result === 'win' && styles.winText,
+            game.result === 'loss' && styles.lossText,
           ]}
         >
-          {RESULT_LETTER[match.result]}
+          {RESULT_LETTER[game.result]}
         </Text>
       </View>
 
@@ -67,14 +67,14 @@ export function MatchRow({ match, onPress }: MatchRowProps) {
         <Text style={styles.meta} numberOfLines={1}>
           {metaLine(
             champion,
-            matchStyleLabel(match.eventType),
-            bestOfLabel(match.bestOf),
-            matchDate(match.playedAt)
+            gameStyleLabel(game.gameStyle),
+            bestOfLabel(game.bestOf),
+            gameDate(game.playedAt)
           )}
         </Text>
       </View>
 
-      {match.notes ? <Text style={styles.noteMark}>note</Text> : null}
+      {game.notes ? <Text style={styles.noteMark}>note</Text> : null}
     </Pressable>
   );
 }

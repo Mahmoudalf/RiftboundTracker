@@ -12,12 +12,12 @@ import {
 } from '../schema/decks';
 import {
   events,
-  matchGames,
+  games,
   matches,
   type EventRow,
-  type MatchGameRow,
+  type GameRow,
   type MatchRow,
-} from '../schema/matches';
+} from '../schema/games';
 
 /**
  * Turn a raw `SELECT *` row into a typed row object.
@@ -88,8 +88,8 @@ export function toBindValue(value: unknown, column: ColumnMapping): string | num
   if (column.dataType === 'json') {
     // Mirrors `coerce()` exactly. This used to be `JSON.stringify(value ?? [])`,
     // which wrote "[]" for a null — harmless for cards, whose JSON columns are
-    // all NOT NULL, and silently destructive for the nullable ones on matches,
-    // where null and [] are different answers. Nothing writes matches through
+    // all NOT NULL, and silently destructive for the nullable ones on games,
+    // where null and [] are different answers. Nothing writes games through
     // this path today; the asymmetry is removed so that staying true is not a
     // condition the next generic insert helper has to know about.
     if (value === null || value === undefined) return column.notNull ? '[]' : null;
@@ -123,7 +123,7 @@ function coerce(value: unknown, dataType: string, notNull: boolean): unknown {
      * A **nullable** JSON column keeps its null.
      *
      * Cards are unaffected — every JSON column there is NOT NULL, so an absent
-     * value really does mean an empty list. Matches are the opposite:
+     * value really does mean an empty list. Games are the opposite:
      * `opp_domains` and `tags` are nullable because "I did not record this" and
      * "I recorded that there were none" are different answers, and flattening
      * the first into `[]` would turn a missing observation into a real one.
@@ -160,7 +160,7 @@ export function hydrateSet(row: Record<string, unknown>): SetRow {
  * exposed to the snake_case gap than cards are — `current_version_id`,
  * `locked_at`, `version_number` and `deck_version_id` are all multi-word, and a
  * silently-undefined `lockedAt` would read as "this version is editable" on a
- * version that has matches attached to it.
+ * version that has games attached to it.
  */
 export const deckColumns: ColumnMapping[] = buildMapping(decks);
 export const deckVersionColumns: ColumnMapping[] = buildMapping(deckVersions);
@@ -188,25 +188,28 @@ export function hydrateBinder(row: Record<string, unknown>): BinderRow {
 }
 
 /**
- * Matches, through the same derivation, and the most exposed of the three.
+ * Games, through the same derivation, and the most exposed of the three.
  * `deck_version_id`, `opp_legend_card_id`, `played_at` and `on_play` are every
  * one of them multi-word — a silently-undefined `deckVersionId` would attach a
  * result to no list at all, which is the failure the whole version model exists
  * to prevent.
  *
- * `match_games` gains its hydrator here in M6, alongside the queries that read
- * it — it was deliberately absent while the table had no consumer. `events` is
- * still absent for the same reason; it arrives with event mode.
+ * `matches` gains its hydrator here in M6, alongside the queries that read it —
+ * it was deliberately absent while the table had no consumer.
+ *
+ * Both mappings are derived from the schema, which is what made migration 18's
+ * rename cheap: `matches_won`, `game_style`, `game_id` and `match_number` all
+ * moved without a single hand-written column list to chase.
  */
+export const gameColumns: ColumnMapping[] = buildMapping(games);
 export const matchColumns: ColumnMapping[] = buildMapping(matches);
-export const matchGameColumns: ColumnMapping[] = buildMapping(matchGames);
+
+export function hydrateGame(row: Record<string, unknown>): GameRow {
+  return hydrate<GameRow>(row, gameColumns);
+}
 
 export function hydrateMatch(row: Record<string, unknown>): MatchRow {
   return hydrate<MatchRow>(row, matchColumns);
-}
-
-export function hydrateMatchGame(row: Record<string, unknown>): MatchGameRow {
-  return hydrate<MatchGameRow>(row, matchGameColumns);
 }
 
 /** Events. `started_at`, `final_placement` and `event_type` are the multi-word ones. */

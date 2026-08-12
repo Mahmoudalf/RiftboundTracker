@@ -173,6 +173,36 @@ export function missingCards(versionId: string): MissingCard[] {
     }));
 }
 
+/**
+ * Every card id in a version, mapped to the name stored beside it.
+ *
+ * For rendering an opening hand. `matches.opening_hand` holds card **ids**
+ * and nothing else, which would normally be the migration-5 mistake all over
+ * again — an id alone stops being renderable the moment its printing leaves the
+ * mirror, and a match is a permanent record.
+ *
+ * It is not a mistake here, because an opening hand is always drawn from one
+ * deck version and `deck_version_cards.card_name` already carries exactly that
+ * name for exactly that reason. Storing a second copy on the game row would be
+ * a third place holding one fact. So this reads the list directly — **no join
+ * to `cards`**, unlike `loadDeckList`, because a hand containing a card the
+ * library has since dropped still has to render.
+ */
+export function versionCardNames(versionId: string): Map<string, string> {
+  const rows = conn().getAllSync<{ card_id: string; card_name: string | null }>(
+    'SELECT card_id, card_name FROM deck_version_cards WHERE deck_version_id = ?',
+    [versionId]
+  );
+
+  const names = new Map<string, string>();
+  for (const row of rows) {
+    // Rows written before migration 5 have no name. Left out rather than given
+    // a placeholder, so a caller can tell "unknown card" from a card called
+    // "Unknown".
+    if (row.card_name) names.set(row.card_id, row.card_name);
+  }
+  return names;
+}
 
 /**
  * Create a deck and its first version.
@@ -685,10 +715,10 @@ export function setVersionNotes(versionId: string, notes: string): void {
  * the time this runs. A branch that can never be taken is one nobody can reason
  * about, and it would have quietly returned "no matches" if it ever did fire.
  */
-export function versionMatchCounts(deckId: string): Map<string, number> {
+export function versionGameCounts(deckId: string): Map<string, number> {
 
   const rows = conn().getAllSync<{ deck_version_id: string; n: number }>(
-    `SELECT deck_version_id, COUNT(*) AS n FROM matches
+    `SELECT deck_version_id, COUNT(*) AS n FROM games
       WHERE deck_id = ? AND deleted_at IS NULL
       GROUP BY deck_version_id`,
     [deckId]
@@ -843,13 +873,13 @@ export function deleteDeck(deckId: string): void {
      * Matches go too.
      *
      * They did not before, and the deck's results outlived the deck: `listDecks`
-     * hid the deck while `listMatches()` kept returning its matches, so a
+     * hid the deck while `listGames()` kept returning its matches, so a
      * deleted deck's games stayed in the cross-deck Stats totals with no deck
      * to attribute them to. Soft, like everything else here, so the deletion
      * propagates rather than reappearing on the next sync.
      */
     conn().runSync(
-      `UPDATE matches SET deleted_at = ?, updated_at = ?, dirty = 1
+      `UPDATE games SET deleted_at = ?, updated_at = ?, dirty = 1
         WHERE deck_id = ? AND deleted_at IS NULL`,
       [timestamp, timestamp, deckId]
     );

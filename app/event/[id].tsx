@@ -2,14 +2,14 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { MatchRow } from '@/components/matches/MatchRow';
+import { GameRow } from '@/components/games/GameRow';
 import { DetailsSheet } from '@/components/ui/DetailsSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import {
   deleteEvent,
-  eventMatches,
+  eventGames,
   getEvent,
   updateEvent,
   type EventSummary,
@@ -17,9 +17,9 @@ import {
 import {
   EVENT_STYLES,
   type EventStyle,
-  type MatchRow as MatchRowType,
-} from '@/db/schema/matches';
-import { eventStyleLabel, matchDate, recordLine } from '@/lib/format';
+  type GameRow as GameRowType,
+} from '@/db/schema/games';
+import { eventStyleLabel, gameDate, recordLine } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
@@ -45,7 +45,7 @@ function placeLabel(place: number): string {
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [event, setEvent] = useState<EventSummary | null>(null);
-  const [matches, setMatches] = useState<MatchRowType[]>([]);
+  const [games, setGames] = useState<GameRowType[]>([]);
   const [editing, setEditing] = useState(false);
   const [placing, setPlacing] = useState(false);
   /**
@@ -60,7 +60,7 @@ export default function EventDetailScreen() {
 
   const load = useCallback(() => {
     setEvent(getEvent(id));
-    setMatches(eventMatches(id));
+    setGames(eventGames(id));
   }, [id]);
 
   useFocusEffect(load);
@@ -68,9 +68,9 @@ export default function EventDetailScreen() {
   const onDelete = () => {
     Alert.alert(
       `Delete ${event?.name}?`,
-      matches.length > 0
-        ? `The ${matches.length} ${matches.length === 1 ? 'match' : 'matches'} played here are kept — they still count towards your deck and overall records. Only the grouping goes.`
-        : 'This event has no matches logged against it.',
+      games.length > 0
+        ? `The ${games.length} ${games.length === 1 ? 'game' : 'games'} played here are kept — they still count towards your deck and overall records. Only the grouping goes.`
+        : 'This event has no games logged against it.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -90,7 +90,7 @@ export default function EventDetailScreen() {
       <Screen title="Event">
         <EmptyState
           title="Event not found"
-          body="It may have been deleted. Any matches played at it are still in your history."
+          body="It may have been deleted. Any games played at it are still in your history."
           actions={[{ label: 'Go back', onPress: () => router.back(), primary: true }]}
         />
       </Screen>
@@ -105,7 +105,7 @@ export default function EventDetailScreen() {
         // `metaLine` already omits what is absent. A tier nobody set is not a
         // gap to announce in the title — it is a detail that has not come up.
         event.eventType ? eventStyleLabel(event.eventType) : null,
-        matchDate(event.startedAt),
+        gameDate(event.startedAt),
         event.location
       )}
       action={
@@ -150,18 +150,18 @@ export default function EventDetailScreen() {
 
         {event.notes ? <Text style={styles.notes}>{event.notes}</Text> : null}
 
-        {matches.length === 0 ? (
+        {games.length === 0 ? (
           <Text style={styles.hint}>
-            No rounds yet. Log a match, choose Tournament, then pick {event.name} as the event.
+            No rounds yet. Log a game, choose Tournament, then pick {event.name} as the event.
           </Text>
         ) : (
           <View style={styles.rounds}>
             <Text style={styles.sectionLabel}>Rounds</Text>
-            {matches.map((match, index) => (
-              <View key={match.id} style={styles.round}>
+            {games.map((game, index) => (
+              <View key={game.id} style={styles.round}>
                 <Text style={styles.roundNumber}>{index + 1}</Text>
                 <View style={styles.roundBody}>
-                  <MatchRow match={match} onPress={() => router.push(`/match/${match.id}`)} />
+                  <GameRow game={game} onPress={() => router.push(`/game/${game.id}`)} />
                 </View>
               </View>
             ))}

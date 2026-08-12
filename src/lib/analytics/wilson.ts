@@ -46,14 +46,14 @@ export function wilson(successes: number, trials: number, z: number = Z_95): Int
 }
 
 /**
- * How many more matches, at the current rate, before the interval is narrower
+ * How many more games, at the current rate, before the interval is narrower
  * than `targetWidth`.
  *
  * This is what turns "not enough data" into an instruction. Capped, because the
  * honest answer near 50 % can be thousands of games and printing that is not
  * advice, it is discouragement.
  */
-export function matchesNeeded(
+export function gamesNeeded(
   successes: number,
   trials: number,
   targetWidth = 0.2,

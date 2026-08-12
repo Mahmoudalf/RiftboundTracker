@@ -1,18 +1,18 @@
-import type { MatchResult, MatchRow } from '@/db/schema/matches';
+import type { Result, GameRow } from '@/db/schema/games';
 import { baseName } from '@/lib/card-identity';
 
 import { wilson, type Interval } from './wilson';
 
 /**
- * Analytics over an array of match rows — pure, no SQL, no React.
+ * Analytics over an array of game rows — pure, no SQL, no React.
  *
- * A heavy user has a few thousand matches, which is nothing to compute in
+ * A heavy user has a few thousand games, which is nothing to compute in
  * memory, and pure functions are the only part of this app that can be tested
  * hard. See `docs/DATA-MODEL.md` §4.
  *
  * ## Two rules that are not negotiable
  *
- * **Draws are excluded from the win rate.** A rate is "of the matches that were
+ * **Draws are excluded from the win rate.** A rate is "of the games that were
  * decided, how many did I win", and putting draws in the denominator drags the
  * number down in a way that reads as losing. They stay in the record, which is
  * where they are information.
@@ -22,7 +22,7 @@ import { wilson, type Interval } from './wilson';
  * point of returning a struct rather than a number.
  */
 
-/** Below this many decided matches, a rate is shown as provisional. */
+/** Below this many decided games, a rate is shown as provisional. */
 export const PROVISIONAL_N = 20;
 
 export interface Rate {
@@ -31,23 +31,23 @@ export interface Rate {
   draws: number;
   /** Wins plus losses. The denominator of `rate`. */
   decided: number;
-  /** Every match, draws included. The honest "how much have I played". */
+  /** Every game, draws included. The honest "how much have I played". */
   total: number;
-  /** Null at zero decided matches — there is no rate, not a rate of zero. */
+  /** Null at zero decided games — there is no rate, not a rate of zero. */
   rate: number | null;
   interval: Interval | null;
   provisional: boolean;
 }
 
 /**
- * Anything with a result can be rated — matches, and individual games.
+ * Anything with a result can be rated — a whole game, or one match inside it.
  *
- * Widened from `MatchRow` so the hand analytics can rate games directly. The
+ * Widened from `GameRow` so the hand analytics can rate individual matches. The
  * alternative was a cast, which compiles today only because this function reads
  * nothing but `result`; the first time it read another field the cast would
  * have started lying silently.
  */
-export function rateOf(matches: readonly { result: MatchResult }[]): Rate {
+export function rateOf(matches: readonly { result: Result }[]): Rate {
   let wins = 0;
   let losses = 0;
   let draws = 0;
@@ -79,12 +79,12 @@ export interface Segment {
   rate: Rate;
 }
 
-/** Group matches by a key, drop empty groups, and rank by sample size. */
+/** Group games by a key, drop empty groups, and rank by sample size. */
 function segment(
-  matches: readonly MatchRow[],
-  keyOf: (match: MatchRow) => { key: string; label: string; sublabel?: string } | null
+  matches: readonly GameRow[],
+  keyOf: (match: GameRow) => { key: string; label: string; sublabel?: string } | null
 ): Segment[] {
-  const groups = new Map<string, { label: string; sublabel?: string; rows: MatchRow[] }>();
+  const groups = new Map<string, { label: string; sublabel?: string; rows: GameRow[] }>();
 
   for (const match of matches) {
     const identity = keyOf(match);
@@ -113,7 +113,7 @@ function segment(
 /**
  * How much of a field was actually filled in.
  *
- * Every split has one. A play/draw breakdown computed from 3 of 40 matches is
+ * Every split has one. A play/draw breakdown computed from 3 of 40 games is
  * not wrong, but presenting it without saying so invites a conclusion drawn
  * from 7 % of the data.
  */
@@ -128,7 +128,7 @@ export interface PlayDrawSplit {
   coverage: Coverage;
 }
 
-export function playDrawSplit(matches: readonly MatchRow[]): PlayDrawSplit {
+export function playDrawSplit(matches: readonly GameRow[]): PlayDrawSplit {
   const onPlay = matches.filter((m) => m.onPlay === true);
   const onDraw = matches.filter((m) => m.onPlay === false);
 
@@ -146,7 +146,7 @@ export function playDrawSplit(matches: readonly MatchRow[]): PlayDrawSplit {
  * identifies a deck in Riftbound, and on the stored names rather than card ids
  * so that printings collapse and a card leaving the library changes nothing.
  */
-export function matchupSegments(matches: readonly MatchRow[]): Segment[] {
+export function matchupSegments(matches: readonly GameRow[]): Segment[] {
   return segment(matches, (match) => {
     const legendName = match.oppLegendName ?? match.oppLabel;
     if (!legendName) return null;
@@ -162,7 +162,7 @@ export function matchupSegments(matches: readonly MatchRow[]): Segment[] {
 
 /** The play/draw split inside one matchup, for "does going first matter here". */
 export function matchupPlayDraw(
-  matches: readonly MatchRow[],
+  matches: readonly GameRow[],
   key: string
 ): PlayDrawSplit | null {
   const rows = matches.filter((match) => {
@@ -174,11 +174,11 @@ export function matchupPlayDraw(
   return rows.length === 0 ? null : playDrawSplit(rows);
 }
 
-export function styleSegments(matches: readonly MatchRow[]): Segment[] {
-  return segment(matches, (match) => ({ key: match.eventType, label: match.eventType }));
+export function styleSegments(matches: readonly GameRow[]): Segment[] {
+  return segment(matches, (match) => ({ key: match.gameStyle, label: match.gameStyle }));
 }
 
-export function bestOfSegments(matches: readonly MatchRow[]): Segment[] {
+export function bestOfSegments(matches: readonly GameRow[]): Segment[] {
   return segment(matches, (match) =>
     match.bestOf === null ? null : { key: `bo${match.bestOf}`, label: `Best of ${match.bestOf}` }
   );
@@ -201,7 +201,7 @@ export interface Streaks {
  * Expects the newest-first order every query in this app returns, and reverses
  * internally, so callers cannot get it backwards by forgetting to sort.
  */
-export function streaks(newestFirst: readonly MatchRow[]): Streaks {
+export function streaks(newestFirst: readonly GameRow[]): Streaks {
   let current = 0;
   let longestWin = 0;
   let longestLoss = 0;

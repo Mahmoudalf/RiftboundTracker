@@ -331,9 +331,18 @@ describe('migrate — every version upgrades a populated database', () => {
 
     migrate(db as never);
 
+    /*
+     * Read back from `games`, not `matches`.
+     *
+     * `migrate()` runs everything outstanding, which since migration 18 means
+     * these rows get renamed out from under the test: `matches` became `games`,
+     * and the name `matches` now belongs to the individual plays. So this
+     * assertion covers two migrations at once — 17 must not drop the rounds
+     * when it rebuilds `events`, and 18 must carry every one of them across.
+     */
     expect(
       db.getAllSync<{ id: string; event_id: string | null }>(
-        'SELECT id, event_id FROM matches ORDER BY id'
+        'SELECT id, event_id FROM games ORDER BY id'
       )
     ).toEqual([
       { id: 'm1', event_id: 'e1' },
@@ -374,6 +383,146 @@ describe('migrate — every version upgrades a populated database', () => {
         "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'events_deleted_idx'"
       )?.name
     ).toBe('events_deleted_idx');
+
+    db.close();
+  });
+
+  /**
+   * Migration 18 renames both tables; 19 drops two columns off one of them.
+   *
+   * Renames and drops are the two operations that can lose user data without
+   * erroring, so this loads a game with two matches, every second-tier field
+   * filled in, and asserts each one survives — and that the *other* columns on
+   * the same rows are not shifted by the drop, which is the specific way a
+   * hand-rolled rebuild goes wrong.
+   */
+  it('renames the tables and drops the champion turns without losing a row (v17 -> latest)', () => {
+    const db = createTestDatabase();
+    applyMigrationsUpTo(db, MIGRATIONS, 17);
+    const timestamp = '2026-08-12T10:00:00.000Z';
+
+    db.runSync(
+      `INSERT INTO decks (id, name, domains, created_at, updated_at)
+       VALUES ('d', 'D', '[]', ?, ?)`,
+      [timestamp, timestamp]
+    );
+    db.runSync(
+      `INSERT INTO matches
+         (id, deck_id, deck_version_id, played_at, result, best_of,
+          games_won, games_lost, event_type, on_play, created_at, updated_at)
+       VALUES ('g1', 'd', 'v', ?, 'win', 3, 2, 1, 'tournament', 1, ?, ?)`,
+      [timestamp, timestamp, timestamp]
+    );
+    db.runSync(
+      `INSERT INTO match_games
+         (id, match_id, game_number, result, on_play, score_for, score_against,
+          champion_turn, opp_champion_turn, opening_hand, mulliganed,
+          battlefield_card_id)
+       VALUES ('m1', 'g1', 1, 'win', 1, 8, 6, 4, 5, '["a","b"]', '["c"]', 'bf-1'),
+              ('m2', 'g1', 2, 'win', 0, 8, 2, 3, NULL, '["d"]', '[]', 'bf-2')`
+    );
+
+    migrate(db as never);
+
+    // The encounter kept every value, under its new column names.
+    expect(
+      db.getFirstSync<Record<string, unknown>>('SELECT * FROM games WHERE id = ?', ['g1'])
+    ).toMatchObject({
+      id: 'g1',
+      result: 'win',
+      best_of: 3,
+      matches_won: 2,
+      matches_lost: 1,
+      game_style: 'tournament',
+      on_play: 1,
+    });
+
+    // And so did both plays — including the JSON, which is where a shifted
+    // column would show up as a hand belonging to the wrong match.
+    const plays = db.getAllSync<Record<string, unknown>>(
+      'SELECT * FROM matches ORDER BY match_number'
+    );
+    expect(plays).toHaveLength(2);
+    expect(plays[0]).toMatchObject({
+      id: 'm1',
+      game_id: 'g1',
+      match_number: 1,
+      result: 'win',
+      score_for: 8,
+      score_against: 6,
+      opening_hand: '["a","b"]',
+      mulliganed: '["c"]',
+      battlefield_card_id: 'bf-1',
+    });
+    expect(plays[1]).toMatchObject({
+      id: 'm2',
+      match_number: 2,
+      score_against: 2,
+      battlefield_card_id: 'bf-2',
+    });
+
+    // The champion turns are gone from the schema entirely, not merely unread.
+    for (const play of plays) {
+      expect(play).not.toHaveProperty('champion_turn');
+      expect(play).not.toHaveProperty('opp_champion_turn');
+    }
+
+    // Both indexes were recreated under their new names by 18, and 19's
+    // DROP COLUMN must not have taken them with it.
+    const indexes = db
+      .getAllSync<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name IN ('games','matches')"
+      )
+      .map((r) => r.name);
+    expect(indexes).toEqual(expect.arrayContaining(['matches_game_idx', 'matches_number_idx']));
+    expect(indexes).toEqual(expect.arrayContaining(['games_deck_idx', 'games_event_idx']));
+    // And the old names are not still hanging off a table they no longer describe.
+    expect(indexes).not.toContain('match_games_match_idx');
+    expect(indexes).not.toContain('matches_deck_idx');
+
+    db.close();
+  });
+
+  /**
+   * Migration 20 adds `replacements` beside the two arrays that were already
+   * there, and the three now mean something different from each other.
+   *
+   * The assertion worth having is that a row written *before* it reads back
+   * with `replacements` null rather than `[]` — an empty array would claim
+   * somebody recorded drawing no cards, which for a hand that predates the
+   * column is a fact nobody could have entered.
+   */
+  it('adds replacements without inventing one on an existing hand (v19 -> latest)', () => {
+    const db = createTestDatabase();
+    applyMigrationsUpTo(db, MIGRATIONS, 19);
+    const timestamp = '2026-08-12T10:00:00.000Z';
+
+    db.runSync(
+      `INSERT INTO decks (id, name, domains, created_at, updated_at)
+       VALUES ('d', 'D', '[]', ?, ?)`,
+      [timestamp, timestamp]
+    );
+    db.runSync(
+      `INSERT INTO games
+         (id, deck_id, deck_version_id, played_at, result, created_at, updated_at)
+       VALUES ('g1', 'd', 'v', ?, 'win', ?, ?)`,
+      [timestamp, timestamp, timestamp]
+    );
+    db.runSync(
+      `INSERT INTO matches
+         (id, game_id, match_number, result, opening_hand, mulliganed)
+       VALUES ('m1', 'g1', 1, 'win', '["a","b","c","d"]', '["a"]')`
+    );
+
+    migrate(db as never);
+
+    const row = db.getFirstSync<Record<string, unknown>>(
+      'SELECT * FROM matches WHERE id = ?',
+      ['m1']
+    )!;
+    expect(row.opening_hand).toBe('["a","b","c","d"]');
+    expect(row.mulliganed).toBe('["a"]');
+    expect(row.replacements).toBeNull();
 
     db.close();
   });

@@ -105,19 +105,45 @@ function seedCard(id: string, name = `Card ${id}`): CardRow {
 
 describe('binder CRUD', () => {
   it('creates, lists, renames and deletes', () => {
-    const id = createBinder({ name: 'Trade binder', accent: 'Fury' });
+    const id = createBinder({ name: 'Trade binder' });
 
     expect(listBinders()).toHaveLength(1);
     expect(binderNamed(id)?.name).toBe('Trade binder');
-    expect(binderNamed(id)?.accent).toBe('Fury');
 
-    renameBinder(id, 'Trades', 'Calm');
+    renameBinder(id, 'Trades');
     expect(binderNamed(id)?.name).toBe('Trades');
-    expect(binderNamed(id)?.accent).toBe('Calm');
 
     deleteBinder(id);
     expect(listBinders()).toHaveLength(0);
     expect(binderNamed(id)).toBeNull();
+  });
+
+  /**
+   * Renaming touches the name and the sync columns, and nothing else.
+   *
+   * The binder screen's rename sheet asks for a name, so it calls with a name.
+   * A rename that quietly rewrote another column — `accent` did exactly that
+   * before migration 21 removed it — is the shape worth keeping a test on even
+   * though the column it caught is gone.
+   */
+  it('renames without disturbing anything else on the row', () => {
+    const id = createBinder({ name: 'Trade binder' });
+    const before = db.getFirstSync<{ sort_order: number; created_at: string }>(
+      'SELECT sort_order, created_at FROM binders WHERE id = ?',
+      [id]
+    )!;
+
+    renameBinder(id, 'Trades');
+
+    const after = db.getFirstSync<{ sort_order: number; created_at: string; dirty: number }>(
+      'SELECT sort_order, created_at, dirty FROM binders WHERE id = ?',
+      [id]
+    )!;
+    expect(binderNamed(id)?.name).toBe('Trades');
+    expect(after.sort_order).toBe(before.sort_order);
+    expect(after.created_at).toBe(before.created_at);
+    // Still flagged for sync — a rename is a change a second device needs.
+    expect(after.dirty).toBe(1);
   });
 
   it('soft deletes, so sync can propagate the removal', () => {

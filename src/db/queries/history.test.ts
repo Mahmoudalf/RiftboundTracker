@@ -6,8 +6,8 @@ import type { CardRow } from '../schema/cards';
 import { applyMigrationsUpTo, createTestDatabase, type TestDatabase } from '../testing';
 
 import { createDeck, saveDeckEdit } from './decks';
-import { HISTORY_PAGE, matchHistory } from './history';
-import { deleteMatch, logMatch, opponentChampionFields, opponentFields } from './matches';
+import { deleteGame, logGame, opponentChampionFields, opponentFields } from './games';
+import { HISTORY_PAGE, gameHistory } from './history';
 
 /**
  * Match history.
@@ -61,7 +61,7 @@ const VI = {
   domains: ['Fury', 'Order'], domainKey: 'Fury,Order', tags: ['Vi'],
 };
 
-describe('matchHistory', () => {
+describe('gameHistory', () => {
   it('resolves both sides with art and names', () => {
     const legend = seedCard({ ...VI });
     const champion = seedCard({
@@ -72,12 +72,12 @@ describe('matchHistory', () => {
     const oppLegend = seedCard({ id: 'yasuo', name: 'Yasuo - Windrunner', type: 'Legend' });
     const oppChamp = seedCard({ id: 'yasuo-unit', name: 'Yasuo - Unforgiven', type: 'Unit' });
 
-    logMatch({
-      deckId, deckVersionId: versionId, result: 'win', bestOf: 3, eventType: 'tournament',
+    logGame({
+      deckId, deckVersionId: versionId, result: 'win', bestOf: 3, gameStyle: 'tournament',
       ...opponentFields(oppLegend), ...opponentChampionFields(oppChamp),
     });
 
-    const [entry] = matchHistory({ deckId }).entries;
+    const [entry] = gameHistory({ deckId }).entries;
     expect(entry!.ours.legend).toMatchObject({
       id: 'vi-legend',
       name: 'Vi - Piltover Enforcer',
@@ -86,8 +86,8 @@ describe('matchHistory', () => {
     expect(entry!.ours.champion.name).toBe('Vi - Enforcer');
     expect(entry!.theirs.legend.name).toBe('Yasuo - Windrunner');
     expect(entry!.theirs.champion.name).toBe('Yasuo - Unforgiven');
-    expect(entry!.match.bestOf).toBe(3);
-    expect(entry!.match.eventType).toBe('tournament');
+    expect(entry!.game.bestOf).toBe(3);
+    expect(entry!.game.gameStyle).toBe('tournament');
   });
 
   /**
@@ -97,7 +97,7 @@ describe('matchHistory', () => {
     const vi = seedCard({ ...VI });
     const { deckId, versionId } = createDeck({ name: 'Shifting', legend: vi, champion: null });
 
-    logMatch({ deckId, deckVersionId: versionId, result: 'win' });
+    logGame({ deckId, deckVersionId: versionId, result: 'win' });
 
     // The deck is rebuilt around a different Legend. The old match must not be
     // redrawn as though it had been played with it.
@@ -108,9 +108,9 @@ describe('matchHistory', () => {
     const forked = saveDeckEdit(versionId, {
       slots: [{ card: pyke, quantity: 1, zone: 'legend' }],
     });
-    logMatch({ deckId, deckVersionId: forked.versionId, result: 'loss' });
+    logGame({ deckId, deckVersionId: forked.versionId, result: 'loss' });
 
-    const entries = matchHistory({ deckId }).entries;
+    const entries = gameHistory({ deckId }).entries;
     const names = entries.map((e) => e.ours.legend.name);
     expect(names).toContain('Vi - Piltover Enforcer');
     expect(names).toContain('Pyke - Bloodharbor Ripper');
@@ -120,11 +120,11 @@ describe('matchHistory', () => {
     const legend = seedCard({ ...VI });
     const { deckId, versionId } = createDeck({ name: 'Vi', legend, champion: null });
     const opp = seedCard({ id: 'yasuo', name: 'Yasuo - Windrunner', type: 'Legend' });
-    logMatch({ deckId, deckVersionId: versionId, result: 'win', ...opponentFields(opp) });
+    logGame({ deckId, deckVersionId: versionId, result: 'win', ...opponentFields(opp) });
 
     db.runSync("DELETE FROM cards WHERE id IN ('yasuo', 'vi-legend')");
 
-    const [entry] = matchHistory({ deckId }).entries;
+    const [entry] = gameHistory({ deckId }).entries;
     // Art is gone; identity is not.
     expect(entry!.theirs.legend.name).toBe('Yasuo - Windrunner');
     expect(entry!.theirs.legend.imageUrl).toBeNull();
@@ -135,9 +135,9 @@ describe('matchHistory', () => {
   it('reports empty faces rather than throwing when nothing was recorded', () => {
     const legend = seedCard({ ...VI });
     const { deckId, versionId } = createDeck({ name: 'Vi', legend, champion: null });
-    logMatch({ deckId, deckVersionId: versionId, result: 'draw' });
+    logGame({ deckId, deckVersionId: versionId, result: 'draw' });
 
-    const [entry] = matchHistory({ deckId }).entries;
+    const [entry] = gameHistory({ deckId }).entries;
     expect(entry!.theirs.legend).toMatchObject({ id: null, name: null, imageUrl: null });
     expect(entry!.ours.champion).toEqual({ id: null, name: null, imageUrl: null });
   });
@@ -148,13 +148,13 @@ describe('matchHistory', () => {
     const opp = seedCard({
       id: 'yasuo', name: 'Yasuo', type: 'Legend', domains: ['Chaos', 'Mind'],
     });
-    logMatch({ deckId, deckVersionId: versionId, result: 'win', ...opponentFields(opp) });
+    logGame({ deckId, deckVersionId: versionId, result: 'win', ...opponentFields(opp) });
 
     db.runSync('DELETE FROM cards WHERE id = ?', ['yasuo']);
 
     // The row draws these when there is no art left — the job `opp_domains`
     // was denormalized for.
-    const [entry] = matchHistory({ deckId }).entries;
+    const [entry] = gameHistory({ deckId }).entries;
     expect(entry!.theirs.legend.imageUrl).toBeNull();
     expect(entry!.theirs.legend.domains).toEqual(['Chaos', 'Mind']);
   });
@@ -163,20 +163,20 @@ describe('matchHistory', () => {
     const legend = seedCard({ ...VI });
     const { deckId, versionId } = createDeck({ name: 'Vi', legend, champion: null });
     for (let i = 0; i < HISTORY_PAGE + 12; i++) {
-      logMatch({ deckId, deckVersionId: versionId, result: 'win' });
+      logGame({ deckId, deckVersionId: versionId, result: 'win' });
     }
 
-    const page = matchHistory({ deckId });
+    const page = gameHistory({ deckId });
     // The screen must be able to say it is showing a window, so the total is
     // not the window length.
     expect(page.entries).toHaveLength(HISTORY_PAGE);
     expect(page.total).toBe(HISTORY_PAGE + 12);
 
-    expect(matchHistory({ deckId, limit: HISTORY_PAGE * 2 }).entries).toHaveLength(
+    expect(gameHistory({ deckId, limit: HISTORY_PAGE * 2 }).entries).toHaveLength(
       HISTORY_PAGE + 12
     );
     // limit 0 means "everything" — analytics reads unwindowed.
-    expect(matchHistory({ deckId, limit: 0 }).entries).toHaveLength(HISTORY_PAGE + 12);
+    expect(gameHistory({ deckId, limit: 0 }).entries).toHaveLength(HISTORY_PAGE + 12);
   });
 
   it('orders newest first, scopes by deck, and honours a limit', () => {
@@ -184,30 +184,30 @@ describe('matchHistory', () => {
     const first = createDeck({ name: 'First', legend, champion: null });
     const second = createDeck({ name: 'Second', legend, champion: null });
 
-    logMatch({
+    logGame({
       deckId: first.deckId, deckVersionId: first.versionId, result: 'win',
       playedAt: '2026-08-01T10:00:00.000Z',
     });
-    logMatch({
+    logGame({
       deckId: first.deckId, deckVersionId: first.versionId, result: 'loss',
       playedAt: '2026-08-03T10:00:00.000Z',
     });
-    logMatch({
+    logGame({
       deckId: second.deckId, deckVersionId: second.versionId, result: 'draw',
       playedAt: '2026-08-02T10:00:00.000Z',
     });
 
-    expect(matchHistory().entries.map((e) => e.match.result)).toEqual(['loss', 'draw', 'win']);
-    expect(matchHistory({ deckId: first.deckId }).entries).toHaveLength(2);
-    expect(matchHistory({ limit: 2 }).entries).toHaveLength(2);
+    expect(gameHistory().entries.map((e) => e.game.result)).toEqual(['loss', 'draw', 'win']);
+    expect(gameHistory({ deckId: first.deckId }).entries).toHaveLength(2);
+    expect(gameHistory({ limit: 2 }).entries).toHaveLength(2);
   });
 
   it('ignores deleted matches', () => {
     const legend = seedCard({ ...VI });
     const { deckId, versionId } = createDeck({ name: 'Vi', legend, champion: null });
-    const id = logMatch({ deckId, deckVersionId: versionId, result: 'win' });
-    deleteMatch(id);
+    const id = logGame({ deckId, deckVersionId: versionId, result: 'win' });
+    deleteGame(id);
 
-    expect(matchHistory({ deckId }).entries).toEqual([]);
+    expect(gameHistory({ deckId }).entries).toEqual([]);
   });
 });

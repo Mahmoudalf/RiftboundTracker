@@ -132,13 +132,13 @@ export function VersionTimeline({
                   `${version.mainCount}/${MAIN_DECK_SIZE}`,
                   version.isLegal ? 'Legal' : 'Incomplete',
                   // A locked version with no matches only exists before M4, via
-                  // the dev lock. "No matches yet" there would contradict the
+                  // the dev lock. "No games yet" there would contradict the
                   // editor banner standing right next to it.
                   node.matchCount > 0
                     ? `${node.matchCount} ${node.matchCount === 1 ? 'match' : 'matches'}`
                     : version.lockedAt
                       ? 'Locked'
-                      : 'No matches yet',
+                      : 'No games yet',
                   node.isCurrent ? 'Current' : null
                 )}
               </Text>
