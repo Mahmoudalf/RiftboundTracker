@@ -745,6 +745,63 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE binders DROP COLUMN accent;
     `,
   },
+  {
+    version: 22,
+    up: /* sql */ `
+      -- Write-only storage, removed before M7 mirrors it into Postgres.
+      --
+      -- The post-M6 audit found six places where the schema holds something no
+      -- code path can produce or consume. Left alone, each would be created in
+      -- Supabase, wrapped in an RLS policy and taught to a sync engine -- after
+      -- which removing it costs a migration on two databases plus a client that
+      -- tolerates both. This is the last cheap moment.
+      --
+      -- \`games.opp_label\` is the one that was genuinely load-bearing on paper.
+      -- \`GameRow.tsx\` and \`summary.ts\` both read it as the fallback name for an
+      -- opponent not in the card library, so there was a live "Unknown opponent"
+      -- branch fed by a column no screen could ever fill. Dropped with both read
+      -- paths on the owner's call: the opponent Legend picker covers the case
+      -- the free-text field was drawn for.
+      --
+      -- \`mulligans\` is superseded by \`matches.mulliganed\`, which holds the
+      -- actual cards rather than a count of them. \`duration_seconds\` and
+      -- \`tags\` were declared in M4 against screens that were never designed.
+      --
+      -- \`matches.battlefields\` is the exception migration 19 named and left
+      -- standing. It is dropped now for the same reason as the rest: the
+      -- Battlefield each side *played* has had its own column since migration
+      -- 16, and what a deck *brought* is that version's own Battlefield zone,
+      -- which the app can read without asking anyone. Labelling dead schema is
+      -- better than hiding it and worse than not having it.
+      --
+      -- None of the five is indexed, a PK, unique, or named in a CHECK, so
+      -- DROP COLUMN (SQLite 3.35+) takes each cleanly.
+      ALTER TABLE games   DROP COLUMN opp_label;
+      ALTER TABLE games   DROP COLUMN mulligans;
+      ALTER TABLE games   DROP COLUMN duration_seconds;
+      ALTER TABLE games   DROP COLUMN tags;
+      ALTER TABLE matches DROP COLUMN battlefields;
+
+      -- \`sync_meta.api_version\` has been declared since migration 1 and never
+      -- read or written -- not once, by anything. The API carries no version
+      -- header to put in it (docs/API.md §6), so it was storage for a fact the
+      -- upstream service does not publish.
+      ALTER TABLE sync_meta DROP COLUMN api_version;
+
+      -- The \`sets\` table is written on every sync and read by nothing.
+      --
+      -- The check it looks like it exists for does not use it: \`syncCards\`
+      -- computes the expected card total from the **live** \`GET /sets\`
+      -- response and compares it against \`COUNT(*)\` on \`cards\`, so the mirror
+      -- of that response was never consulted. \`setCompletion()\` likewise
+      -- derives per-set progress from \`cards\`. \`listSets()\` was deleted at
+      -- some point and took the only reader with it.
+      --
+      -- Redundant rather than merely unread, which is what decides it: the two
+      -- copies of a set's card count could disagree, and nothing would notice.
+      DROP TABLE sets;
+    `,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

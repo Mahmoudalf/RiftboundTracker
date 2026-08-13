@@ -1,7 +1,8 @@
+import { FlashList } from '@shopify/flash-list';
 import * as Haptics from 'expo-haptics';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { CandidateRow } from '@/components/decks/CandidateRow';
 import { CardGrid } from '@/components/decks/CardGrid';
@@ -12,7 +13,7 @@ import {
   poolKindFilters,
   type PoolFilterState,
 } from '@/components/decks/CardPoolFilters';
-import { LegalityCard } from '@/components/decks/LegalityCard';
+import { LegalityCard, LegalityStrip } from '@/components/decks/LegalityCard';
 import { SaveVersionSheet } from '@/components/decks/SaveVersionSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
@@ -25,6 +26,7 @@ import {
   listRunesForIdentity,
   queryCards,
 } from '@/db/queries/cards';
+import { availabilityLabel, availableForDeck } from '@/db/queries/coverage';
 import {
   getDeck,
   getVersion,
@@ -37,6 +39,11 @@ import {
 } from '@/db/queries/decks';
 import type { CardRow } from '@/db/schema/cards';
 import { saveMessage } from '@/features/decks/save-message';
+import {
+  markEditorLoaded,
+  markEditorMounted,
+  markEditorPainted,
+} from '@/features/decks/timing';
 import { reconcileWithStored, useDeckEditor } from '@/features/decks/useDeckEditor';
 import { TOAST_CONFIRM_MS, useToast } from '@/features/games/useToast';
 import { baseName, cardKey } from '@/lib/card-identity';
@@ -117,6 +124,23 @@ export default function DeckEditorScreen() {
   const committing = useRef(false);
   const showToast = useToast((s) => s.show);
 
+  const navigation = useNavigation();
+  /**
+   * Set immediately before any navigation this screen asked for, so the guard
+   * below lets it through. Saving replaces this route, which is a removal like
+   * any other — without this the editor would interrogate the user about the
+   * save they just confirmed.
+   */
+  const leaving = useRef(false);
+  /**
+   * The navigation the guard intercepted, replayed verbatim once the user
+   * confirms. Replaying `router.back()` instead would be wrong for any exit
+   * that was not a back: pressing the already-focused Decks tab pops the stack
+   * to its root, and answering that with one step back lands somewhere the
+   * user did not ask for.
+   */
+  const blockedAction = useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
+
   // Derived rather than held in state: the read is synchronous, so putting it
   // in an effect would render an empty editor first and then correct itself.
   const deck = useMemo(() => getDeck(id), [id]);
@@ -179,6 +203,10 @@ export default function DeckEditorScreen() {
   const setLegend = useDeckEditor((s) => s.setLegend);
   const setChampion = useDeckEditor((s) => s.setChampion);
 
+  // First thing in the first render, so "nav" measures the transition and the
+  // module work rather than anything this screen then chooses to do.
+  markEditorMounted();
+
   useEffect(() => {
     if (!deck?.currentVersionId) return;
     load({
@@ -188,6 +216,7 @@ export default function DeckEditorScreen() {
       list: loadDeckList(deck.currentVersionId),
     });
     committing.current = false;
+    markEditorLoaded();
 
     if (__DEV__) {
       console.log(`[editor] mount · store versionId ${useDeckEditor.getState().versionId}`);
@@ -275,6 +304,85 @@ export default function DeckEditorScreen() {
     return reconcileWithStored(list, loadDeckList(versionId), loadedKeys);
   };
 
+  const hasUnsavedWork = () => {
+    if (!versionId) return false;
+    return !diffLists(loadDeckList(versionId), buildSaveList()).isEmpty;
+  };
+
+  /**
+   * Copies free for this deck, per card.
+   *
+   * Read once on open, deliberately. Nothing in this screen can change what you
+   * own — filing copies happens in Collection — so recomputing would put a
+   * three-table join in the path of every tap for a number that cannot move.
+   *
+   * It is also **not** reduced by what this deck lists, which is what makes it
+   * stable enough to read once: the figure answers "may I sleeve this?", and
+   * the stepper beside it already says how many you have put in.
+   */
+  const availability = useMemo(() => (deck ? availableForDeck(deck.id) : new Map()), [deck]);
+
+  /*
+   * Silent when nothing is catalogued. The map is keyed on cards you hold, so
+   * an empty collection would otherwise stamp "Not owned" on all ~900
+   * candidates — which is not a finding, it is the app talking to itself.
+   */
+  const availabilityFor = (card: CardRow) =>
+    availability.size === 0 ? null : availabilityLabel(availability.get(cardKey(card)));
+
+  /*
+   * Held in a ref, refreshed after every render, so the listener below can be
+   * subscribed once and still see the current draft. Subscribing with the draft
+   * in the dependency list would tear down and rebuild the listener on every
+   * keystroke; capturing it once would ask the question against the deck as it
+   * looked when the screen opened, and always answer "nothing to lose".
+   */
+  const unsaved = useRef(hasUnsavedWork);
+  useEffect(() => {
+    unsaved.current = hasUnsavedWork;
+  });
+
+  /**
+   * Leaving with work in progress — **every** way out, not just the button.
+   *
+   * The prompt used to hang off `Cancel`, so the two gestures people actually
+   * use to leave a screen — the hardware back and the edge swipe — walked
+   * straight past it and the draft was gone. A guard attached to one control
+   * only guards that control.
+   *
+   * `beforeRemove` fires for the removal itself, whatever caused it, and is
+   * cancellable — so the question is asked once, in one place, and `Cancel` is
+   * now just another way of triggering it rather than a second implementation.
+   *
+   * The hook comes from `expo-router`, which vendors React Navigation's core
+   * and re-exports the navigation object from it. Installing
+   * `@react-navigation/native` for `usePreventRemove` — the fix this gap was
+   * filed with — would have been wrong on SDK 57: expo-router v7 is built on
+   * `standard-navigation` and no `@react-navigation` package exists in the tree
+   * at all, so the hook would have been talking to a navigator that is not the
+   * one rendering this screen.
+   */
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+      if (leaving.current) return;
+      if (!unsaved.current()) return;
+
+      event.preventDefault();
+      blockedAction.current = event.data.action;
+      setAsking('leave');
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  /** Let the next removal through, then perform it. */
+  const leaveNow = () => {
+    leaving.current = true;
+    const action = blockedAction.current;
+    blockedAction.current = null;
+    if (action) navigation.dispatch(action);
+    else router.back();
+  };
+
   /**
    * Saving is two steps, always: work out the change, then show it.
    *
@@ -288,6 +396,8 @@ export default function DeckEditorScreen() {
     const diff = diffLists(loadDeckList(versionId), buildSaveList());
 
     if (diff.isEmpty) {
+      // Nothing to lose, so the guard has no question to ask.
+      leaving.current = true;
       router.replace(`/deck/${id}`);
       return;
     }
@@ -334,6 +444,9 @@ export default function DeckEditorScreen() {
     if (Platform.OS !== 'web') {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
+    // The work is on disk now, so the guard must not challenge the navigation
+    // that follows — a `replace` removes this route like any other exit.
+    leaving.current = true;
     router.replace(`/deck/${id}`);
     showToast(saveMessage(result), { durationMs: TOAST_CONFIRM_MS });
   };
@@ -373,6 +486,22 @@ export default function DeckEditorScreen() {
     return pool.sort((a, b) => (heldIds.has(b.id) ? 1 : 0) - (heldIds.has(a.id) ? 1 : 0));
   }, [addCards, zone, inDeckOnly]);
 
+  /*
+   * The paint mark, one frame after the list has data.
+   *
+   * `requestAnimationFrame` fires after the commit that put these rows on
+   * screen, so the gap it closes is the render — the part a virtualised list
+   * changes and a faster query would not. Runs once per open; the ref stops a
+   * zone switch from restarting a stopwatch nobody started.
+   */
+  const painted = useRef(false);
+  useEffect(() => {
+    if (painted.current || candidates.length === 0) return;
+    painted.current = true;
+    const frame = requestAnimationFrame(() => markEditorPainted(candidates.length));
+    return () => cancelAnimationFrame(frame);
+  }, [candidates]);
+
   const zoneCount = (which: Pool) =>
     slots.filter((s) => s.zone === which).reduce((n, s) => n + s.quantity, 0);
 
@@ -387,20 +516,15 @@ export default function DeckEditorScreen() {
   };
 
   /**
-   * Leaving with work in progress.
+   * Cancel just leaves.
    *
-   * The draft is cleared on unmount, so backing out is genuinely destructive —
-   * and until now it happened silently, on a gesture nobody confirms.
+   * It used to run its own copy of the unsaved check and raise its own prompt,
+   * which is precisely why the back gesture had none: the guard belonged to the
+   * button rather than to the screen. Now the `beforeRemove` listener above
+   * intercepts this exactly as it intercepts a swipe, so there is one
+   * implementation of the question and no way to reach an exit that skips it.
    */
-  const onLeave = () => {
-    if (!versionId) {
-      router.back();
-      return;
-    }
-    const diff = diffLists(loadDeckList(versionId), buildSaveList());
-    if (diff.isEmpty) router.back();
-    else setAsking('leave');
-  };
+  const onLeave = () => router.back();
 
   if (notFound) {
     return (
@@ -421,43 +545,26 @@ export default function DeckEditorScreen() {
     { key: 'sideboard', label: 'Sideboard' },
   ];
 
-  return (
-    <Screen back={false}>
-      {/* Cancel · deck · Save. The design gives the editor its own header rather
-          than the app's display title: this is a task you are inside, and the
-          two ways out belong at the top of it. */}
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Cancel editing"
-          onPress={onLeave}
-          style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}
-        >
-          <Text style={styles.cancelLabel}>Cancel</Text>
-        </Pressable>
-
-        {/* The name is edited where it is shown. It was previously unreachable
-            from here at all — the one screen dedicated to changing the deck. */}
-        <TextInput
-          value={deckName}
-          onChangeText={setDeckName}
-          placeholder="Deck name"
-          placeholderTextColor={color.textFaint}
-          style={styles.headerTitle}
-          returnKeyType="done"
-          accessibilityLabel="Deck name"
-        />
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Save deck"
-          onPress={onSave}
-          style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}
-        >
-          <Text style={styles.saveLabel}>Save</Text>
-        </Pressable>
-      </View>
-
+  /**
+   * Context that belongs to the deck rather than to browsing it.
+   *
+   * The editor's chrome measured **61% of the screen** — about a card and a
+   * half visible below it. These two blocks are why: the legality card is 98pt
+   * of three stacked lines, and the Legend and Champion fields are 52pt for a
+   * choice made once when the deck was created and essentially never touched
+   * while building.
+   *
+   * So they ride at the top of the candidate list instead of above it. Scroll
+   * to the top and they are there; start browsing and the cards get the screen.
+   * The pinned `LegalityStrip` keeps the running counts, which is the one part
+   * you want *while* adding cards.
+   *
+   * Passed to **both** views — `FlashList`'s `ListHeaderComponent` and
+   * `CardGrid`'s `header` — so switching list ⇄ gallery does not change what
+   * the screen tells you, only how the cards are drawn.
+   */
+  const listContext = (
+    <View style={styles.listContext}>
       <LegalityCard
         legality={legality}
         sideboard={zoneCount('sideboard')}
@@ -507,6 +614,51 @@ export default function DeckEditorScreen() {
           );
         })}
       </View>
+    </View>
+  );
+
+  return (
+    <Screen back={false}>
+      {/* Cancel · deck · Save. The design gives the editor its own header rather
+          than the app's display title: this is a task you are inside, and the
+          two ways out belong at the top of it. */}
+      <View style={styles.header}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel editing"
+          onPress={onLeave}
+          style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}
+        >
+          <Text style={styles.cancelLabel}>Cancel</Text>
+        </Pressable>
+
+        {/* The name is edited where it is shown. It was previously unreachable
+            from here at all — the one screen dedicated to changing the deck. */}
+        <TextInput
+          value={deckName}
+          onChangeText={setDeckName}
+          placeholder="Deck name"
+          placeholderTextColor={color.textFaint}
+          style={styles.headerTitle}
+          returnKeyType="done"
+          accessibilityLabel="Deck name"
+        />
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Save deck"
+          onPress={onSave}
+          style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}
+        >
+          <Text style={styles.saveLabel}>Save</Text>
+        </Pressable>
+      </View>
+
+      {/*
+        The running counts, pinned. The full card and the deck's identity moved
+        into the candidate list's own scroll — see `listContext` below.
+      */}
+      <LegalityStrip legality={legality} sideboard={zoneCount('sideboard')} />
 
       <View style={styles.zoneTabs}>
         {zoneTabs.map((tab) => {
@@ -566,10 +718,14 @@ export default function DeckEditorScreen() {
       ) : null}
 
       <View style={styles.listHead}>
-        <Text style={styles.listHeadLabel} numberOfLines={1}>
-          {zoneTabs.find((t) => t.key === zone)?.label.toUpperCase()} · {zoneCount(zone)} in deck ·
-          candidates below
-        </Text>
+        {/*
+          This read "MAIN · 14 IN DECK · CANDIDATES BELOW", which the zone tab
+          directly above already says — it is the selected tab and it carries
+          the same count. The row stays because it holds the two controls, and
+          the view toggle has to remain reachable without scrolling; only the
+          duplicated sentence is gone.
+        */}
+        <View style={styles.listHeadSpacer} />
 
         <Pressable
           accessibilityRole="button"
@@ -607,37 +763,79 @@ export default function DeckEditorScreen() {
 
       <View style={styles.body}>
         {!legend ? (
-          <EmptyState
-            title="Pick a Legend first"
-            body="The Legend decides which domains the deck may hold, so there is nothing to offer until it is chosen."
-          />
+          /*
+           * The context renders above the empty state, and it has to.
+           *
+           * `listContext` carries the LEGEND field, and with no Legend there is
+           * no list for it to head — so hiding it here would leave the one
+           * screen that can set a Legend with no way to set one. Reachable in
+           * practice rather than theoretically: `loadDeckList` returns no
+           * legend slot whenever that printing leaves the card mirror, which is
+           * the M2 audit's finding 6, and this is the screen you would come to
+           * to fix it.
+           */
+          <View style={styles.emptyBody}>
+            {listContext}
+            <EmptyState
+              title="Pick a Legend first"
+              body="The Legend decides which domains the deck may hold, so there is nothing to offer until it is chosen."
+            />
+          </View>
         ) : view === 'list' ? (
-          <ScrollView contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
-            {candidates.length === 0 ? (
-              <Text style={styles.empty}>No cards match.</Text>
-            ) : (
-              candidates.map((card) => (
-                <CandidateRow
-                  key={card.id}
-                  card={card}
-                  quantity={quantityIn(zone)(card)}
-                  blocked={blockedReason(card)}
-                  flagged={flagged.has(card.id)}
-                  onAdd={() => onAdd(card)}
-                  onRemove={() => adjust(card, zoneForPool(zone, card), -1)}
-                  onPress={() => router.push(`/card/${card.id}`)}
-                />
-              ))
+          /*
+           * Virtualised, and it has to be.
+           *
+           * This was a `ScrollView` mapping over every candidate, so opening the
+           * editor mounted the whole pool before it could draw a frame —
+           * measured against the real library at **385 rows** for the widest
+           * Legend identity and 377 for the median, each row a Pressable, an
+           * `expo-image` and four Texts. That is roughly four thousand views and
+           * several hundred image requests standing between the tap and the
+           * first paint, which is the half-second the editor took to open.
+           *
+           * The gallery view in the same slot has always been a FlashList; only
+           * the list view was eager, which is why switching to the grid felt
+           * faster than the screen it was inside.
+           *
+           * `extraData` carries the draft: rows are re-rendered on a quantity
+           * change, which a virtualised list will not notice on its own because
+           * `candidates` is deliberately a stable snapshot — the order is fixed
+           * when the pool is built so a tap never moves a row under your finger.
+           */
+          <FlashList
+            data={candidates}
+            keyExtractor={(card) => card.id}
+            extraData={slots}
+            ListHeaderComponent={listContext}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            // In the same list rather than as a sibling branch, so filtering to
+            // zero cannot unmount the list and drop the scroll position.
+            ListEmptyComponent={<Text style={styles.empty}>No cards match.</Text>}
+            renderItem={({ item }) => (
+              <CandidateRow
+                card={item}
+                quantity={quantityIn(zone)(item)}
+                blocked={blockedReason(item)}
+                flagged={flagged.has(item.id)}
+                availability={availabilityFor(item)}
+                onAdd={() => onAdd(item)}
+                onRemove={() => adjust(item, zoneForPool(zone, item), -1)}
+                onPress={() => router.push(`/card/${item.id}`)}
+              />
             )}
-          </ScrollView>
+          />
         ) : (
           <CardGrid
             cards={candidates}
             mode="quantity"
             columns={zone === 'battlefield' ? 2 : 3}
             tileAspect={zone === 'battlefield' ? 1 / CARD_ASPECT : CARD_ASPECT}
+            header={listContext}
             quantityOf={quantityIn(zone)}
             blockedReason={blockedReason}
+            availabilityOf={availabilityFor}
             onAdd={onAdd}
             onRemove={(card) => adjust(card, zoneForPool(zone, card), -1)}
             emptyMessage="No cards match."
@@ -688,7 +886,10 @@ export default function DeckEditorScreen() {
         visible={asking === 'leave'}
         title="Leave without saving?"
         body="The draft is not stored anywhere. Under the version model an unsaved edit is not a lost keystroke, it is a deck that never existed."
-        onDismiss={() => setAsking(null)}
+        onDismiss={() => {
+          blockedAction.current = null;
+          setAsking(null);
+        }}
         actions={[
           {
             label: 'Save and leave',
@@ -703,10 +904,19 @@ export default function DeckEditorScreen() {
             kind: 'secondary',
             onPress: () => {
               setAsking(null);
-              router.back();
+              leaveNow();
             },
           },
-          { label: 'Stay here', kind: 'quiet', onPress: () => setAsking(null) },
+          {
+            label: 'Stay here',
+            kind: 'quiet',
+            onPress: () => {
+              // Drop the intercepted action too, or a later confirmed exit
+              // would replay a navigation from a decision already reversed.
+              blockedAction.current = null;
+              setAsking(null);
+            },
+          },
         ]}
       />
 
@@ -751,7 +961,8 @@ const styles = StyleSheet.create({
   cancelLabel: { ...text.smallMedium, fontSize: 13.5, color: color.textMuted },
   saveLabel: { ...text.smallMedium, fontSize: 13.5, color: color.accent },
 
-  identity: { flexDirection: 'row', gap: space[2], paddingTop: space[3] },
+  // No top padding: `listContext` owns the spacing now that this sits inside it.
+  identity: { flexDirection: 'row', gap: space[2] },
   identityField: {
     flex: 1,
     minHeight: 52,
@@ -793,7 +1004,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: color.border,
   },
-  listHeadLabel: { ...text.microMeta, color: color.textFaint, flex: 1, minWidth: 0 },
+  // Pushes the two controls to the right where the label used to end.
+  listHeadSpacer: { flex: 1, minWidth: 0 },
   filterPill: {
     height: 32,
     paddingHorizontal: 11,
@@ -827,6 +1039,9 @@ const styles = StyleSheet.create({
 
   body: { flex: 1 },
   listContent: { paddingTop: space[2], paddingBottom: space[6] },
+  // The deck-level context that rides at the top of the candidate list.
+  listContext: { gap: space[3], paddingBottom: space[3] },
+  emptyBody: { paddingTop: space[2] },
   empty: { ...text.small, color: color.textFaint, paddingVertical: space[4] },
   pressed: { opacity: 0.75 },
   search: {

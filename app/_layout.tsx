@@ -51,7 +51,7 @@ export default function RootLayout() {
           >
             <Stack.Screen name="(tabs)" />
             <Stack.Screen
-              name="match/new"
+              name="game/new"
               options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
             />
             <Stack.Screen

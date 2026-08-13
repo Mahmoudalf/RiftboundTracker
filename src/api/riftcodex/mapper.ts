@@ -1,6 +1,6 @@
 import type { NewCardRow } from '@/db/schema/cards';
 
-import type { ApiCard, ApiSet } from './schemas';
+import type { ApiCard } from './schemas';
 
 /**
  * API shape -> database row.
@@ -75,17 +75,14 @@ export function toCardRow(card: ApiCard): NewCardRow {
   };
 }
 
-export function toSetRow(set: ApiSet) {
-  return {
-    id: set.id,
-    name: set.name,
-    setId: set.set_id,
-    cardCount: set.card_count,
-    tcgplayerId: set.tcgplayer_id ?? null,
-    cardmarketIds: set.cardmarket_id,
-    publishedOn: set.published_on ?? null,
-  };
-}
+/*
+ * `toSetRow` was here. It mapped `GET /sets` into the `sets` table, which
+ * migration 22 dropped for having no reader — so the mapper went with it.
+ *
+ * The endpoint is still called: `syncCards` sums `card_count` across the live
+ * response to decide whether anything upstream has changed. It just reads that
+ * field directly rather than shaping a row for storage.
+ */
 
 /**
  * Drop the stale twin when the API returns a card twice.

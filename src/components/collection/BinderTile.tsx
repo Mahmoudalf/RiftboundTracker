@@ -30,6 +30,14 @@ export interface BinderTileProps {
   count?: number;
   /** At least one copy is a foil — the art gets the sheen. */
   foiled?: boolean;
+  /**
+   * Held back visually because none are filed here.
+   *
+   * Only ever set while filing a binder. The gallery deliberately shows every
+   * card at full strength — it is a reference, and dimming most of 1,451 cards
+   * makes it harder to read rather than more informative.
+   */
+  dimmed?: boolean;
   onOpen: (card: CardRow) => void;
 }
 
@@ -38,13 +46,14 @@ export function BinderTile({
   width,
   count,
   foiled = false,
+  dimmed = false,
   onOpen,
 }: BinderTileProps) {
   const height = Math.round((width * 154) / 110);
   const landscape = isLandscapeCard(card);
 
   return (
-    <View style={[styles.tile, { width }]}>
+    <View style={[styles.tile, { width }, dimmed && styles.dimmed]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={metaLine(
@@ -91,6 +100,14 @@ export function BinderTile({
 
 const styles = StyleSheet.create({
   tile: { gap: 5 },
+  /*
+   * Held back, not hidden. 0.45 is far enough to let the eye sort a page into
+   * owned and not at a glance, and near enough that the art is still
+   * recognisable — you have to be able to find the card you are about to file.
+   * Applied to the whole tile so the name and set line fade with the art; a
+   * dimmed picture under a full-strength label reads as a loading state.
+   */
+  dimmed: { opacity: 0.45 },
   art: {
     borderRadius: 6,
     overflow: 'hidden',

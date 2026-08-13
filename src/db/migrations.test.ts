@@ -35,7 +35,10 @@ describe('migrate — fresh database', () => {
 
     expect(result).toEqual({ from: 0, to: LATEST_VERSION });
     expect(db.userVersion()).toBe(LATEST_VERSION);
-    expect(listTables(db)).toEqual(expect.arrayContaining(['cards', 'sets', 'sync_meta', 'cards_fts']));
+    expect(listTables(db)).toEqual(expect.arrayContaining(['cards', 'sync_meta', 'cards_fts']));
+    // `sets` is created by migration 1 and dropped by 22 — a fresh database
+    // runs both, so it must not survive to the end.
+    expect(listTables(db)).not.toContain('sets');
     db.close();
   });
 
@@ -523,6 +526,133 @@ describe('migrate — every version upgrades a populated database', () => {
     expect(row.opening_hand).toBe('["a","b","c","d"]');
     expect(row.mulliganed).toBe('["a"]');
     expect(row.replacements).toBeNull();
+
+    db.close();
+  });
+
+  /**
+   * Migration 22 drops five columns and a whole table.
+   *
+   * A drop cannot error its way to a wrong answer — it either takes the column
+   * or it does not — but it *can* shift the values in the columns around it if
+   * SQLite ever fell back to a rebuild, and that failure is silent and total:
+   * every game in the history would read back with its neighbour's data. So
+   * this fills the columns on both sides of each drop and asserts they still
+   * hold what they held.
+   *
+   * The `sets` drop gets a populated row for the same reason `DROP TABLE` was
+   * worth testing in migration 17 — it is the operation with no undo.
+   */
+  it('drops the write-only columns without shifting their neighbours (v21 -> latest)', () => {
+    const db = createTestDatabase();
+    applyMigrationsUpTo(db, MIGRATIONS, 21);
+    const timestamp = '2026-08-13T10:00:00.000Z';
+
+    db.runSync(
+      `INSERT INTO decks (id, name, domains, created_at, updated_at)
+       VALUES ('d', 'D', '[]', ?, ?)`,
+      [timestamp, timestamp]
+    );
+
+    // Every doomed column filled, and every column adjacent to one filled with
+    // a value distinct enough that a shift could not read as a pass.
+    db.runSync(
+      `INSERT INTO games
+         (id, deck_id, deck_version_id, played_at, result,
+          opp_legend_name, opp_domains, opp_label,
+          battlefield_card_id, battlefield_name,
+          event_id, game_style, mulligans, duration_seconds, notes, tags,
+          created_at, updated_at, dirty)
+       VALUES ('g1', 'd', 'v', ?, 'win',
+               'Vi', '["Fury","Order"]', 'Yasuo aggro',
+               'bf-card', 'Star Spring',
+               'e1', 'tournament', 2, 1800, 'Close one', '["locals"]',
+               ?, ?, 1)`,
+      [timestamp, timestamp, timestamp]
+    );
+
+    db.runSync(
+      `INSERT INTO matches
+         (id, game_id, match_number, result, score_for, score_against,
+          opening_hand, mulliganed, replacements, battlefields,
+          battlefield_card_id, opp_battlefield_card_id, notes)
+       VALUES ('m1', 'g1', 1, 'win', 8, 6,
+               '["a","b","c","d"]', '["a"]', '["e"]', '["brought-1","brought-2"]',
+               'bf-mine', 'bf-theirs', 'Match note')`
+    );
+
+    db.runSync(
+      `INSERT INTO sets (id, name, set_id, card_count, cardmarket_ids)
+       VALUES ('s1', 'Origins', 'OGN', 352, '["6286"]')`
+    );
+    db.runSync(
+      `UPDATE sync_meta SET api_version = 'v0.2.0', card_count = 1451,
+              seed_version = 'seed-1' WHERE id = 1`
+    );
+
+    migrate(db as never);
+
+    const game = db.getFirstSync<Record<string, unknown>>(
+      'SELECT * FROM games WHERE id = ?',
+      ['g1']
+    )!;
+    expect(game.opp_legend_name).toBe('Vi');
+    expect(game.opp_domains).toBe('["Fury","Order"]');
+    expect(game.battlefield_card_id).toBe('bf-card');
+    expect(game.battlefield_name).toBe('Star Spring');
+    expect(game.event_id).toBe('e1');
+    expect(game.game_style).toBe('tournament');
+    expect(game.notes).toBe('Close one');
+    expect(game.created_at).toBe(timestamp);
+    expect(game.dirty).toBe(1);
+    expect(game).not.toHaveProperty('opp_label');
+    expect(game).not.toHaveProperty('mulligans');
+    expect(game).not.toHaveProperty('duration_seconds');
+    expect(game).not.toHaveProperty('tags');
+
+    const match = db.getFirstSync<Record<string, unknown>>(
+      'SELECT * FROM matches WHERE id = ?',
+      ['m1']
+    )!;
+    expect(match.score_for).toBe(8);
+    expect(match.score_against).toBe(6);
+    expect(match.opening_hand).toBe('["a","b","c","d"]');
+    expect(match.mulliganed).toBe('["a"]');
+    expect(match.replacements).toBe('["e"]');
+    expect(match.battlefield_card_id).toBe('bf-mine');
+    expect(match.opp_battlefield_card_id).toBe('bf-theirs');
+    expect(match.notes).toBe('Match note');
+    expect(match).not.toHaveProperty('battlefields');
+
+    // The mirror's own bookkeeping survives; only the unused column goes.
+    const meta = db.getFirstSync<Record<string, unknown>>(
+      'SELECT * FROM sync_meta WHERE id = 1'
+    )!;
+    expect(meta.card_count).toBe(1451);
+    expect(meta.seed_version).toBe('seed-1');
+    expect(meta).not.toHaveProperty('api_version');
+
+    expect(listTables(db)).not.toContain('sets');
+
+    // The drops must not have taken an index with them — `games_opp_idx` sits
+    // on `opp_legend_card_id`, one column away from `opp_label`.
+    const indexes = db
+      .getAllSync<{ name: string }>(
+        `SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name IN ('games','matches')`
+      )
+      .map((r) => r.name);
+    expect(indexes).toEqual(
+      expect.arrayContaining([
+        'games_deck_idx',
+        'games_version_idx',
+        'games_played_idx',
+        'games_deleted_idx',
+        'games_opp_idx',
+        'games_event_idx',
+        'matches_game_idx',
+        'matches_number_idx',
+      ])
+    );
 
     db.close();
   });

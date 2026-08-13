@@ -35,6 +35,14 @@ interface CardGridProps {
   quantityOf?: (card: CardRow) => number;
   /** Why this card cannot be added, shown on the tile. Null means it can. */
   blockedReason?: (card: CardRow) => string | null;
+  /**
+   * Copies free for this deck, already worded (`availabilityLabel`).
+   *
+   * A line under the name rather than a second corner badge: the corner already
+   * means "copies in this deck", and two numbers in one circle would be a
+   * puzzle. Null when the collection is empty.
+   */
+  availabilityOf?: (card: CardRow) => string | null;
   onSelect?: (card: CardRow) => void;
   onAdd?: (card: CardRow) => void;
   onRemove?: (card: CardRow) => void;
@@ -51,6 +59,7 @@ export function CardGrid({
   selectedId,
   quantityOf,
   blockedReason,
+  availabilityOf,
   onSelect,
   onAdd,
   onRemove,
@@ -79,6 +88,7 @@ export function CardGrid({
         const blocked = blockedReason?.(item) ?? null;
         const selected = mode === 'single' && item.id === selectedId;
         const variant = variantLabel(item.name);
+        const availability = availabilityOf?.(item) ?? null;
 
         return (
           <View style={styles.cell}>
@@ -121,6 +131,11 @@ export function CardGrid({
                 {baseName(item.name)}
               </Text>
               {variant ? <Text style={styles.variant}>{variant}</Text> : null}
+              {availability ? (
+                <Text style={styles.availability} numberOfLines={1}>
+                  {availability}
+                </Text>
+              ) : null}
               {blocked && quantity === 0 ? (
                 <Text style={styles.blocked}>{blocked}</Text>
               ) : null}
@@ -188,5 +203,8 @@ const styles = StyleSheet.create({
   removeGlyph: { ...text.subtitle, color: color.text, lineHeight: 22 },
   name: { ...text.microMeta, color: color.textSecondary },
   variant: { ...text.microMeta, color: color.textFaint, fontSize: 9 },
+  // `textDim`, not `textFaint`: this one carries information, and `palette.js`
+  // documents faint as below AA and never to be relied on to say anything.
+  availability: { ...text.microMeta, color: color.textDim, fontSize: 9 },
   blocked: { ...text.microMeta, color: color.warning, fontSize: 9 },
 });

@@ -941,16 +941,22 @@ and the remaining screens are assembly rather than invention.
   actions, plus `SheetRow` for read-back lines
 - `matches/MatchupCard.tsx` — one side of a matchup, mirrored for the opponent
 
-### Not done — screen layouts
+### Screen layouts — three of four closed
 
-Every one of these is a layout change the design specifies and the app does not have:
+> **Re-checked against the code 2026-08-13.** This table listed four screens as "not done" while the
+> *Screens rebuilt* section above described three of them as shipped. The code settles it: they are
+> built, and this table had simply never been ticked. Left visible rather than deleted, because a
+> checklist that disagrees with the app is how the M4 self-check survived five milestones.
 
-| Screen | What the design adds |
-| --- | --- |
-| Deck detail | Legend art in the header, cut at 100° with a long fade. A **Stats** tab (the app puts stats on Overview). A **List / Gallery** toggle for the decklist. Version actions as buttons — *Open this list*, *Fork from here*, *Compare* — instead of an `Alert` action sheet |
-| Deck legality | A sentence, not a bar: *"Not legal — Main deck 38/39 · One card short. Everything else checks out."* |
-| Deck editor | A custom *Discard and continue / Stay here* sheet where the app uses `Alert` |
-| Analytics | "Findings first, then one breakdown at a time" — a different structure from the current `AnalyticsPanel` |
+| Screen | What the design adds | State |
+| --- | --- | --- |
+| Deck detail | Legend art in the header. A **Stats** tab. A **List / Gallery** toggle. Version actions as buttons rather than an `Alert` action sheet | ✅ Hero, `TABS` including `stats`, the `Preview` toggle, and `VersionNodeDetail`'s inline buttons all present |
+| Deck legality | A sentence, not a bar: *"Not legal — Main deck 38/39 · One card short."* | ✅ `LegalityCard` in the editor. Deck detail deliberately shows the design's **chip row** instead — a different surface of the same design, not an omission |
+| Deck editor | A custom *Discard and continue / Stay here* sheet where the app uses `Alert` | ✅ `Prompt`. Both dialogs were converted; the header comment records why `Alert` could not carry three options on Android |
+| Analytics | "Findings first, then one breakdown at a time" — a different structure from the current `AnalyticsPanel` | ⬜ **Blocked** on the missing Events-tab spec below |
+
+The remaining deviations are in [Deviations from the Hi-Fi design](#deviations-from-the-hi-fi-design-parked-rather-than-fixed),
+both parked with reasons.
 
 ### Design gaps to resolve
 
@@ -1234,6 +1240,51 @@ than merely unread. `sets.api_version` and `sync_meta.api_version` are declared 
 all.
 
 **4. `matches.battlefields`** stays dead by design and is labelled as such in `games.ts`.
+✅ *Closed by migration 22 — see below. The label was also wrong: it was not inert.*
+
+### The write-only schema, dropped (2026-08-13) — migration 22
+
+All eight items above resolved in one pass, on the owner's call, **before** M7 rather than after.
+That timing is the whole point: a column that reaches Supabase acquires a table, an RLS policy and
+a sync engine, after which removing it costs a migration on two databases plus a client that
+tolerates both. This was the last cheap moment.
+
+| Dropped | Was |
+| --- | --- |
+| `games.opp_label` | Free text for an opponent outside the library. **Two live readers, no writer** |
+| `games.mulligans` | A count, superseded by `matches.mulliganed` holding the actual cards |
+| `games.duration_seconds` | Declared in M4; no screen ever asked |
+| `games.tags` | Never written |
+| `matches.battlefields` | What a deck *brought* — the version's own Battlefield zone already says |
+| `sync_meta.api_version` | Never read or written. The API publishes no version to put in it |
+| `sets` (whole table) | Written every sync, read by nothing |
+| `hydrateSet` / `setColumns` / `toSetRow` | The orphaned hydrator and mapper for that table |
+
+**Two of the eight were not what the audit called them, and both mattered.**
+
+`matches.battlefields` was recorded as inert dead schema. It was not: `saveMatches` accepts and
+writes the column, and `/game/[id]/matches` **carried it through on every save** — because
+`saveMatches` replaces the whole row, so any field the depth screen fails to hand back is deleted
+rather than left alone. So there was live plumbing maintaining a value that was permanently null.
+Typecheck found it the moment the column left the schema, which is the only reason it did not
+survive as "labelled, therefore handled".
+
+`sets.api_version` **does not exist.** The audit listed it beside `sync_meta.api_version`; the
+schema declares it on neither, and the schema-audit test passing proves the migrations agree. One
+column, not two.
+
+The `sets` drop was the one with a real risk, and the check was worth running rather than assuming:
+`syncCards` calls `GET /sets` on every sync, so it looks like the table feeds change detection. It
+does not — `expectedTotal` is summed from the **live response** and compared against `COUNT(*)` on
+`cards`. The function that wrote the mirror never read it. The endpoint call stays; only the mirror
+of it is gone.
+
+Migration 22 gets its own upgrade test. A drop cannot error its way to a wrong answer, but it can
+shift the values in neighbouring columns if SQLite ever fell back to a rebuild — silently, across
+every game in the history. So the test fills the columns on **both sides** of each drop, asserts
+they still hold what they held, asserts all eight indexes on `games` and `matches` survive, and
+asserts the dropped names are absent. Verified non-vacuous by removing one `DROP` and watching both
+it *and* `schema-audit.test.ts` fail on `opp_label` independently.
 
 ### Binder rename and delete, wired (2026-08-13)
 
@@ -1277,6 +1328,117 @@ argument, which is the one thing a real caller would not do.
 - **Internal-only exports.** `toFtsQuery`, `legendOf`, `championOf`, `SIGNATURE_LIMIT`,
   `upsertCards`, `isSyncDue`, `SYNC_TTL_MS` are exported but used only inside their own module.
   Over-exposed rather than dead; left alone.
+
+## The polish pass (2026-08-13)
+
+Grouped and worked before M7. The data-layer group is above; this is the functional one.
+
+| | Decision | State |
+| --- | --- | --- |
+| B1 | *Collection coverage in the editor* — **dropped.** The owner's call: knowing what you own is a deck-overview question, and the builder is for building | Closed, not built |
+| B2 | Per-card **availability** in the builder | ✅ Built |
+| B3 | The leave prompt missed every exit but `Cancel` | ✅ Fixed |
+| B4 | Dimming returns while filing a binder, and the grid arithmetic fixed | ✅ Fixed |
+| B5 | A trend line — **reframed**, see below | Backlog |
+| C1 | The deck editor's list view mounted every candidate | ✅ Fixed |
+| C2 | Version timeline not virtualised → **F2**, deferred | Backlog |
+
+### B3 — the fix was not the one the gap was filed with
+
+The parked note said this needed `usePreventRemove` from `@react-navigation/native`, "not a declared
+dependency — worth adding deliberately". **Installing it would have been a real mistake.**
+
+expo-router v7 is not built on React Navigation any more. There is no `@react-navigation` package in
+the tree at all; the dependency is `standard-navigation`, and React Navigation's core is *vendored*
+inside expo-router. Adding the public package would have installed a second navigation library that
+is not the one rendering these screens, and the hook would have been talking to a navigator with no
+relationship to the editor. The note was written when it was true and quietly stopped being true at
+the SDK 57 upgrade.
+
+What it actually needed is already there: `useNavigation()` is publicly exported, returns the
+vendored navigation object, and `beforeRemove` is in `EventMapCore` with `canPreventDefault: true`.
+expo-router's own doc comment says it outright — *"The full navigation API is available directly
+from `expo-router` — no `@react-navigation/*` install required."* **No new dependency.**
+
+The structural change matters more than the hook. `Cancel` used to run its own copy of the unsaved
+check and raise its own prompt, which is precisely *why* the back gesture had none — the guard
+belonged to a button rather than to the screen. `Cancel` is now `router.back()` and nothing else;
+one `beforeRemove` listener asks the question however you leave. There is no exit left that can skip
+it, because there is only one implementation.
+
+Two details worth keeping: the intercepted action is **replayed verbatim** rather than answered with
+`router.back()`, since pressing the already-focused Decks tab pops the stack to its root and one
+step back would land somewhere nobody asked for; and a `leaving` latch lets through the navigation
+the screen itself performs, or saving would interrogate the user about the save they just confirmed.
+
+**Still unverified on hardware.** Whether `beforeRemove` fires for the Android back gesture and the
+iOS edge swipe under expo-router v7 is a device question, and no test here can answer it.
+
+**Found, not fixed:** the **log form has no leave guard at all**. In Advanced mode its draft holds
+opening hands, mulligans and scores for up to three matches — real work, lost to a stray swipe. Left
+alone because B3 was scoped to the editor and dismissing a modal is a more deliberate gesture than
+an edge swipe, but it is the same shape and it is a decision, not an oversight.
+
+### B2 — the number is *available*, not *owned*
+
+The owner's rule: three copies, two sleeved in an older deck, so the next deck sees **one
+available**. `availableForDeck()` is the same allocation walk `deckCoverage` already performs,
+stopped one step earlier — the pool as it stands when this deck's turn comes. Reusing the walk is
+the point: two answers to "do I own this?" that could disagree is exactly what the collection
+tracker avoided when it refused to keep a flat owned-quantity column beside binder contents, and
+there is a test asserting the tile and the deck-level shortfall are the same fact read two ways.
+
+Three decisions inside it:
+
+- **A deck's own copies are not deducted.** Listing all three does not make them unavailable to the
+  deck listing them, or the badge would fall as you built and read as though your own cards had been
+  taken. The stepper beside it already says how many you have put in.
+- **Both numbers are shown** — `1 of 3 free`, not `1 available`. A bare zero cannot distinguish "buy
+  one" from "unsleeve the other deck", and those are opposite actions. This is an addition to what
+  was asked for, made because the ambiguity is real.
+- **Silent when nothing is catalogued.** The map is keyed on cards you hold, so an empty collection
+  would otherwise stamp "Not owned" across all ~900 candidates — not a finding, the app talking to
+  itself.
+
+It reads on the tile as a line under the name rather than a second corner badge: that corner already
+means *copies in this deck*, and two numbers in one circle is a puzzle.
+
+### B4 — the grid was arithmetically wrong, not just tight
+
+Reported as cards "slightly too big and squeezed together", with a screenshot where adjacent card
+names run into one another as a single string. The cause is in the code rather than in the taste:
+**two independent width calculations that had to agree and did not.**
+
+FlashList hands each column `(W − 2·BODY_PAD) / COLUMNS`. The cell then took `paddingRight: GAP` off
+all but the last. But the tile was sized from a different formula,
+`(W − 2·BODY_PAD − GAP·(COLUMNS−1)) / COLUMNS` — which is `GAP/3` **wider than the box holding it**.
+Every tile but the last in a row overflowed into the gutter, while the last column carried `2·GAP/3`
+of dead space it never used.
+
+Now every cell carries a uniform half-gutter and the grid's own padding is pulled in by the same
+half, so the outer edges still land on `BODY_PAD` and every column is identical by construction.
+There is no "last column" case left to keep in step with `COLUMNS`. On a 393pt screen the tile lands
+at 109.7pt — the design's own stated 110pt column, arrived at rather than hard-coded.
+
+**Dimming returns, scoped to filing.** Unowned cards are dimmed in a binder and left at full
+strength in the Gallery. The two are different jobs: browsing 1,451 cards is a reference you skim,
+and greying out most of it makes it harder to read — which is why the dimming was removed in the
+first place. Filing is the opposite, where *what is still at zero* is the entire question and an
+absent badge is not something you can scan a page for. The whole tile fades, name included; a dimmed
+picture under a full-strength label reads as a loading state.
+
+### B5 — a trend line has nothing behind it
+
+Reframed rather than deferred again, on the owner's reasoning: **without a ladder or an Elo there is
+nothing for a trend to be a trend of.** A rising win rate over time is as likely to be a softer week
+of opponents as a better deck, and the app has no way to tell those apart — which makes the line
+exactly the kind of figure that looks like information and is not. The same objection that removed
+Rune channelling and the Champion landing turn.
+
+What the data can honestly support instead: **deck versus specific opposing decks, once the sample
+is there.** The matchup view already groups by opposing Legend and Chosen Champion; the missing
+piece is comparing *your* decks against a given opponent archetype, which is a real question with a
+real denominator. Parked in the backlog until there are enough matches for it to say anything.
 
 ## Known gaps
 
@@ -1347,7 +1509,8 @@ Two things changed because of the measurement:
 
 **The practical ceiling is the render, not the database.** Storage and query time stay comfortable
 into the thousands; an un-virtualised column does not. If a real deck ever passes a few hundred
-versions the fix is a `FlashList` and a restructured screen, not a query change.
+versions the fix is a `FlashList` and a restructured screen, not a query change. Carried as **F2**
+in the backlog — the same change C1 made to the editor, on a screen that has not yet earned it.
 
 Gaps 6 and 7 share a cause worth naming: the query layer was built out ahead of the screens, so
 functions exist, pass tests, and are never called. Tests passing is not evidence a feature is
@@ -1367,19 +1530,50 @@ Deliberately deferred — revisit after launch with real usage data.
 - Deck sharing between users
 - Sideboard / tech-card tracking as a first-class concept
 - Widgets and watch app for ultra-fast logging
+- **Deck-versus-deck comparison** once samples allow — how one of your decks does against a specific
+  opposing archetype, rather than the rolling trend line M5 deferred. A trend needs a ladder or an
+  Elo behind it to mean anything; a matchup has a real denominator. See B5 in
+  [the polish pass](#the-polish-pass-2026-08-13)
+
+### F — Future updates
+
+Raised during the polish pass, deliberately not built with it. Each is real and each is scoped
+beyond the gap it was found beside.
+
+- **F1 · The log form has no leave guard.** `/game/new` holds a draft — deck, result, opponent, and
+  in Advanced mode the opening hand, mulligan and score for up to three matches — and nothing asks
+  before it is thrown away. Found while closing B3, which fixed exactly this class in the deck
+  editor.
+
+  Not simply the same fix again, which is why it is here rather than done. The log form is a
+  presented modal, so a downward swipe is a more deliberate act than an edge swipe on a pushed
+  screen, and the flow has a **ten-second budget** that a confirmation dialog directly attacks — a
+  two-tap log must never become a three-tap log. The honest version probably guards only when the
+  draft holds more than the fast path collects, which is a rule that needs stating before it can be
+  written. The machinery is already proven: `useNavigation()` + `beforeRemove`, no new dependency.
+
+- **F2 · The version timeline is not virtualised.** It is a plain column sharing deck detail's
+  scroll view, so every node it is given is mounted, each with a diff view of up to six chips. It
+  draws 30 and folds the rest behind a tap, which is the mitigation rather than the fix.
+
+  Measured and comfortable for now: storage and query time stay linear into the thousands
+  (~14 KB and ~0.5 ms per version), and **the practical ceiling is the render, not the database**.
+  If a real deck ever passes a few hundred versions the answer is a `FlashList` and a restructured
+  screen — the same change C1 made to the editor's candidate list, on a screen that has not yet
+  earned it. Deferred deliberately: nobody has a deck with 300 versions.
 
 ### Known issues, parked
 
-- **The leave prompt only fires from Cancel**, not the hardware back gesture or an edge swipe. A
-  real navigation guard needs `usePreventRemove` from `@react-navigation/native`, which is **not a
-  declared dependency** — importing it is the phantom-dependency bug from M0. Worth adding the
-  dependency deliberately rather than smuggling it in through hoisting
+- ~~**The leave prompt only fires from Cancel**~~ — **closed 2026-08-13**, and the fix this entry
+  proposed would have been wrong. There is no `@react-navigation` package in the tree on SDK 57;
+  expo-router v7 vendors React Navigation's core and exposes it through `useNavigation()`, so the
+  guard needed no new dependency at all. See [the polish pass](#the-polish-pass-2026-08-13)
 - **Inline version expansion on deck detail is unverified.** Implemented during the Hi-Fi pass and
   never confirmed against a device screenshot — the only item from the original FIX FIRST list still
   unconfirmed
-- **The card gallery's unowned tiles no longer dim**, which was deliberate, but nothing replaced the
-  signal for the *binder* case where you are filing and want to see what is still at zero. Watch
-  whether the count badge alone is enough
+- ~~**The card gallery's unowned tiles no longer dim**~~ — **closed 2026-08-13.** The count badge
+  alone was not enough, and the answer was to scope the treatment rather than choose between the two
+  screens: dimmed while filing a binder, full strength in the Gallery
 
 ### Design gaps — raise with the design, do not invent
 
@@ -1395,39 +1589,108 @@ to make, not for the implementation to guess:
 - **Progress fills were left white** — the design does not say whether progress counts as "current
   state" and so earns the accent
 
-### Opening the deck editor takes about half a second
+### Opening the deck editor took about half a second — C1, fixed 2026-08-13
 
-Reported from a device, **cause not yet measured** — and deliberately not guessed at. Ruled out
-already: the data reads. A query across the whole 1,451-card library measured **4.18 ms** during M1
-hardening and hydration **0.79 ms**, so the five small reads the editor mount performs cannot
-account for it. Caching the deck or seeding it would buy back single-digit milliseconds and add a
-cache that can disagree with the database — which in this app means an editor opening on a stale
-list and forking a version from it.
+Reported from a device. The data reads were ruled out early: a query across the whole 1,451-card
+library measured **4.18 ms** during M1 hardening and hydration **0.79 ms**, so the five small reads
+the editor mount performs could not account for it. Two candidates were left, wanting opposite
+fixes — the first render, or the navigation transition.
 
-Two candidates worth measuring, in order of suspicion:
+**The list view was mounting the entire candidate pool before it could draw a frame.** It was a
+plain `ScrollView` mapping over `candidates`, so every row existed at mount: a Pressable, an
+`expo-image` and four Texts, several hundred times over. The gallery view in the same slot has
+always been a `FlashList`, which is why switching to the grid felt faster than the screen it was
+inside. The regression came in with the one-list-per-zone rebuild; the editor before it opened on
+the deck's own ~57 slots.
 
-- **First-render cost.** The editor list view is a plain ScrollView mapping over its candidates, so
-  the Main tab mounts up to ~900 rows, each with an image, before the first frame. The gallery view
-  goes through FlashList and is virtualised; the list view is not. This is a regression introduced
-  with the one-list-per-zone rebuild — the old editor opened on the deck own ~57 slots
-- **The navigation transition.** A stack push animates for roughly 300 ms by default, which is not
-  a delay before the screen arrives so much as the screen arriving slowly
+**The "~900 rows" in the previous version of this entry was an estimate, and it was wrong.**
+Counted against the real bundled library, the widest Legend identity offers **385** main-deck
+candidates and the median **377** — Mind/Order is the worst case, and the pool is far flatter across
+identities than the guess implied. Runes cap at 30 and Battlefields at 71, which is why neither zone
+was ever reported as slow. Under half the claimed figure, still several thousand views and several
+hundred image requests standing between the tap and the first paint.
 
-The instrument already exists: `features/matches/timing.ts` produces the
-`[timing] + pressed -> sheet ready: 86 ms` line. The same marks around the Edit tap would separate
-tap -> mounted, mounted -> loaded, loaded -> painted in a single run.
+The list view is now a `FlashList`, matching the gallery. `extraData` carries the draft, because
+`candidates` is deliberately a stable snapshot — the order is fixed when the pool is built so a tap
+never moves a row under your finger, which means a virtualised list cannot see a quantity change on
+its own.
+
+**The measurement is now standing rather than one-off.** `features/decks/timing.ts` marks the Edit
+tap, the first render, the load, and the frame after the list has data, and prints the three gaps
+separately:
+
+```
+[timing] Edit pressed → editor painted: N ms (nav N · queries N · render N) — 385 candidate rows
+```
+
+Modelled on `features/games/timing.ts`, `__DEV__` only. It stays because one number could never
+have separated the two suspects, and the transition is still the other half of whatever remains:
+a stack push animates for ~300 ms by default, which is not a delay before the screen arrives so
+much as the screen arriving slowly. **The before/after number is a device reading and has not been
+taken yet** — the fix is structural and correct on its own terms, but this entry does not get to
+claim a figure it has not measured.
+
+Confirmed smoother from a device. Which surfaced the next thing.
+
+### The editor's chrome was 61% of the screen
+
+Reported straight after C1: the fixed region above the cards "takes nearly 50% of the screen".
+Measured off the screenshot against a known dimension — `identityField`'s 52pt `minHeight` fixes the
+scale — it was **worse than reported, about 61%**, leaving roughly a card and a half visible.
+
+| Band | Cost |
+| --- | --- |
+| Cancel · name · Save | 33pt |
+| Legality card | **98pt** |
+| Legend / Champion | 52pt |
+| Zone tabs | 46pt |
+| Search + Type/Set/Energy + count | 74pt |
+| `MAIN · 14 IN DECK · CANDIDATES BELOW` + In deck + view toggle | 33pt |
+
+Two of those were **duplicates of something already on screen**: the strip above the list read
+`MAIN · 14 IN DECK`, which is what the selected zone tab immediately above it says, count included.
+
+The chosen fix — **context scrolls, controls stay.** The legality card and the Legend/Champion
+fields ride at the top of the candidate list rather than above it: scroll up and they are there,
+start browsing and the cards get the screen. What stays pinned is what you use *while* browsing —
+the header, the zone tabs, search and filters, and the view toggle.
+
+Three things worth recording:
+
+- **A one-line `LegalityStrip` stays pinned**, because the running counts are the part you want
+  while adding cards and the zone tabs only give the per-zone number, not the target. It is
+  co-located with `LegalityCard` rather than given its own file: the two render the same fact, and
+  the mark, the counts and the thresholds have to keep meaning the same thing in both.
+- **It deliberately carries no verdict sentence and no footnote.** The sentence is the part whose
+  length changes, and a pinned row that grows and shrinks pushes the list under the reader's
+  finger — the same reasoning that made `CardPoolFilters`' meta row a fixed height.
+- **The context renders in both views**, through `FlashList`'s `ListHeaderComponent` and
+  `CardGrid`'s existing `header` prop, so switching list ⇄ gallery changes how cards are drawn and
+  nothing about what the screen tells you.
+
+**A regression caught in the writing, not by the tests.** `listContext` carries the LEGEND field, and
+the no-Legend branch renders an empty state *instead of* the list — so moving the field into the
+list would have left the one screen that can set a Legend with no way to set one. Not theoretical:
+`loadDeckList` returns no legend slot whenever that printing leaves the card mirror (M2 audit,
+finding 6), and this is the screen you would come to in order to fix it. The context now renders
+above the empty state too. Nothing in the suite could have caught this — there are no component
+tests, and the branch is a layout decision.
 
 ### Deviations from the Hi-Fi design, parked rather than fixed
 
-Both are in the match log's game cards (`src/components/matches/GameCard.tsx`), where the
+Both are in the match log's per-match cards (`src/components/games/MatchCard.tsx`), where the
 same notes are recorded in the file header.
 
 - **Their Battlefield opens the card picker instead of expanding an inline search list.** The
-  design draws a search box and a short filtered list inside the game card. Its list is a mock
+  design draws a search box and a short filtered list inside the card. Its list is a mock
   with six entries; the real one is every Battlefield in the library, so the honest version is a
   scrolling list nested inside the form's own scroll. The picker sheet already has the search the
   design is asking for. Revisit if the inline list can be capped short enough not to scroll —
   a handful of results and no inner scroll view would match the design without the trap
-- **Game cards are titled "Game 1 / Game 2", not the design's "Match 1 / Match 2".** Inside a
-  match log, "Match 2" names the wrong thing. Worth confirming with the design which was meant
-  before changing either side
+- **The cards are titled "Match 1 / Match 2", where the design says "Game 1".** The deviation is
+  real and runs the **opposite** way to what this entry claimed until 2026-08-13, when it read
+  *"titled Game 1 / Game 2, not the design's Match 1 / Match 2"*. That was written from memory and
+  is false — the design source contains "Game 1" twice and no "Match N" anywhere. The vocabulary
+  inversion settled which word is right for this app and the design predates that decision, so the
+  deviation is deliberate rather than open. See
+  [The vocabulary inversion](#the-vocabulary-inversion-2026-08-12)

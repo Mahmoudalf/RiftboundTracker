@@ -148,7 +148,9 @@ export function playDrawSplit(matches: readonly GameRow[]): PlayDrawSplit {
  */
 export function matchupSegments(matches: readonly GameRow[]): Segment[] {
   return segment(matches, (match) => {
-    const legendName = match.oppLegendName ?? match.oppLabel;
+    // `?? match.oppLabel` was here until migration 22 dropped that column. It
+    // was never written, so this has always fallen through to the null branch.
+    const legendName = match.oppLegendName;
     if (!legendName) return null;
     const legend = baseName(legendName);
     const champion = match.oppChampionName ? baseName(match.oppChampionName) : undefined;
@@ -166,7 +168,7 @@ export function matchupPlayDraw(
   key: string
 ): PlayDrawSplit | null {
   const rows = matches.filter((match) => {
-    const legendName = match.oppLegendName ?? match.oppLabel;
+    const legendName = match.oppLegendName;
     if (!legendName) return false;
     const champion = match.oppChampionName ? baseName(match.oppChampionName) : '';
     return `${baseName(legendName).toLowerCase()}|${champion.toLowerCase()}` === key;

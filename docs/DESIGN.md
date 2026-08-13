@@ -291,18 +291,36 @@ for meaningful stats (says so, in the provisional style), and the card gallery m
 
 ## 8. Component inventory
 
-`src/components/ui/` — Button · Chip · Sheet · Stepper · SegmentedControl · StatTile · Toast ·
-EmptyState · ProgressBar · ConfirmDialog
+> **Rewritten 2026-08-13 from the actual tree.** What stood here was the M0 plan and was never
+> updated against what got built. It named sixteen components that do not exist in any form —
+> `Button`, `Stepper`, `SegmentedControl`, `StatTile`, `ProgressBar`, `ConfirmDialog`, `CardThumb`,
+> `CardRow`, `CardDetail`, `CostPip`, `DeckListSection`, `VersionNode`, `DiffChips`, `Sparkline`,
+> `MatchupMatrix`, `RollingWinRateChart` — two that were deliberately **deleted** (`CardGridItem`
+> in the post-M6 audit, `HandPicker` when `OpeningHand` replaced it), and a `charts/` directory
+> that was never created. A design doc naming a deleted component is how a later session rebuilds
+> the thing that was removed on purpose.
 
-`src/components/cards/` — CardThumb · CardGridItem · CardRow · CardDetail · DomainBadge · CostPip
+`src/components/ui/` — Chip · DetailsSheet · Dropdown · EmptyState · Field (SectionLabel,
+SelectField, OptionRow, ChoiceRow) · Icon · Pressable · Prompt · Screen · Sheet (SheetRow) · Toast
 
-`src/components/decks/` — DeckCard · DeckListSection · LegalityBar · VersionNode · DiffChips ·
-VersionCompare
+`src/components/cards/` — DomainBadge · DomainGlyph
 
-`src/components/games/` — GameRow · GameHistoryRow · MatchCard · MatchDetailCard · HandPicker · MatchupCard
+`src/components/collection/` — BinderRow · BinderSheet · BinderTile · FoilSheen · SetProgress
 
-`src/components/charts/` — WinRateBar (with CI whisker) · RollingWinRateChart · MatchupMatrix ·
-Sparkline
+`src/components/decks/` — CandidateRow · CardGrid · CardPickerSheet · CardPoolFilters · DeckCard ·
+DeckDiffView · DeckPreview · DeckSlotRow · LegalityBar · LegalityCard · SaveVersionSheet ·
+VersionCompareSheet · VersionNodeDetail · VersionTimeline
 
-Charts: **victory-native XL** (Skia) for time series; hand-rolled RN views for bars and donuts —
-sharper and cheaper than pulling a chart library in for a rectangle.
+`src/components/games/` — CardSlot · GameHistoryRow · GameRow · MatchCard · MatchDetailCard ·
+MatchupCard · OpeningHand · ScoreRow
+
+`src/components/navigation/` — TabBar
+
+`src/components/stats/` — AnalyticsPanel · WinRateBar (with CI whisker)
+
+**No chart library is installed.** The M0 plan specified victory-native XL on Skia for time series;
+neither package is a dependency, and nothing needs them — `WinRateBar` is a hand-rolled RN view,
+which is sharper and cheaper than pulling a chart library in for a rectangle. The two consumers
+that would have wanted Skia (a rolling win-rate series and deck-card sparklines) are **deferred in
+M5** as presentation rather than evidence. Revisit the dependency if and when they land, not
+before.

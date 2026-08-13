@@ -201,7 +201,6 @@ export default function GameMatchesScreen() {
           onPlay: match.onPlay,
           battlefieldCardId: match.battlefieldCardId,
           oppBattlefieldCardId: match.oppBattlefieldCardId,
-          battlefields: match.battlefields,
           notes: match.notes,
           scoreFor: draft.score.scoreFor,
           scoreAgainst: draft.score.scoreAgainst,

@@ -77,27 +77,29 @@ export const cards = sqliteTable(
   ]
 );
 
-export const sets = sqliteTable('sets', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  setId: text('set_id').notNull(),
-  cardCount: integer('card_count').notNull(),
-  tcgplayerId: text('tcgplayer_id'),
-  /** JSON array — upstream returns a string for some sets, an array for others. */
-  cardmarketIds: text('cardmarket_ids', { mode: 'json' }).$type<string[]>().notNull(),
-  publishedOn: text('published_on'),
-});
+/*
+ * There was a `sets` table here, mirroring `GET /sets`. Dropped in migration 22.
+ *
+ * It was written on every sync and read by nothing. The check it appears to
+ * exist for does not use it — `syncCards` compares the **live** response's card
+ * total against `COUNT(*)` on `cards` — and `setCompletion()` derives per-set
+ * progress from `cards` as well. Two copies of a set's card count that could
+ * disagree, with no reader to notice.
+ */
 
 /** Single-row table tracking the state of the card mirror. */
 export const syncMeta = sqliteTable('sync_meta', {
   id: integer('id').primaryKey(),
   lastSyncedAt: text('last_synced_at'),
-  apiVersion: text('api_version'),
   cardCount: integer('card_count').notNull().default(0),
   seedVersion: text('seed_version'),
   lastError: text('last_error'),
+  /*
+   * `api_version` was here from migration 1 and never read or written. The
+   * Riftcodex API publishes no version header to put in it (docs/API.md §6),
+   * so it was a slot for a fact that does not exist. Dropped in migration 22.
+   */
 });
 
 export type CardRow = typeof cards.$inferSelect;
 export type NewCardRow = typeof cards.$inferInsert;
-export type SetRow = typeof sets.$inferSelect;

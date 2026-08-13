@@ -28,9 +28,9 @@ function match(overrides: Partial<GameRow> & { result: Result }): GameRow {
     deckId: 'deck', deckVersionId: 'version', playedAt: '2026-08-01T10:00:00.000Z',
     bestOf: null, matchesWon: null, matchesLost: null, onPlay: null,
     oppLegendCardId: null, oppChampionCardId: null, oppLegendName: null,
-    oppChampionName: null, oppDomains: null, oppLabel: null,
-    eventId: null, gameStyle: 'casual', mulligans: null, durationSeconds: null,
-    notes: null, tags: null, createdAt: '', updatedAt: '', deletedAt: null,
+    oppChampionName: null, oppDomains: null,
+    eventId: null, gameStyle: 'casual',
+    notes: null, createdAt: '', updatedAt: '', deletedAt: null,
     userId: null, dirty: true, updatedByDevice: null,
     ...overrides,
   } as GameRow;

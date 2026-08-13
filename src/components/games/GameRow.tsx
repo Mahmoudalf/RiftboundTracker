@@ -28,9 +28,10 @@ interface GameRowProps {
 const RESULT_LETTER = { win: 'W', loss: 'L', draw: 'D' } as const;
 
 export function GameRow({ game, onPress }: GameRowProps) {
-  const opponent = game.oppLegendName
-    ? baseName(game.oppLegendName)
-    : (game.oppLabel ?? 'Unknown opponent');
+  // `opp_label` used to be the middle branch here — free text for an opponent
+  // outside the card library. Nothing ever wrote it, so the fallback it fed was
+  // unreachable; the column went in migration 22.
+  const opponent = game.oppLegendName ? baseName(game.oppLegendName) : 'Unknown opponent';
 
   const champion = game.oppChampionName ? baseName(game.oppChampionName) : null;
 

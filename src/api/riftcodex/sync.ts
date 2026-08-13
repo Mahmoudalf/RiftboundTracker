@@ -4,7 +4,7 @@ import { cardColumns, toBindValue } from '@/db/queries/hydrate';
 import type { NewCardRow } from '@/db/schema/cards';
 
 import { MAX_PAGE_SIZE, riftcodex, RiftcodexError } from './client';
-import { dropStaleDuplicates, toCardRow, toSetRow } from './mapper';
+import { dropStaleDuplicates, toCardRow } from './mapper';
 import type { ApiCard } from './schemas';
 
 /**
@@ -166,21 +166,14 @@ export async function syncCards(
     const apiSets = await riftcodex.sets(signal);
     const expectedTotal = apiSets.reduce((sum, s) => sum + s.card_count, 0);
 
-    sqlite.withTransactionSync(() => {
-      for (const set of apiSets) {
-        const row = toSetRow(set);
-        sqlite.runSync(
-          `INSERT INTO sets (id, name, set_id, card_count, tcgplayer_id, cardmarket_ids, published_on)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-             name = excluded.name, set_id = excluded.set_id, card_count = excluded.card_count,
-             tcgplayer_id = excluded.tcgplayer_id, cardmarket_ids = excluded.cardmarket_ids,
-             published_on = excluded.published_on`,
-          [row.id, row.name, row.setId, row.cardCount, row.tcgplayerId,
-           JSON.stringify(row.cardmarketIds), row.publishedOn]
-        );
-      }
-    });
+    /*
+     * The response used to be mirrored into a `sets` table here. Migration 22
+     * dropped it: nothing read it. The check below — the only reason this
+     * request is made — uses `expectedTotal` from the response above and
+     * `COUNT(*)` on `cards`, so the mirror was never consulted even by the
+     * function that wrote it. `setCompletion()` likewise derives per-set
+     * progress from `cards`.
+     */
 
     // The set list reports how many cards should exist. If the mirror already
     // holds that many, nothing upstream has been added.

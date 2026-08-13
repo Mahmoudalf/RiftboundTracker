@@ -56,6 +56,7 @@ import {
 } from '@/db/queries/version-stats';
 import type { DeckRow, DeckVersionRow } from '@/db/schema/decks';
 import type { GameRow as MatchRowType } from '@/db/schema/games';
+import { markEditTap } from '@/features/decks/timing';
 import {
   TOAST_CONFIRM_MS,
   TOAST_UNDOABLE_MS,
@@ -533,7 +534,12 @@ export default function DeckDetailScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Edit deck"
-              onPress={() => router.push(`/deck/${id}/edit`)}
+              onPress={() => {
+                // Before the push, so the mark covers the transition too — the
+                // other suspect for the half-second this measures.
+                markEditTap();
+                router.push(`/deck/${id}/edit`);
+              }}
               style={({ pressed }) => [styles.heroPill, pressed && styles.pressed]}
             >
               <Text style={styles.heroPillLabel}>Edit</Text>
@@ -893,6 +899,7 @@ export default function DeckDetailScreen() {
                     // Editing forks from whichever version the deck points at,
                     // so making it current *is* forking from here.
                     setCurrentVersion(id, node.version.id);
+                    markEditTap();
                     router.push(`/deck/${id}/edit`);
                   }}
                   onRename={() => setEditingVersion(node.version)}

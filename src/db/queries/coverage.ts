@@ -36,6 +36,20 @@ export interface CardShortfall {
   have: number;
 }
 
+/**
+ * What the builder shows on a card.
+ *
+ * Both numbers, because `available: 0` alone cannot say whether you own none of
+ * a card or own three that are all sleeved in other decks — the same figure,
+ * and completely different advice.
+ */
+export interface CardAvailability {
+  /** Copies you hold across live binders, both finishes. */
+  owned: number;
+  /** Of those, how many no older deck has claimed. */
+  available: number;
+}
+
 export interface DeckCoverage {
   /** Copies of this deck's cards you own and that nothing older has claimed. */
   owned: number;
@@ -112,6 +126,77 @@ function needsByDeck(): Need[] {
         },
       ];
     });
+}
+
+/**
+ * Copies free for one deck to use, per printing-collapsed card.
+ *
+ * The builder's per-tile answer to "can I actually sleeve this?". It is the
+ * same allocation `deckCoverage` performs, stopped one step earlier: the pool
+ * as it stands when this deck's turn comes, before this deck takes anything.
+ *
+ * **This deck's own claims are not deducted**, and that is the whole point of
+ * the number. Owning 3 and already listing 2 here means 3 are available *to
+ * this deck* — the two in the list are not spoken for by anyone else. Deducting
+ * them would make the badge fall as you build and read as though adding a card
+ * consumed a copy you no longer had, when the copy is sitting in this very
+ * deck.
+ *
+ * Decks **newer** than this one do not deduct either, for the same reason they
+ * do not in `deckCoverage`: they draw from what is left after this one, so they
+ * cannot reduce what this one may claim.
+ *
+ * A deck with no cards yet appears in no requirement row, so it is treated as
+ * last — a deck you have just created sees exactly what every existing deck has
+ * left over, which is the honest answer while it is still empty.
+ */
+export function availableForDeck(deckId: string): Map<string, CardAvailability> {
+  const owned = ownedByKey();
+  const pool = new Map(owned);
+  const needs = needsByDeck();
+
+  // Allocation order, oldest deck first, derived from the row order rather
+  // than re-sorted here — one definition of "who goes first", in the query.
+  const position = new Map<string, number>();
+  for (const need of needs) {
+    if (!position.has(need.deckId)) position.set(need.deckId, position.size);
+  }
+
+  const mine = position.get(deckId) ?? position.size;
+
+  for (const need of needs) {
+    if (need.deckId === deckId) continue;
+    if ((position.get(need.deckId) ?? 0) > mine) continue;
+
+    const have = pool.get(need.key) ?? 0;
+    pool.set(need.key, Math.max(0, have - need.quantity));
+  }
+
+  const result = new Map<string, CardAvailability>();
+  for (const [key, total] of owned) {
+    result.set(key, { owned: total, available: pool.get(key) ?? 0 });
+  }
+  return result;
+}
+
+/**
+ * How a card's availability reads in the builder.
+ *
+ * One function so the list row and the gallery tile cannot word the same fact
+ * differently.
+ *
+ * Both numbers are shown because `available` alone is ambiguous in the way that
+ * matters: 0 free means "buy one" when you own none and "unsleeve the other
+ * deck" when you own three, and those are opposite actions.
+ *
+ * **Callers must skip this entirely when the collection is empty** — the map is
+ * keyed on cards you hold, so with nothing catalogued every one of ~900
+ * candidates would read "Not owned", which is noise rather than information.
+ * `availableForDeck(...).size === 0` is that check.
+ */
+export function availabilityLabel(entry: CardAvailability | undefined): string {
+  if (!entry || entry.owned === 0) return 'Not owned';
+  return `${entry.available} of ${entry.owned} free`;
 }
 
 export function deckCoverage(deckId: string): DeckCoverage {

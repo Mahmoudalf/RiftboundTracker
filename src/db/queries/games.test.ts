@@ -169,7 +169,7 @@ describe('logGame', () => {
     expect(match.onPlay).toBeNull();
     expect(match.oppLegendCardId).toBeNull();
     expect(match.oppDomains).toBeNull();
-    expect(match.mulligans).toBeNull();
+    expect(match.bestOf).toBeNull();
     expect(match.matchesWon).toBeNull();
     expect(match.notes).toBeNull();
     expect(match.gameStyle).toBe('casual');
@@ -188,11 +188,8 @@ describe('logGame', () => {
       matchesLost: 1,
       oppLegendCardId: opp.id,
       oppDomains: ['Fury', 'Chaos'],
-      oppLabel: 'Yasuo aggro',
       gameStyle: 'tournament',
-      mulligans: 1,
       notes: 'Close one',
-      tags: ['locals'],
     });
 
     const match = getGame(id)!;
@@ -200,10 +197,8 @@ describe('logGame', () => {
     expect(match.matchesWon).toBe(2);
     expect(match.oppLegendCardId).toBe('opp');
     expect(match.oppDomains).toEqual(['Fury', 'Chaos']);
-    expect(match.oppLabel).toBe('Yasuo aggro');
     expect(match.gameStyle).toBe('tournament');
-    expect(match.mulligans).toBe(1);
-    expect(match.tags).toEqual(['locals']);
+    expect(match.notes).toBe('Close one');
   });
 
   it('records the format and the match style', () => {
@@ -536,14 +531,14 @@ describe('listGames and updateGame', () => {
   it('patches only the fields it is given', () => {
     const { deckId, versionId } = makeDeck();
     const id = logGame({
-      deckId, deckVersionId: versionId, result: 'win', oppLabel: 'Yasuo aggro',
+      deckId, deckVersionId: versionId, result: 'win', notes: 'Close one',
     });
 
     updateGame(id, { result: 'loss' });
 
     const match = getGame(id)!;
     expect(match.result).toBe('loss');
-    expect(match.oppLabel).toBe('Yasuo aggro');
+    expect(match.notes).toBe('Close one');
   });
 
   it('can clear an optional field back to null', () => {

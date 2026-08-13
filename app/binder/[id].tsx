@@ -51,8 +51,27 @@ import { metaLine, text } from '@/theme/typography';
  */
 
 const COLUMNS = 3;
-const GAP = space[3];
+const GAP = space[4];
 const BODY_PAD = space[4];
+
+/**
+ * Half the gutter, carried by every cell on both sides.
+ *
+ * The grid used to give each cell a `paddingRight` on all but the last column
+ * and compute the tile width from a *different* formula. The two disagreed:
+ * FlashList hands each column `(W − 2·BODY_PAD) / COLUMNS`, the padding took
+ * `GAP` off the first two, and the tile was sized `(W − 2·BODY_PAD − 2·GAP) /
+ * COLUMNS` — which is `GAP/3` **wider than the box holding it**. Every tile but
+ * the last in a row overflowed into the gutter while the last column carried
+ * `2·GAP/3` of dead space, so the cards read as slightly too big and squeezed
+ * together, which is exactly how it was reported.
+ *
+ * Uniform half-gutters make every column identical by construction, and the
+ * grid's own padding is pulled in by the same half so the outer edges still
+ * land on `BODY_PAD`. There is no longer a "last column" case to keep in step
+ * with `COLUMNS`.
+ */
+const HALF_GAP = GAP / 2;
 
 const SORTS: { value: CardSort; label: string }[] = [
   { value: 'name', label: 'Name' },
@@ -125,7 +144,9 @@ export default function BinderScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const missing = useMemo(() => (binderId ? missingFromLibrary(binderId) : []), [binderId, cardCount]);
 
-  const cellWidth = (width - BODY_PAD * 2 - GAP * (COLUMNS - 1)) / COLUMNS;
+  // The column FlashList actually hands out, less this cell's own gutters —
+  // one derivation, so the tile cannot be wider than the box holding it.
+  const cellWidth = (width - (BODY_PAD - HALF_GAP) * 2) / COLUMNS - GAP;
 
   const adjust = (card: CardRow, delta: number, finish: Finish = 'standard') => {
     if (!binderId) return;
@@ -349,17 +370,28 @@ export default function BinderScreen() {
             </View>
           ) : null
         }
-        renderItem={({ item, index }) => {
+        renderItem={({ item }) => {
           // In a binder, what is filed here. In the Gallery, what you own
           // anywhere — the same question asked of a different scope.
           const counts = binderId ? held.get(item.id) : owned.get(item.id);
           return (
-            <View style={[styles.cell, index % COLUMNS !== COLUMNS - 1 && styles.cellGap]}>
+            <View style={styles.cell}>
               <BinderTile
                 card={item}
                 width={cellWidth}
                 count={counts?.total ?? 0}
                 foiled={(counts?.foil ?? 0) > 0}
+                /*
+                 * Dimmed only while filing.
+                 *
+                 * Browsing the library is a reference you skim, and greying out
+                 * most of 1,451 cards makes it harder to read — which is why
+                 * the dimming was removed. Filing is the opposite job: "what is
+                 * still at zero" is the whole question, and a count badge that
+                 * is simply absent is not a signal you can scan a page for.
+                 * So the treatment comes back, scoped to the binder.
+                 */
+                dimmed={binderId !== null && (counts?.total ?? 0) === 0}
                 onOpen={(card) =>
                   binderId ? setDetail(card) : router.push(`/card/${card.id}`)
                 }
@@ -593,9 +625,8 @@ const styles = StyleSheet.create({
 
   hint: { ...text.microMeta, fontSize: 10.5, color: color.textFaint },
 
-  grid: { paddingHorizontal: BODY_PAD, paddingBottom: space[16] },
-  cell: { paddingBottom: space[4] },
-  cellGap: { paddingRight: GAP },
+  grid: { paddingHorizontal: BODY_PAD - HALF_GAP, paddingBottom: space[16] },
+  cell: { paddingHorizontal: HALF_GAP, paddingBottom: space[4] },
 
   missing: { gap: space[1], paddingTop: space[4] },
   missingRow: { ...text.microMeta, color: color.textMuted },

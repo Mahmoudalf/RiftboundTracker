@@ -90,7 +90,9 @@ describe('saveMatches', () => {
         scoreAgainst: 6,
         openingHand: ['a', 'b', 'c'],
         mulliganed: ['d'],
-        battlefields: ['bf1', 'bf2'],
+        replacements: ['e'],
+        battlefieldCardId: 'bf-mine',
+        oppBattlefieldCardId: 'bf-theirs',
         notes: 'close',
       },
     ]);
@@ -103,7 +105,9 @@ describe('saveMatches', () => {
     });
     expect(game!.openingHand).toEqual(['a', 'b', 'c']);
     expect(game!.mulliganed).toEqual(['d']);
-    expect(game!.battlefields).toEqual(['bf1', 'bf2']);
+    expect(game!.replacements).toEqual(['e']);
+    expect(game!.battlefieldCardId).toBe('bf-mine');
+    expect(game!.oppBattlefieldCardId).toBe('bf-theirs');
   });
 
   /*
@@ -510,7 +514,6 @@ describe('the depth pass over a logged match', () => {
         onPlay: game.onPlay,
         battlefieldCardId: game.battlefieldCardId,
         oppBattlefieldCardId: game.oppBattlefieldCardId,
-        battlefields: game.battlefields,
         notes: game.notes,
         scoreFor: i === 0 ? 8 : 5,
         scoreAgainst: i === 0 ? 3 : 8,

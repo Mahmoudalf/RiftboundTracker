@@ -27,6 +27,12 @@ export interface CandidateRowProps {
   blocked?: string | null;
   /** Named by a legality issue; the row is marked rather than hidden. */
   flagged?: boolean;
+  /**
+   * Copies free for this deck, already worded (`availabilityLabel`). Null when
+   * the collection is empty, which is the one case where saying nothing beats
+   * telling someone they own none of all 900 cards.
+   */
+  availability?: string | null;
   onAdd: () => void;
   onRemove: () => void;
   onPress: () => void;
@@ -37,6 +43,7 @@ export function CandidateRow({
   quantity,
   blocked = null,
   flagged = false,
+  availability = null,
   onAdd,
   onRemove,
   onPress,
@@ -68,7 +75,8 @@ export function CandidateRow({
           {metaLine(
             card.setId,
             card.collectorNumber ? `#${card.collectorNumber}` : null,
-            card.energy === null ? null : `${card.energy}⚡`
+            card.energy === null ? null : `${card.energy}⚡`,
+            availability
           )}
         </Text>
         {blocked ? <Text style={styles.reason}>{blocked}</Text> : null}

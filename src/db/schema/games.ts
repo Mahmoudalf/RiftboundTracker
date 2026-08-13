@@ -200,18 +200,28 @@ export const games = sqliteTable(
     oppBattlefieldName: text('opp_battlefield_name'),
     /** Set even when the exact Legend is unknown — "I played against Fury". */
     oppDomains: text('opp_domains', { mode: 'json' }).$type<string[]>(),
-    /** Free text, e.g. "Yasuo aggro", for an opponent not in the library. */
-    oppLabel: text('opp_label'),
 
     /** The named occasion this belonged to, if any. */
     eventId: text('event_id'),
     /** Casual · Online · Tournament · Testing. Called `event_type` until 18. */
     gameStyle: text('game_style').$type<GameStyle>().notNull().default('casual'),
 
-    mulligans: integer('mulligans'),
-    durationSeconds: integer('duration_seconds'),
     notes: text('notes'),
-    tags: text('tags', { mode: 'json' }).$type<string[]>(),
+
+    /*
+     * Four write-only columns were here and are gone as of migration 22:
+     * `opp_label`, `mulligans`, `duration_seconds` and `tags`.
+     *
+     * All four were declared in M4 against screens that were never designed,
+     * and none of them was ever written. `opp_label` was the one with teeth —
+     * `GameRow.tsx` and `summary.ts` both *read* it as the fallback name for an
+     * opponent outside the card library, so a live "Unknown opponent" branch
+     * was being fed by a column nothing could fill. `mulligans` held a count
+     * that `matches.mulliganed` supersedes by holding the actual cards.
+     *
+     * Removed before M7 rather than after: a column that reaches Supabase
+     * acquires an RLS policy and a sync engine, and stops being free to delete.
+     */
 
     ...syncColumns,
   },
@@ -288,15 +298,18 @@ export const matches = sqliteTable(
     mulliganed: text('mulliganed', { mode: 'json' }).$type<string[]>(),
     /** What you drew back after recycling. At most as many as went back. */
     replacements: text('replacements', { mode: 'json' }).$type<string[]>(),
-    /**
-     * Which Battlefields were *brought*, as opposed to played.
+
+    /*
+     * `battlefields` — which Battlefields were *brought* — was here, labelled
+     * dead schema, and is gone as of migration 22.
      *
-     * Deliberately unwritten. The Battlefield each side played has its own
-     * column below, and what a deck brought is that deck version's own
-     * Battlefield zone — the app can read it without asking anyone. Named here
-     * as dead schema rather than left to be rediscovered.
+     * Migration 19 dropped two unwritten columns and left this one standing as
+     * "the one exception", named so nobody would rediscover it. That was the
+     * wrong trade: the Battlefield each side actually *played* has had its own
+     * column since migration 16, and what a deck brought is that version's own
+     * Battlefield zone, which the app can read without asking. A label on dead
+     * schema is better than hiding it and worse than not having it.
      */
-    battlefields: text('battlefields', { mode: 'json' }).$type<string[]>(),
 
     /** This match's Battlefields, kept apart — see migration 16. */
     battlefieldCardId: text('battlefield_card_id'),

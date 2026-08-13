@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { cardKey } from '@/lib/card-identity';
 import { finishesFor } from '@/lib/finishes';
 
 import { setTestConnection } from '../connection';
@@ -8,11 +9,11 @@ import type { CardRow } from '../schema/cards';
 import { applyMigrationsUpTo, createTestDatabase, type TestDatabase } from '../testing';
 
 import { adjustCardQuantity, createBinder } from './collection';
-import { deckCoverage } from './coverage';
+import { availableForDeck, deckCoverage } from './coverage';
 import { archiveDeck, createDeck, saveDeckEdit } from './decks';
 
 /**
- * Deck coverage — how much of a deck you own, with copies shared between decks.
+ * Deck coverage â€” how much of a deck you own, with copies shared between decks.
  *
  * The rule under test is the one a per-deck count would get wrong: three copies
  * cannot be sleeved in two decks at once, so the second deck must see what the
@@ -43,7 +44,7 @@ function seedCard(id: string, name: string, type = 'Unit'): CardRow {
       `ogn-${id}-1`,
       name,
       // Deliberately the API's normalised form, which is what migration 12
-      // wrongly stored in binder_cards — so a regression there shows up here.
+      // wrongly stored in binder_cards â€” so a regression there shows up here.
       name.replace(/[-()]/g, '').replace(/\s+/g, ' ').trim(),
       1,
       type,
@@ -95,7 +96,7 @@ function seedCard(id: string, name: string, type = 'Unit'): CardRow {
  * A deck holding one card at a given count, created in call order.
  *
  * `ownLegend` defaults on so the Legend does not appear as a shortfall in every
- * assertion — the tests here are about the card under test, not about whether a
+ * assertion â€” the tests here are about the card under test, not about whether a
  * Legend was catalogued.
  */
 function deckWith(name: string, card: CardRow, quantity: number, ownLegend = true) {
@@ -188,7 +189,7 @@ describe('deckCoverage', () => {
 
     archiveDeck(first, true);
 
-    // Archiving says "not playing this" — its cards go back in the pool.
+    // Archiving says "not playing this" â€” its cards go back in the pool.
     expect(deckCoverage(second).shortfalls).toEqual([]);
   });
 
@@ -234,7 +235,7 @@ describe('deckCoverage', () => {
 
   /*
    * Coverage reads every live deck, so its cost scales with how many decks you
-   * have — not with the deck you are looking at. That is a different axis from
+   * have â€” not with the deck you are looking at. That is a different axis from
    * the version-history measurement, and it lands on *every* focus of deck
    * detail, so it is worth a number rather than a shrug.
    */
@@ -290,3 +291,92 @@ describe('deckCoverage', () => {
     expect(deckCoverage(deckId).shortfalls.map((s) => s.name)).toEqual(['Card B', 'Card A']);
   });
 });
+
+/**
+ * The builder's per-card number.
+ *
+ * It has to agree with `deckCoverage` by construction â€” two answers to "do I
+ * own this?" that could disagree is the failure the collection tracker avoided
+ * when it refused to keep a flat owned-quantity column beside binder contents.
+ */
+describe('availableForDeck', () => {
+  const key = (name: string) => cardKey({ name });
+
+  it('reports what an older deck has left over', () => {
+    const vi = seedCard('vi', 'Vi - Piltover Enforcer');
+    own(vi, 3);
+
+    const first = deckWith('First', vi, 2);
+    const second = deckWith('Second', vi, 1);
+
+    // The older deck claims first and sees the whole pool.
+    expect(availableForDeck(first).get(key('Vi - Piltover Enforcer'))?.available).toBe(3);
+    // The newer one sees what is left: 3 owned, 2 already sleeved elsewhere.
+    expect(availableForDeck(second).get(key('Vi - Piltover Enforcer'))?.available).toBe(1);
+  });
+
+  it('does not deduct the deckâ€™s own copies', () => {
+    const vi = seedCard('vi', 'Vi - Piltover Enforcer');
+    own(vi, 3);
+    const only = deckWith('Only', vi, 3);
+
+    // Listing all three does not make them unavailable to the deck listing
+    // them â€” otherwise the badge would fall to zero as you built and read as
+    // though your own cards had been taken.
+    expect(availableForDeck(only).get(key('Vi - Piltover Enforcer'))?.available).toBe(3);
+  });
+
+  it('treats a deck with no cards as last in line', () => {
+    const vi = seedCard('vi', 'Vi - Piltover Enforcer');
+    own(vi, 3);
+    deckWith('Established', vi, 2);
+
+    const legend = seedCard('n-lg', 'New Legend', 'Legend');
+    const { deckId } = createDeck({ name: 'Brand new', legend, champion: null });
+
+    expect(availableForDeck(deckId).get(key('Vi - Piltover Enforcer'))?.available).toBe(1);
+  });
+
+  it('gives an archived deckâ€™s copies back to the pool', () => {
+    const vi = seedCard('vi', 'Vi - Piltover Enforcer');
+    own(vi, 3);
+    const older = deckWith('Older', vi, 3);
+    const newer = deckWith('Newer', vi, 3);
+
+    expect(availableForDeck(newer).get(key('Vi - Piltover Enforcer'))?.available).toBe(0);
+    archiveDeck(older, true);
+    expect(availableForDeck(newer).get(key('Vi - Piltover Enforcer'))?.available).toBe(3);
+  });
+
+  it('counts a different printing and a foil as the same card', () => {
+    const vi = seedCard('vi', 'Vi - Piltover Enforcer');
+    const alt = seedCard('vi-alt', 'Vi - Piltover Enforcer (Alternate Art)');
+    own(vi, 1);
+    own(alt, 1);
+
+    const legend = seedCard('lg2', 'Another Legend', 'Legend');
+    const { deckId } = createDeck({ name: 'Solo', legend, champion: null });
+
+    // `cardKey` collapses printings, so the alternate art satisfies the same
+    // slot â€” the rule the 3-copy limit already counts by.
+    expect(availableForDeck(deckId).get(key('Vi - Piltover Enforcer'))?.available).toBe(2);
+  });
+
+  it('never disagrees with deckCoverage about what a deck can field', () => {
+    const vi = seedCard('vi', 'Vi - Piltover Enforcer');
+    own(vi, 4);
+    deckWith('Older', vi, 3);
+    const newer = deckWith('Newer', vi, 3);
+
+    const available = availableForDeck(newer).get(key('Vi - Piltover Enforcer'))?.available ?? 0;
+    const shortfall = deckCoverage(newer).shortfalls.find(
+      (s) => s.name === 'Vi - Piltover Enforcer'
+    );
+
+    // One copy left for a deck that lists three: the tile and the deck-level
+    // shortfall are the same fact read two ways.
+    expect(available).toBe(1);
+    expect(shortfall).toEqual({ name: 'Vi - Piltover Enforcer', need: 3, have: 1 });
+  });
+});
+

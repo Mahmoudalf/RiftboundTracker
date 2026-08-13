@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { domainKey, dropStaleDuplicates, toCardRow, toSetRow } from './mapper';
+import { domainKey, dropStaleDuplicates, toCardRow } from './mapper';
 import { cardSchema, setSchema } from './schemas';
 
 /**
@@ -81,40 +81,47 @@ describe('toCardRow', () => {
   });
 });
 
-describe('toSetRow', () => {
+/*
+ * These asserted through `toSetRow` until migration 22 dropped the `sets` table
+ * and its mapper. The behaviour they actually pin lives in the Zod schema —
+ * upstream returns `cardmarket_id` as a bare string for some sets and an array
+ * for others — and that schema still parses every `/sets` response, because
+ * `syncCards` calls the endpoint to decide whether anything changed. So the
+ * tests move down to the boundary rather than being deleted with the mapper.
+ */
+describe('setSchema', () => {
   it('normalises a bare cardmarket_id string into an array', () => {
-    const row = toSetRow(
-      setSchema.parse({
-        id: 'a',
-        name: 'Origins',
-        set_id: 'OGN',
-        card_count: 352,
-        tcgplayer_id: '24344',
-        cardmarket_id: '6286',
-        published_on: '2025-10-31T00:00:00',
-      })
-    );
-    expect(row.cardmarketIds).toEqual(['6286']);
+    const set = setSchema.parse({
+      id: 'a',
+      name: 'Origins',
+      set_id: 'OGN',
+      card_count: 352,
+      tcgplayer_id: '24344',
+      cardmarket_id: '6286',
+      published_on: '2025-10-31T00:00:00',
+    });
+    expect(set.cardmarket_id).toEqual(['6286']);
   });
 
   it('keeps an array cardmarket_id as-is', () => {
-    const row = toSetRow(
-      setSchema.parse({
-        id: 'b',
-        name: 'Promos',
-        set_id: 'PR',
-        card_count: 13,
-        cardmarket_id: ['6322', '6483'],
-      })
-    );
-    expect(row.cardmarketIds).toEqual(['6322', '6483']);
+    const set = setSchema.parse({
+      id: 'b',
+      name: 'Promos',
+      set_id: 'PR',
+      card_count: 13,
+      cardmarket_id: ['6322', '6483'],
+    });
+    expect(set.cardmarket_id).toEqual(['6322', '6483']);
   });
 
   it('treats a missing cardmarket_id as empty', () => {
-    const row = toSetRow(
-      setSchema.parse({ id: 'c', name: 'Vendetta', set_id: 'VEN', card_count: 358 })
-    );
-    expect(row.cardmarketIds).toEqual([]);
+    const set = setSchema.parse({ id: 'c', name: 'Vendetta', set_id: 'VEN', card_count: 358 });
+    expect(set.cardmarket_id).toEqual([]);
+  });
+
+  it('carries the card_count the change check depends on', () => {
+    const set = setSchema.parse({ id: 'd', name: 'Unleashed', set_id: 'UNL', card_count: 341 });
+    expect(set.card_count).toBe(341);
   });
 });
 

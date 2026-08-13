@@ -33,7 +33,13 @@ export interface MatchInput {
   mulliganed?: string[] | null;
   /** What was drawn in their place. */
   replacements?: string[] | null;
-  battlefields?: string[] | null;
+  /*
+   * `battlefields` — the Battlefields *brought*, as opposed to played — was
+   * here until migration 22. This layer could write it and no screen ever did,
+   * which is the shape the post-M6 audit was hunting: the Battlefield each side
+   * played has had its own pair of columns since migration 16, and what a deck
+   * brought is that version's own Battlefield zone.
+   */
   /** This match's Battlefields, told apart. */
   battlefieldCardId?: string | null;
   oppBattlefieldCardId?: string | null;
@@ -97,9 +103,9 @@ export function saveMatches(gameId: string, matches: readonly MatchInput[]): voi
         `INSERT INTO matches
            (id, game_id, match_number, result, on_play,
             score_for, score_against,
-            opening_hand, mulliganed, replacements, battlefields,
+            opening_hand, mulliganed, replacements,
             battlefield_card_id, opp_battlefield_card_id, notes)
-         VALUES (?,?,?,?,?, ?,?, ?,?,?,?, ?,?,?)`,
+         VALUES (?,?,?,?,?, ?,?, ?,?,?, ?,?,?)`,
         [
           newId(),
           gameId,
@@ -111,7 +117,6 @@ export function saveMatches(gameId: string, matches: readonly MatchInput[]): voi
           json(match.openingHand),
           json(match.mulliganed),
           json(match.replacements),
-          json(match.battlefields),
           match.battlefieldCardId ?? null,
           match.oppBattlefieldCardId ?? null,
           match.notes ?? null,

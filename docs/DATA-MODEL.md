@@ -81,14 +81,23 @@ instead of a JSON scan across 1,451 rows.
 FTS5 virtual table over `(name, text_plain, tags, artist)`, synced by trigger. Powers instant local
 search with no network round-trip.
 
-### `sets`
+### `sets` — dropped in migration 22
 
-`id` PK · `name` · `set_id` · `card_count` · `published_on` · `tcgplayer_id?` ·
-`cardmarket_ids` (json — the API returns string *or* array; normalize to array).
+Mirrored `GET /sets` and was read by nothing. The check it looks like it exists for does not use
+it: `syncCards` sums `card_count` across the **live** response and compares that against
+`COUNT(*)` on `cards`, and `setCompletion()` derives per-set progress from `cards` too. Redundant
+rather than merely unread — two copies of a set's card count that could disagree, with no reader
+to notice which was right.
+
+The endpoint is still called. Only the mirror of it is gone.
 
 ### `sync_meta`
 
-Single row: `last_synced_at` · `api_version` · `card_count` · `seed_version` · `last_error?`.
+Single row: `last_synced_at` · `card_count` · `seed_version` · `last_error?`.
+
+`api_version` was here from migration 1 and was never read or written by anything. The Riftcodex
+API publishes no version to put in it (`API.md` §6), so it was a slot for a fact that does not
+exist. Dropped in migration 22.
 
 ---
 
@@ -176,10 +185,19 @@ One encounter, Bo1 or Bo3. Called `matches` until migration 18.
 | `opp_champion_card_id?` → `cards.id` | Name stored alongside |
 | `battlefield_card_id?` / `opp_battlefield_card_id?` | The Battlefield each side played. Names alongside (migration 11) |
 | `opp_domains?` | json — set even when the exact Legend is unknown |
-| `opp_label?` | Free text, e.g. `"Yasuo aggro"` |
 | `event_id?` → `events.id` | The named occasion, if any |
 | `game_style` | `casual` \| `online` \| `tournament` \| `testing`. Was `event_type` |
-| `mulligans?` / `duration_seconds?` / `notes?` / `tags?` | All optional detail |
+| `notes?` | Free text |
+
+`opp_label`, `mulligans`, `duration_seconds` and `tags` were here and were **dropped in migration
+22**. All four were declared in M4 against screens that were never designed, and nothing ever wrote
+any of them. `opp_label` was the one with teeth: `GameRow.tsx` and `summary.ts` both *read* it as
+the fallback name for an opponent outside the card library, so a live "Unknown opponent" branch was
+being fed by a column nothing could fill. `mulligans` held a count that `matches.mulliganed`
+supersedes by holding the actual cards.
+
+Removed before M7 rather than after — a column that reaches Supabase acquires an RLS policy and a
+sync engine, and stops being free to delete.
 
 `deck_id` is stored alongside `deck_version_id` on purpose: deck-level aggregates never need a join,
 and no version-level operation can orphan a game.
@@ -205,15 +223,20 @@ became `game_id` and `game_number` became `match_number`.
 | `mulliganed?` | The subset of `opening_hand` that went back |
 | `replacements?` | What was drawn in their place (migration 20) |
 | `battlefield_card_id?` / `opp_battlefield_card_id?` | This match's Battlefields, told apart (migration 16) |
-| `battlefields?` | **Dead schema.** What a deck *brought*, which the deck version already says |
+| `notes?` | Free text |
 
 `champion_turn` / `opp_champion_turn` were here and were **dropped in migration 19**, a day after
 they shipped. A landing turn cannot say whether it was early or late without the board it landed
 on — turn 5 is on curve for a deck that ramps and behind for one that does not — so an average over
-it would have looked like information without being any. Dropped rather than kept as dead schema:
-`match_games` spent two milestones "shipped but unwritable" (gaps 11 and 12), and `battlefields`
-above is the one exception, named as such.
-| `notes?` | |
+it would have looked like information without being any.
+
+`battlefields` — what a deck *brought* — survived that pass as "the one exception", labelled dead
+schema so nobody would rediscover it. **Migration 22 dropped it too.** The Battlefield each side
+actually played has had its own column since migration 16, and what a deck brought is that
+version's own Battlefield zone, which the app can read without asking anyone. A label on dead
+schema is better than hiding it and worse than not having it — and the label was not even accurate:
+`saveMatches` could write the column and the depth screen carried it through on every edit, so it
+was live plumbing around a permanently null value.
 
 `opening_hand` is the whole deal, so `seen = opening_hand.length` and a mulliganed id is a *member*
 of it rather than a card outside it — adding the two arrays would count a thrown card twice.

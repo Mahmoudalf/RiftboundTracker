@@ -42,13 +42,9 @@ export interface LogGameInput {
   oppBattlefieldCardId?: string | null;
   oppBattlefieldName?: string | null;
   oppDomains?: string[] | null;
-  oppLabel?: string | null;
   eventId?: string | null;
   gameStyle?: GameStyle;
-  mulligans?: number | null;
-  durationSeconds?: number | null;
   notes?: string | null;
-  tags?: string[] | null;
 }
 
 function now(): string {
@@ -123,12 +119,12 @@ export function logGame(input: LogGameInput): string {
          (id, deck_id, deck_version_id, played_at, result,
           best_of, matches_won, matches_lost, on_play,
           opp_legend_card_id, opp_champion_card_id,
-          opp_legend_name, opp_champion_name, opp_domains, opp_label,
+          opp_legend_name, opp_champion_name, opp_domains,
           battlefield_card_id, battlefield_name,
           opp_battlefield_card_id, opp_battlefield_name,
-          event_id, game_style, mulligans, duration_seconds, notes, tags,
+          event_id, game_style, notes,
           created_at, updated_at, dirty)
-       VALUES (?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?,?, ?,?,1)`,
+       VALUES (?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?, ?,?,?,?, ?,?,?, ?,?,1)`,
       [
         id,
         input.deckId,
@@ -144,17 +140,13 @@ export function logGame(input: LogGameInput): string {
         input.oppLegendName ?? null,
         input.oppChampionName ?? null,
         input.oppDomains ? JSON.stringify(input.oppDomains) : null,
-        input.oppLabel ?? null,
         input.battlefieldCardId ?? null,
         input.battlefieldName ?? null,
         input.oppBattlefieldCardId ?? null,
         input.oppBattlefieldName ?? null,
         input.eventId ?? null,
         input.gameStyle ?? 'casual',
-        input.mulligans ?? null,
-        input.durationSeconds ?? null,
         input.notes ?? null,
-        input.tags ? JSON.stringify(input.tags) : null,
         timestamp,
         timestamp,
       ]
@@ -311,15 +303,9 @@ export function updateGame(id: string, patch: Partial<LogGameInput>): void {
   if (patch.oppDomains !== undefined) {
     put('opp_domains', patch.oppDomains ? JSON.stringify(patch.oppDomains) : null);
   }
-  if (patch.oppLabel !== undefined) put('opp_label', patch.oppLabel ?? null);
   if (patch.eventId !== undefined) put('event_id', patch.eventId ?? null);
   if (patch.gameStyle !== undefined) put('game_style', patch.gameStyle);
-  if (patch.mulligans !== undefined) put('mulligans', patch.mulligans ?? null);
-  if (patch.durationSeconds !== undefined) {
-    put('duration_seconds', patch.durationSeconds ?? null);
-  }
   if (patch.notes !== undefined) put('notes', patch.notes ?? null);
-  if (patch.tags !== undefined) put('tags', patch.tags ? JSON.stringify(patch.tags) : null);
 
   if (sets.length === 0) return;
 

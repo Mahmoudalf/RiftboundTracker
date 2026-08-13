@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cardColumns, hydrateCard, hydrateSet, toBindValue } from './hydrate';
+import { cardColumns, hydrateCard, toBindValue } from './hydrate';
 
 /**
  * These tests exist because the original implementation cast a raw `SELECT *`
@@ -135,22 +135,12 @@ describe('toBindValue', () => {
   });
 });
 
-describe('hydrateSet', () => {
-  it('maps columns and parses the cardmarket id array', () => {
-    const set = hydrateSet({
-      id: 'set-1',
-      name: 'Origins',
-      set_id: 'OGN',
-      card_count: 352,
-      tcgplayer_id: '24344',
-      cardmarket_ids: '["6286"]',
-      published_on: '2025-10-31T00:00:00',
-    });
-
-    expect(set.setId).toBe('OGN');
-    expect(set.cardCount).toBe(352);
-    expect(set.cardmarketIds).toEqual(['6286']);
-    expect(set.publishedOn).toBe('2025-10-31T00:00:00');
-    expect(set.tcgplayerId).toBe('24344');
-  });
-});
+/*
+ * `hydrateSet` was tested here and is gone with migration 22.
+ *
+ * This block was the *only* reference to it anywhere — the hydrator for a table
+ * nothing read, kept alive by a test of its own. Worth naming: a passing test
+ * is not evidence a function has a caller, which is the same lesson
+ * `renameBinder` taught when its first real caller found a bug its unit tests
+ * had covered for.
+ */

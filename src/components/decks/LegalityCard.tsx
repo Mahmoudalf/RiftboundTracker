@@ -84,6 +84,44 @@ export function LegalityCard({
   );
 }
 
+/**
+ * The same verdict, one line high, for a header that has to stay pinned.
+ *
+ * The editor's chrome was measured at 61% of the screen, leaving about a card
+ * and a half visible. The full card moved into the list's own scroll so it is
+ * there when you scroll to the top and out of the way while you browse — but
+ * the running counts are the one part you want *while* adding cards, so this
+ * stays behind.
+ *
+ * Co-located with the card rather than given its own file, because the two
+ * render the same fact and the mark, the counts and the thresholds all have to
+ * mean the same thing in both. Two files is how they drift.
+ *
+ * Deliberately no verdict sentence and no footnote: the sentence is the part
+ * that changes length, and a pinned row that grows and shrinks pushes the list
+ * under the reader's finger. Both are a scroll away.
+ */
+export function LegalityStrip({
+  legality,
+  sideboard,
+}: Pick<LegalityCardProps, 'legality' | 'sideboard'>) {
+  const { counts, legal } = legality;
+
+  return (
+    <View style={styles.strip}>
+      <View style={[styles.mark, legal ? styles.markOk : styles.markWarn]}>
+        <Text style={[styles.markGlyph, legal ? styles.markGlyphOk : styles.markGlyphWarn]}>
+          {legal ? '✓' : '!'}
+        </Text>
+      </View>
+      <Text style={styles.summary} numberOfLines={1}>
+        Main {counts.main}/{MAIN_DECK_SIZE} · Runes {counts.rune}/{RUNE_DECK_SIZE} · BF{' '}
+        {counts.battlefield}/{BATTLEFIELD_COUNT} · Side {sideboard}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   card: {
     padding: 11,
@@ -94,6 +132,14 @@ const styles = StyleSheet.create({
     borderColor: color.border,
   },
   head: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  // No border and no fill: pinned directly under the header it belongs to,
+  // where a second bordered box would read as a control rather than a readout.
+  strip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[2],
+    paddingBottom: space[2],
+  },
   mark: {
     width: 18,
     height: 18,

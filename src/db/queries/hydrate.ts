@@ -1,7 +1,7 @@
 import { getTableColumns } from 'drizzle-orm';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 
-import { cards, sets, type CardRow, type SetRow } from '../schema/cards';
+import { cards, type CardRow } from '../schema/cards';
 import { binders, type BinderRow } from '../schema/collection';
 import {
   deckVersionCards,
@@ -72,10 +72,8 @@ function buildMapping(table: SQLiteTable): ColumnMapping[] {
  * carry their own hand-written column lists; the read one was wrong.
  */
 export const cardColumns: ColumnMapping[] = buildMapping(cards);
-export const setColumns: ColumnMapping[] = buildMapping(sets);
 
 const CARD_MAPPING = cardColumns;
-const SET_MAPPING = setColumns;
 
 /**
  * Convert a typed row field into a SQLite-bindable primitive.
@@ -123,11 +121,12 @@ function coerce(value: unknown, dataType: string, notNull: boolean): unknown {
      * A **nullable** JSON column keeps its null.
      *
      * Cards are unaffected — every JSON column there is NOT NULL, so an absent
-     * value really does mean an empty list. Games are the opposite:
-     * `opp_domains` and `tags` are nullable because "I did not record this" and
-     * "I recorded that there were none" are different answers, and flattening
-     * the first into `[]` would turn a missing observation into a real one.
-     * That is the same mistake as storing an unknown on-the-play as `false`.
+     * value really does mean an empty list. Games and matches are the opposite:
+     * `opp_domains`, `opening_hand`, `mulliganed` and `replacements` are all
+     * nullable because "I did not record this" and "I recorded that there were
+     * none" are different answers, and flattening the first into `[]` would
+     * turn a missing observation into a real one. That is the same mistake as
+     * storing an unknown on-the-play as `false`.
      */
     if (value === null || value === undefined) return notNull ? [] : null;
     return parseJsonArray(value);
@@ -151,9 +150,11 @@ export function hydrateCard(row: Record<string, unknown>): CardRow {
   return hydrate<CardRow>(row, CARD_MAPPING);
 }
 
-export function hydrateSet(row: Record<string, unknown>): SetRow {
-  return hydrate<SetRow>(row, SET_MAPPING);
-}
+/*
+ * No `hydrateSet`: the `sets` table went in migration 22. It and `setColumns`
+ * were its orphaned hydrator, referenced by nothing but their own test — the
+ * shape this audit was looking for.
+ */
 
 /**
  * The deck tables go through exactly the same derivation. They are even more

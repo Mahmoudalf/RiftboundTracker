@@ -3,7 +3,7 @@ import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { describe, expect, it } from 'vitest';
 
 import { MIGRATIONS } from '@/db/migrations';
-import { cards, sets, syncMeta } from '@/db/schema/cards';
+import { cards, syncMeta } from '@/db/schema/cards';
 import { binders, binderCards } from '@/db/schema/collection';
 import { deckVersionCards, deckVersions, decks } from '@/db/schema/decks';
 import { events, games, matches } from '@/db/schema/games';
@@ -19,9 +19,10 @@ import { applyMigrationsUpTo, createTestDatabase } from '@/db/testing';
  * every card in the gallery (12 of 29 fields undefined, `imageUrl` among them).
  */
 
+// `sets` was the twelfth. Migration 22 dropped the table; the schema no longer
+// declares it, so there is nothing left for the two sides to disagree about.
 const TABLES: [string, SQLiteTable][] = [
   ['cards', cards],
-  ['sets', sets],
   ['sync_meta', syncMeta],
   ['decks', decks],
   ['deck_versions', deckVersions],
