@@ -14,10 +14,19 @@ import palette from './palette';
  * matching on *contrast ratio* instead leaves gold and green looking muddy next
  * to red, because yellow-ish hues reach a given ratio at much lower lightness.
  *
- * Every `base` clears 6.3:1 on `surface`; every `bright` clears 10:1.
+ * **The two paragraphs above describe the M0 derivation, not what ships.** The
+ * Hi-Fi retheme replaced the set with its own desaturated values, and this file
+ * kept claiming *"every `base` clears 6.3:1 on `surface`"*. Measured on
+ * 2026-08-14 the shipped set runs **4.00 to 6.31**, and only Order clears 6.3.
+ * All six clear the 3:1 a non-text UI mark needs — which is what these are —
+ * but the sentence was describing a palette that had been replaced.
+ *
+ * The **hues** were corrected the same day. The design's set had the right
+ * colours attached to the wrong names, leaving Calm blue, Mind purple, Body
+ * green and Chaos magenta; see the table in `palette.js`.
  *
  * Color never carries meaning alone — a domain indicator always pairs this with
- * the domain's glyph or label. Fury (27°) and Body (40°) are genuinely close,
+ * the domain's glyph or label. Fury (27°) and Body (52°) are genuinely close,
  * which is inherent to the game's own palette, so the glyph is what separates
  * them in practice.
  */

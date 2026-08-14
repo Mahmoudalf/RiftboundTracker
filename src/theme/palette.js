@@ -128,12 +128,37 @@ const semantic = {
  * is the base sat down onto the shell for chip and gradient fills, `bright` is
  * lifted for anything that has to carry text.
  */
+/*
+ * **Hues corrected 2026-08-14.** The design's set had the right colours on the
+ * wrong names, which put four domains at the wrong hue entirely:
+ *
+ * | Domain | Was | True hue | Error |
+ * | --- | --- | --- | --- |
+ * | Calm | blue `#4C86B0` | green 145° | 96° |
+ * | Mind | purple `#8A6FD1` | blue 231° | 63° |
+ * | Body | green `#5DA37A` | orange 52° | 105° |
+ * | Chaos | magenta `#B15CA0` | purple 313° | 22° — the "pinkish" one |
+ *
+ * Measured against the official domain marks in `samples/Domains/`, which are
+ * flat single-ink symbols and so the most direct statement of each hue.
+ *
+ * The fix **reassigns rather than restyles**: four of these values were already
+ * right for *some* domain, so they moved to the one they actually match, and
+ * only Body — which had no orange anywhere in the set — was minted, in OKLCH at
+ * the kept set's median lightness and chroma (L 0.611 · C 0.103). Every domain
+ * now sits within 18° of its own ink while the palette keeps the desaturated
+ * character the retheme chose. Magenta `#B15CA0` is retired.
+ *
+ * Fury 27° and Body 52° are genuinely close, which is inherent to the game's
+ * own palette — the glyph is what separates them, which is why colour never
+ * carries meaning alone here.
+ */
 const DOMAIN_BASE = {
   Fury: '#C25B4A',
-  Calm: '#4C86B0',
-  Mind: '#8A6FD1',
-  Body: '#5DA37A',
-  Chaos: '#B15CA0',
+  Calm: '#5DA37A',
+  Mind: '#4C86B0',
+  Body: '#B47146',
+  Chaos: '#8A6FD1',
   Order: '#B69A4C',
   /** Not in the design — the neutral draw grey, so colourless reads as absent. */
   Colorless: '#86868A',

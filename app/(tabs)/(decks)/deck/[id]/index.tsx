@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
+import { DomainGlyph } from '@/components/cards/DomainGlyph';
 import { DeckSlotRow } from '@/components/decks/DeckSlotRow';
 import { VersionCompareSheet } from '@/components/decks/VersionCompareSheet';
 import { VersionNodeDetail } from '@/components/decks/VersionNodeDetail';
@@ -70,7 +71,7 @@ import { DeckCodeError, encodeDeckList } from '@/lib/deck-code';
 import type { DeckDiff } from '@/lib/deck-diff';
 import { recordLine } from '@/lib/format';
 import { checkLegality, type DeckList, type DeckZone } from '@/lib/legality';
-import { deckGradient, domainColor, sortDomains } from '@/theme/domains';
+import { deckGradient, sortDomains } from '@/theme/domains';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
@@ -566,7 +567,10 @@ export default function DeckDetailScreen() {
       <View style={styles.chipRow}>
         {sortDomains(deck.domains).map((domain) => (
           <View key={domain} style={styles.chip}>
-            <View style={[styles.chipDot, { backgroundColor: domainColor(domain).base }]} />
+            {/* The domain's own mark, not a coloured square. This was a 7pt dot
+                — which meant colour was carrying the meaning on its own here,
+                the one thing the domain system says it must never do. */}
+            <DomainGlyph domain={domain} size={12} />
             <Text style={styles.chipLabel}>{domain}</Text>
           </View>
         ))}
@@ -1076,7 +1080,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: color.border,
   },
-  chipDot: { width: 7, height: 7, borderRadius: 2 },
   chipLabel: { ...text.microMeta, color: color.textMuted },
   chipWarn: { borderColor: 'rgba(217,147,46,0.5)' },
   chipWarnLabel: { color: color.warning },

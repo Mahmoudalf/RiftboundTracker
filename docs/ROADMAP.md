@@ -1730,6 +1730,101 @@ Bundle 200 / 13.12 MB, carrying
 `No games logged yet` and `Nothing separates yet` — and no longer carrying `not half a loss`, which
 is how the old rule was confirmed gone from the shipped code rather than only from the source.
 
+## The real domain marks (2026-08-14)
+
+Six official domain icons supplied in `samples/Domains/`, replacing the hand-drawn stand-ins whose
+own comment admitted they were *"original marks, not reproductions of Riot's official domain
+symbols"*. Those had replaced Unicode placeholders (`✦ ❋ ◈ ⬢ ✷ ◉`) that rendered as tofu on Android
+devices without Noto Sans Symbols — both problems stay solved, since an image cannot fail to draw for
+want of a font.
+
+### The white background was not there
+
+The brief said the icons have a white background and to use a blend mode. They do not: the sources
+already carry a correct alpha channel, and only **13–33 % of each frame is opaque**. What looks white
+is a file preview showing through transparency. Verified by reading the corner pixel — `alpha 0` — not
+by looking at a thumbnail.
+
+Worth writing down because the instruction was reasonable and the fix would not have worked. **No
+blend mode removes white on a dark surface.** `multiply` clears white only over *light* backgrounds
+and would have crushed these marks to near-black on `#141416`; `screen` clears black and would have
+kept the square; `lighten`/`darken` each pick the wrong side. Had the sources really been on white,
+the answer would have been to key the white to alpha, not to blend.
+
+### Tinted, not shown in their own ink
+
+The sources are single-colour marks in Riot's print inks — Fury `#B32F29`, Mind `#23779B`, Order
+`#CEA903`. `theme/domains.ts` already holds those under `print` and labels them **reference only — do
+not render**: they are ink on card stock and five of six fall below 3:1 on a dark surface.
+
+So each asset ships as a **white silhouette carrying nothing but alpha**, and `tintColor` colours it
+from the palette, where every `base` clears 6.3:1 on `surface`. The shape is Riot's, the colour stays
+the app's. This also keeps the `color` prop working — `DomainBadge` passes `base`, and the filter
+chips flip the glyph to `bg` when selected — which a baked-in colour would have silently broken.
+
+Alpha is copied **verbatim** from the source rather than re-derived from colour. A first pass
+recovered coverage from `(255 − p) / (255 − C)`, which is exact only for one flat colour and would
+have quietly thinned any two-tone mark. The interior holes — Fury's ring, Calm's veins, Mind's dots,
+Body's cut-outs, Order's wings — are real transparency, and were confirmed by compositing the tinted
+silhouettes onto `#141416` and **looking at the result**, not by trusting the pixel counts.
+
+### Colorless keeps its ring
+
+No mark was supplied for it and none was invented. The drawn open ring is the right shape anyway:
+Colorless is the *absence* of a domain, and an open ring reads as exactly that beside six filled
+marks.
+
+### The palette had the right colours on the wrong names
+
+Reported from a device: *"Calm is blue, Body is green, Mind is purple, Chaos is pinkish."* All four
+correct, and the cause was not the new icons — it was the **domain palette itself**, which the Hi-Fi
+retheme had shipped with its hues attached to the wrong domains. Measured against the official marks
+in OKLCH:
+
+| Domain | Palette was | True hue | Error |
+| --- | --- | --- | --- |
+| Calm | blue `#4C86B0` | green 145° | **96°** |
+| Mind | purple `#8A6FD1` | blue 231° | **63°** |
+| Body | green `#5DA37A` | orange 52° | **105°** |
+| Chaos | magenta `#B15CA0` | purple 313° | 22° — the "pinkish" one |
+| Fury · Order | — | — | 3° each, already right |
+
+**Reassigned rather than restyled.** Four of those values were already correct for *some* domain, so
+each moved to the one it actually matches. Only **Body** was minted — the set contained no orange at
+all — derived in OKLCH at the kept set's median lightness and chroma (L 0.611 · C 0.103) so it sits
+with its siblings rather than beside them. Every domain now lands within **18°** of its own ink while
+the palette keeps the desaturated character the retheme chose. Magenta `#B15CA0` is retired.
+
+Verified by rendering the six official marks above the six palette-tinted ones on `#1B1B1E` and
+looking at the pair, not by comparing hex.
+
+**A false claim found while measuring.** `theme/domains.ts` stated *"every `base` clears 6.3:1 on
+`surface`"*. That described the M0 derivation at L 0.70; the retheme replaced the set and the
+sentence was never updated. The shipped set runs **4.00 – 6.31**, and only Order clears 6.3. All six
+clear the 3:1 a non-text UI mark needs — which is what these are — but the file was describing a
+palette that no longer existed. Corrected in place rather than quietly deleted.
+
+### Deck overview was drawing a coloured square
+
+Also reported. It was never showing the placeholder glyphs — it drew a **7 pt coloured dot** beside
+the domain name, so it had nothing to update when the marks landed. Worth naming as more than an
+oversight: a bare dot means **colour was carrying the meaning alone** on that screen, which is the
+one thing the domain system says it must never do, and it was the screen where Fury and Body — 25°
+apart — sit side by side. It now renders the real `DomainGlyph`.
+
+### The names were never placeholders
+
+`Fury · Calm · Mind · Body · Chaos · Order · Colorless` are the official vocabulary, taken from the
+Riftcodex `/index/domains` endpoint at M1 and unchanged since. Only the glyphs were stand-ins.
+
+`types/images.d.ts` is new and checked in: Metro resolves a `.png` import to an asset-registry id,
+TypeScript knows nothing about that, and `expo-env.d.ts` does not cover it — nor could it, being
+generated and gitignored.
+
+**Gate:** typecheck clean, lint clean, **506 tests / 29 files**. Bundle 200 / 13.13 MB with all six
+`assets/domains/*.png` registered, the placeholder SVG paths confirmed gone, and the retired magenta
+present only inside the comment that records why it was retired.
+
 ## Known gaps
 
 Found on a device, not yet fixed. Each is a real defect or a real omission — none is a
