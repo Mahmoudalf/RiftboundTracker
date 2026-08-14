@@ -49,10 +49,13 @@ export function WinRateBar({ rate, label, sublabel, compact = false }: WinRateBa
         </View>
       ) : null}
 
+      {/*
+        One branch, not two. `rate` is null only at zero games now — under the
+        half-point rule a history of nothing but draws has a real rate of 50 %,
+        so "played, none decided" describes a state that can no longer exist.
+      */}
       {rate.rate === null || !rate.interval ? (
-        <Text style={styles.undecided}>
-          {rate.total === 0 ? 'No matches' : `${rate.total} played, none decided`}
-        </Text>
+        <Text style={styles.undecided}>No matches</Text>
       ) : (
         <>
           <View style={[styles.track, compact && styles.trackCompact]}>

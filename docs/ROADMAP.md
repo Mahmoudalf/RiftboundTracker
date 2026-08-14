@@ -34,6 +34,45 @@
 | [M7](#m7--cloud) | Cloud sync | ⬜ Not started |
 | [M8](#m8--ship) | Polish & ship | ⬜ Not started |
 
+## Where things stand — 2026-08-14
+
+The pre-M7 polish pass is **finished**. Everything below is either shipped and device-checked, or
+carried deliberately with a reason.
+
+**Shipped since 2026-08-13**
+
+| | |
+| --- | --- |
+| **A1–A8** · write-only schema dropped | Migration 22 removed six columns and the `sets` table before M7 could mirror them into Postgres |
+| **B2** · available-copies label | Shows what a second deck may still claim. Needs cards filed in a binder to appear |
+| **B3** · editor leave guard | Device-confirmed on the Android back gesture, the case the old prompt missed |
+| **B4** · binder grid + dimming | Device-confirmed |
+| **C1** · editor open time | `FlashList` plus a chrome restructure. Device-confirmed as "much faster" |
+| **D1** · inline version expansion | Device-confirmed. Last item off the original FIX FIRST list |
+| **Analytics rebuild** | Built to `1_ANALYTIC02`: anchor · findings · opponent-scoped drawer, four states |
+| **The draw rule** | A draw is now half a win and half a loss, app-wide |
+
+**Needs attention — nothing blocking, all owner-side**
+
+| | |
+| --- | --- |
+| **H1** · rotate the Piltover Archive key | Pasted into a chat log. Never used, never committed. Two minutes on their site |
+| **D2** · 60 fps and airplane mode | Cannot be tested on a dev build — Metro is the connection that airplane mode cuts. Needs a release build (`--variant release` or an EAS preview) |
+| **B2 / analytics on device** | Both need real logged data before they show anything. Not defects; not yet observed either |
+
+**Carried deliberately**
+
+| | |
+| --- | --- |
+| **F1** · log form leave guard | Real, and *not* the same fix as B3 — the log flow has a ten-second budget a dialog attacks |
+| **F2** · version timeline virtualisation | Measured comfortable to the low hundreds. Nobody has a deck with 300 versions |
+| **H2** · 26 npm advisories | Decided, not deferred: every remedy npm proposes is a downgrade, `expo@53` against 57. `expo-doctor` passes 20/20 |
+| **H3** · over-exposed internal exports | Cosmetic |
+| **G2–G4** · three design gaps | Collection coverage counter · gallery filable vs read-only · progress fill colour. Decisions for the design, not the implementation |
+| Two Hi-Fi deviations in the match log | Both recorded with reasons in `MatchCard.tsx` |
+
+**Next milestone: M7 — Cloud.** Unblocked. A1–A8 existed precisely so no dead schema reaches Supabase.
+
 ---
 
 ## M0 — Foundation
@@ -953,15 +992,16 @@ and the remaining screens are assembly rather than invention.
 | Deck detail | Legend art in the header. A **Stats** tab. A **List / Gallery** toggle. Version actions as buttons rather than an `Alert` action sheet | ✅ Hero, `TABS` including `stats`, the `Preview` toggle, and `VersionNodeDetail`'s inline buttons all present |
 | Deck legality | A sentence, not a bar: *"Not legal — Main deck 38/39 · One card short."* | ✅ `LegalityCard` in the editor. Deck detail deliberately shows the design's **chip row** instead — a different surface of the same design, not an omission |
 | Deck editor | A custom *Discard and continue / Stay here* sheet where the app uses `Alert` | ✅ `Prompt`. Both dialogs were converted; the header comment records why `Alert` could not carry three options on Android |
-| Analytics | "Findings first, then one breakdown at a time" — a different structure from the current `AnalyticsPanel` | ⬜ **Blocked** on the missing Events-tab spec below |
+| Analytics | "Findings first, then one breakdown at a time" — a different structure from the old `AnalyticsPanel` | ✅ **Built 2026-08-13/14** to `1_ANALYTIC02`, the newer of the two Analytics designs in the file. Anchor · findings · scoped drawer, in all four drawn states. The Events-tab blocker below went with it — the new handoff draws three tabs |
 
 The remaining deviations are in [Deviations from the Hi-Fi design](#deviations-from-the-hi-fi-design-parked-rather-than-fixed),
 both parked with reasons.
 
 ### Design gaps to resolve
 
-- The design predates **event mode**: its Stats screen has *Match history · Analytics*, with no
-  Events tab. The app now has three.
+- ~~The design predates **event mode**: its Stats screen has *Match history · Analytics*, with no
+  Events tab.~~ **Closed 2026-08-13.** The `1_ANALYTIC02` handoff draws *Games · Analytics · Events*,
+  matching what M6 shipped. This was the blocker on the Analytics rebuild.
 - No spec for the **collection coverage counter** on deck overview (`44/59 in your collection`),
   which also postdates it.
 - Progress fills (`progressFill`, `progressSegmentDone`) were left white: the design does not say
@@ -1440,6 +1480,256 @@ is there.** The matchup view already groups by opposing Legend and Chosen Champi
 piece is comparing *your* decks against a given opponent archetype, which is a real question with a
 real denominator. Parked in the backlog until there are enough matches for it to say anything.
 
+## Analytics, rebuilt around findings (2026-08-13)
+
+Reported as *"bars and a lot of text"*. The statistics were not the problem and none of the maths
+changed — **the screen had no opinion.** Eight sections, every one permanently present, all at
+identical visual weight, each a bar plus one to three sentences of methodology: roughly fifteen
+sentences of hedging on a screen whose job is to tell you something. The reader was left doing the
+ranking the app should have done.
+
+Three specific faults, each fixed by a different move:
+
+| Fault | Fix |
+| --- | --- |
+| Bars used as **readouts**, not comparisons — a bar's job is "this one is longer than that one", and a single overall rate has nothing beside it to be longer than | The anchor is numerals. Bars survive only where two or more things sit side by side, which is every remaining use |
+| **Empty sections cost as much space as full ones** — five of the eight could render as `NeedsData`, so a new deck's Analytics tab was mostly a list of things you had not done | Findings appear only when the data supports them. Nought findings renders **one** line, not eight boxes |
+| The honesty rule implemented as **prose, repeated** — draws, the seen-three-times floor, the close margin, plus a footnote | Stated once, in the drawer, beside the sections that use it |
+
+### The filter that decided what stays
+
+**"What would I do differently if this number were different?"** If nothing, it is trivia, and trivia
+was crowding out the findings. Running the eight through it produced one promotion, one addition and
+five folds:
+
+- **Promoted to a control:** *By game style*. A 68 % win rate that is entirely casual games is not a
+  68 % deck, so this was never a breakdown — it is the thing that makes every other number honest. It
+  is now a chip, and it renders **only when it would change something** (there must be casual games
+  to remove and something left afterwards); a toggle that filters nothing teaches the reader it is
+  broken.
+- **Added:** *version delta*. The premise of the app is "did my change make the deck better?", and
+  that question was answered only on the version timeline behind a Compare mode you had to know
+  existed — the tab literally named Analytics never mentioned versions.
+- **Folded:** going first/second, format, mulligan counts, score margin, and streaks.
+
+Streaks were listed for deletion in the proposal and were **folded instead**. Deleting a working
+feature to satisfy a table is a worse trade than demoting it, and the drawer is where the things that
+do not change a decision belong. Recorded because it is a deviation from what was agreed.
+
+### `lib/analytics/findings.ts` — the editorial layer
+
+Nothing here computes a new statistic; every number comes from `summary.ts` or `hands.ts` unchanged.
+It decides which of them is worth a sentence. A comparison must be **separable** — Wilson intervals
+that do not overlap — and a descriptive claim must clear a floor on its own sample.
+
+**Ranking is by kind, not by effect size,** and that is deliberate. A 22-point version gap and a
+30-point excess mulligan rate are not the same quantity in different clothes, and sorting them
+against each other silently claims they are comparable. Since separability is already required,
+everything that reaches the screen is real — so the only question left is which real thing to read
+first, and that is answered by how directly it changes a decision: version → matchup → card → margin
+→ order. `strength` still picks the winner *within* a kind, where the units genuinely match.
+
+**One finding per kind**, so six lopsided matchups cannot crowd out the fact that the newest version
+is losing. Capped at three.
+
+### Two errors found by auditing the new code, not the old
+
+**1 · The matchup baseline was wrong, and wrong in the direction that hides problems.** The first
+draft compared each matchup against the deck's *overall* rate — but the overall rate **contains that
+matchup's own games**, so a lopsided matchup drags the baseline towards itself. The bigger the
+problem, the better it hid. The comparison is now against the complement, the only version where the
+two samples are disjoint.
+
+`findings.test.ts` carries the case that separates the two: Vi is two thirds of every game played,
+pulling the overall rate to 47 % — close enough to Vi's own 30 % that the intervals overlap and the
+old comparison found **nothing**. Against the other games (80 %) it is unmissable. Verified
+non-vacuous by reverting the baseline and watching two tests fail.
+
+**2 · With exactly two opponents the finding was arbitrary.** Each is the other's complement, so
+"Vi beats you" and "you beat Zed" are the same fact from either end with *identical* strength, and
+which one appeared depended on sort order — a judgement nobody made. Ties now break towards the
+matchup you are **losing**, because that is the actionable half: you can tech against a bad matchup,
+and one you already win tells you nothing to change.
+
+### Three smaller things the audit changed
+
+- **`matchupKey()` extracted** in `summary.ts`. The opposing-deck identity was derived inline in two
+  places, which is two definitions of "the same opponent" that could drift with nothing failing. The
+  findings layer needed a third, so it became one exported function.
+- **The typed-route cast removed.** `Finding` carries a `link` naming *what to open* rather than an
+  href string, because a `string` needs a cast at `router.push` — and a cast keeps compiling after a
+  route is renamed, leaving a card that presses and goes nowhere. Nothing in the suite could catch
+  that. It was the only `as never` in app code.
+- **Three constants un-exported.** `MAX_FINDINGS`, `MATCHUP_FLOOR` and `MULLIGAN_FLOOR` had no
+  consumer outside the module — the gap-15 class. Only `CARD_SEEN_FLOOR` is genuinely shared, and it
+  has to be: the panel resolves the finding's card name in advance, so if the two floors disagreed
+  the lookup would miss and the finding would vanish silently. Tests assert the literal cap, since
+  asserting against the exported constant would pass whatever that constant became.
+
+**Gate:** typecheck clean, lint clean, **502 tests / 29 files** (up from 481). Bundle 200 / 13.11 MB,
+with `More breakdowns`, `in your other games`, `Nothing separates yet`, `Casual games` and the three
+finding sentences all present — tests passing is not evidence a feature is reachable.
+
+**Not yet verified on a device.** The findings need real logged games to fire; a deck with a handful
+of matches will correctly show the anchor and one line and nothing else, which is the design and will
+look like an empty screen until there is data behind it.
+
+### Built to the Hi-Fi handoff — `1_ANALYTIC02` (2026-08-13)
+
+Imported from the Claude Design project through the design MCP. Four states are drawn and all four
+are implemented: **rich** (anchor · up to three findings · drawer collapsed), **sparse** (anchor plus
+one honest line), **empty** (no games at all), and the **expanded drawer**.
+
+What the design added on top of the arrangement already built:
+
+- The **anchor is a card**, not bare text. One rate at 46 px with its record and interval underneath.
+  Under 20 decided games the whole card drops to the provisional greys *and the interval line says so
+  in words* — the only place the design spends words on uncertainty. Everywhere else it is colour.
+- **Findings carry a rank numeral** (`01`/`02`/`03`) and a chevron only when they lead somewhere. One
+  treatment for all five kinds, so they read as a ranked list of conclusions rather than five gadgets.
+- The drawer is two forms, not one: **`RecordBar`** rows for anything with a record, and paired
+  **stat tiles** for anything that is a bare figure.
+
+**`RecordBar` is a new component, and does not replace `WinRateBar`.** They answer different
+questions — `WinRateBar` draws a rate *and its confidence interval* as a band and a marker and still
+owns deck detail and version compare; `RecordBar` draws what a record is made of, in proportion, with
+the counts written inside the segments. A drawer row is read as "how did these twelve games go", not
+as an estimate.
+
+**Eight paragraphs of methodology became one.** The per-section captions are gone; the footnote at
+the foot of the drawer states coverage, the draw rule, the provisional rule, the close margin and the
+seen-three-times floor once each.
+
+**New tokens.** The design introduced values with no home in the palette, and hex literals in a
+component are what `palette.js` exists to prevent: `borderStrong` (.12) and `borderControl` (.14) —
+the design draws *three* hairline weights, for a division, for a surface that is itself an object, and
+for something you can press; `onWin`/`onLoss` for counts inside a filled segment; `accentSoft` /
+`accentBorder` / `accentBright` for the accent as a *state* rather than a fill; `textGhost` for the
+rank numeral; and `space[2.5]` = 10, which the design leans on. All added to `palette.js`, its
+`.d.ts`, and documented where they live.
+
+**`matchupPlayDraw()` deleted.** It answered "does going first matter in *this* matchup" and the old
+panel printed it as three dense lines under the matchup list. The drawer has no row for it, so it lost
+its only consumer — gap 15, the export nothing calls. Removed rather than left, for the same reason
+`championTurnStats` went. It is five lines over `matchupKey` and `playDrawSplit`, both still present,
+so it returns the moment the design asks for it.
+
+#### Four places the design and the app disagreed — all four now settled
+
+None was resolved by inventing; each was implemented the way the codebase already worked and put to
+the owner. Answers came 2026-08-14.
+
+1. **The win rate's denominator — changed, and neither side of the original disagreement won.** The
+   design's numbers counted a draw as a **loss** (`Went second · 6–5–1 · 50%` is 6/12); the app
+   **ignored** draws entirely (6/11 = 54.5 %). The owner's rule is a third thing: *"count them to
+   each side win and loss, 6–6–1 is equal to a 50% winrate, not screwed to either side."* A draw is
+   now **half a win and half a loss** — a point per game, ½ for a draw, over games played. See
+   [DATA-MODEL](DATA-MODEL.md#what-a-draw-is-worth-settled-2026-08-14) for the comparison table.
+
+   Worth recording why the example settled it rather than the argument: `6–6–1` reads 50 % under both
+   the old app rule and the new one, so it does not distinguish them — but it reads **46 %** under
+   the design's, which is the reading being rejected. The instruction to *count* them, rather than
+   ignore them, is what picks the half-point rule over the status quo.
+
+   This overturned a rule the code called non-negotiable, so it was changed everywhere at once:
+   `rateOf` gained a `points` field and now divides by `total`; `provisional` counts games rather
+   than decided games; `Rate.decided` survives as a reported fact with no denominators left to be.
+   Five call sites moved off `.decided`, and `WinRateBar`'s "*N* played, none decided" branch was
+   deleted — under the new rule an all-draws history is a real 50 %, so that state cannot occur.
+   **The suite caught exactly three tests and nothing else**, which is the right blast radius for a
+   rule this central. `6–6–1 → 50%` is now pinned as a test in its own right.
+
+   A side effect worth having: `RecordBar`'s segment widths and its percentage finally share a
+   denominator. The row that drew twelve games and reported a rate over eleven is gone.
+2. **The interval disappears from breakdown rows** — *confirmed, keep as drawn.* "Only big row at the
+   top is fine." The design's rows carry `n` but no CI, where the
+   old `WinRateBar` drew the interval as a band. Provisional is carried by colour instead, per the
+   design's own footnote. Note this narrows the M5 rule "every rate carries its sample size and
+   interval" to "every rate carries its sample size, and the headline carries its interval" — the
+   rows still print `n`, so no figure appears without a denominator.
+3. **The picker and the tabs are in a different order than `1_Stats`** — *left as it is.* "Deck picker
+   is fine as it is." `1_ANALYTIC02` puts the deck picker above the three tabs; `1_Stats` puts the
+   tabs above the picker under a `YOUR DECK` label. The shell is shared with the Games and Events
+   tabs, and picking one would have restyled two screens outside this brief.
+4. **The casual chip scrolls where the design pins it** — *accepted as built.* Pinning it would mean
+   lifting the filter state out of the panel and into `stats.tsx`.
+
+Two smaller deviations: the design's `⌄ ⌃ › ✓` are drawn from the shared `Icon` set instead of typed,
+because M1 banned literal glyphs after they rendered as tofu on a device; and the sparse message uses
+`textMuted` rather than the design's `#8B8B8F`, one step brighter, rather than adding a near-duplicate
+token.
+
+**Two competing Analytics designs are in the file, and `1_ANALYTIC02` is the one to build** —
+confirmed by the owner. `1_Analytics` is a different take: *What stands out* over a `BREAK DOWN BY`
+picker showing **one** breakdown at a time instead of a drawer holding all of them. Recorded rather
+than deleted, since it is a coherent alternative someone may want to revisit.
+
+### The drawer became a question about an opponent (2026-08-14)
+
+Second pass, from the owner: *"what we need is track against whom have I played with my deck?"*
+
+- **The matchup list became a scope selector.** `AGAINST` offers *Overall* plus each Legend with games
+  behind it, and everything below answers for that scope — turn order against Ahri, formats against
+  Ahri, the hands you kept against Ahri. The list is built from games played, never from the card
+  library: a menu of every Legend in the game would be a hundred entries, ninety-seven of them
+  answering "no games".
+- **Findings stay unscoped, deliberately.** They are the screen's claims about the *deck*; silently
+  re-deriving them from twelve games against one opponent would turn a ranked conclusion into a
+  coincidence.
+- **Empty rows are gone.** Turn order used to draw `Went second · 0–0 · n=0` for a deck that had
+  always gone first. An empty row reads as a result, and there was no result to read.
+- **Streaks moved to the top, under the win rate.** It is the one figure on the screen that is about
+  *right now* — the anchor is a lifetime average and cannot say you have lost the last four.
+- **The Wilson footnote is gone**, as asked.
+
+**A correction found while removing that footnote.** Folding the coverage figures into it and then
+deleting it took the *denominators* with them — the drawer stopped saying that a mulligan breakdown
+came from 12 of 40 matches. That is not flavour text, it is the sample size, and `Coverage`'s own
+docstring says exactly why: a split drawn from 3 of 40 games "is not wrong, but presenting it without
+saying so invites a conclusion drawn from 7 % of the data". Coverage is back as a one-line note under
+the three groups that have partial coverage — turn order, opening hands, score margin — where it is
+also now *scoped*, so it reports against the selected opponent rather than the whole deck.
+
+The tell was `handCoverage()` going quiet: an export whose only remaining callers were tests, which
+is the gap-15 signal this project treats as a defect. Here it was pointing at a lost feature rather
+than at dead code.
+
+#### Two corrections on the same pass
+
+**1 · The scope selector had a list under it that was the selector again.** Under *Overall* the first
+group drew **every opponent** as its own bar. Wrong on the owner's reading, and wrong on inspection:
+the drawer's question is "how does my deck do, broken down", and the per-opponent spread already
+lives in the `AGAINST` menu — where each entry now carries its own record and rate, so the open menu
+*is* the matchup table. Listing it again underneath was the same table twice with the selected scope
+buried inside it.
+
+The group is now `RECORD`: one bar for whatever is selected, Overall or one Legend, followed by the
+breakdowns. Same shape either way, which is what makes switching scope legible — only the numbers
+move, never the layout.
+
+**2 · `n=` is gone from every row.** Raised as "I can see n=1 on the analytics, this doesn't need to
+show". It was redundant as well as jargon: `6–5–1` **is** twelve games, stated in the register a
+player already thinks in, so `n=12` beside it restated the same fact in a worse one. Every other
+denominator on the screen was audited in the same pass and all of them are already in words —
+`31 games`, `From 12 of 40 games where it was recorded`, `6 of 8 opening hands it was dealt in`. The
+one exception, a version finding reading `41% over 22`, gained its unit.
+
+Note this settles the loose end from decision 2 above: with the interval gone from the rows and now
+`n` too, what carries the sample size on a breakdown row is the **record itself**, which is the most
+readable denominator available and was on every row the whole time.
+
+**Gate:** typecheck clean, lint clean, **506 tests / 29 files**. Bundle 200 / 13.12 MB with `AGAINST`,
+`RECORD`, `Current streak` and `where it was recorded` present; `Rates use a Wilson`,
+`EVERY OPPONENT` and `THIS MATCHUP` all confirmed gone from the shipped bundle.
+
+---
+
+**Previous gate,** before the opponent scope: typecheck clean, lint clean, **506 tests / 29 files**.
+Bundle 200 / 13.12 MB, carrying
+`a draw as half`, `under 20 games`, `More breakdowns`, `MATCHUPS`, `CARDS YOU THROW BACK`,
+`No games logged yet` and `Nothing separates yet` — and no longer carrying `not half a loss`, which
+is how the old rule was confirmed gone from the shipped code rather than only from the source.
+
 ## Known gaps
 
 Found on a device, not yet fixed. Each is a real defect or a real omission — none is a
@@ -1568,9 +1858,8 @@ beyond the gap it was found beside.
   proposed would have been wrong. There is no `@react-navigation` package in the tree on SDK 57;
   expo-router v7 vendors React Navigation's core and exposes it through `useNavigation()`, so the
   guard needed no new dependency at all. See [the polish pass](#the-polish-pass-2026-08-13)
-- **Inline version expansion on deck detail is unverified.** Implemented during the Hi-Fi pass and
-  never confirmed against a device screenshot — the only item from the original FIX FIRST list still
-  unconfirmed
+- ~~**Inline version expansion on deck detail is unverified.**~~ **Closed 2026-08-13** — confirmed
+  working on a device. It was the last unconfirmed item from the original FIX FIRST list
 - ~~**The card gallery's unowned tiles no longer dim**~~ — **closed 2026-08-13.** The count badge
   alone was not enough, and the answer was to scope the treatment rather than choose between the two
   screens: dimmed while filing a binder, full strength in the Gallery
@@ -1580,9 +1869,8 @@ beyond the gap it was found beside.
 The Hi-Fi design predates several things the app now has. Each of these is a decision for the design
 to make, not for the implementation to guess:
 
-- **No Events tab.** The design's Stats screen has *Match history · Analytics*; the app has three
-  segments because M6 shipped event mode. **This blocks the Stats rebuild** — there is no drawn
-  answer for where events live
+- ~~**No Events tab.**~~ **Closed 2026-08-13.** `1_ANALYTIC02` draws *Games · Analytics · Events*.
+  The Stats rebuild is unblocked and done
 - **No spec for the collection coverage counter** (`44/59 in your collection`) on deck overview
 - **Gallery is drawn as filable**, but ownership lives only in binders, so `/binder/gallery` is
   read-only. Either the design gains a default binder or the read-only treatment becomes the spec

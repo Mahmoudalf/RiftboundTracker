@@ -9,12 +9,13 @@ import { Dropdown, type DropdownOption } from '@/components/ui/Dropdown';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
-import { listDecks } from '@/db/queries/decks';
+import { listDecks, listVersions } from '@/db/queries/decks';
 import { listEvents, type EventSummary } from '@/db/queries/events';
 import { deckRecord, listGames, type DeckRecord } from '@/db/queries/games';
 import { HISTORY_PAGE, gameHistory, type GameHistoryEntry } from '@/db/queries/history';
 import { matchesForGames } from '@/db/queries/matches';
 import type { MatchRow, GameRow } from '@/db/schema/games';
+import type { VersionRef } from '@/lib/analytics/findings';
 import { eventStyleLabel, gameDate, recordLine } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
@@ -66,6 +67,14 @@ export default function StatsScreen() {
   const [allGames, setAllGames] = useState<GameRow[]>([]);
   /** Their games, for the breakdowns that are per-game rather than per-match. */
   const [allMatches, setAllMatches] = useState<MatchRow[]>([]);
+  /**
+   * The selected deck's versions, newest first — empty for "All decks".
+   *
+   * Version numbers are per deck, so pooling them across decks would compare
+   * one deck's v3 against another's. The findings layer takes an empty list as
+   * "do not make a version claim" rather than guessing.
+   */
+  const [versions, setVersions] = useState<VersionRef[]>([]);
   const [record, setRecord] = useState<DeckRecord | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [events, setEvents] = useState<EventSummary[]>([]);
@@ -107,6 +116,15 @@ export default function StatsScreen() {
       const everything = listGames(scoped);
 
       setEvents(listEvents());
+      setVersions(
+        active === ALL_DECKS
+          ? []
+          : listVersions(active).map((version) => ({
+              id: version.id,
+              number: version.versionNumber,
+              label: version.label,
+            }))
+      );
       setDecks(options);
       setDeckId(active);
       setHistory(page.entries);
@@ -243,8 +261,20 @@ export default function StatsScreen() {
           </ScrollView>
         )
       ) : tab === 'analytics' ? (
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <AnalyticsPanel games={allGames} matches={allMatches} />
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          /* `flexGrow`, so the panel's empty state — which centres itself with
+             `flex: 1` — has a full-height box to centre inside. Without it a
+             ScrollView sizes its content to the content, and the invitation to
+             log a game sits jammed under the tabs. */
+          contentContainerStyle={styles.analytics}
+        >
+          <AnalyticsPanel
+            games={allGames}
+            matches={allMatches}
+            versions={versions}
+            deckId={deckId === ALL_DECKS ? null : deckId}
+          />
         </ScrollView>
       ) : history.length === 0 ? (
         <EmptyState
@@ -311,6 +341,7 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: color.accent },
   tabLabel: { ...text.smallMedium, color: color.textMuted },
   tabLabelActive: { color: color.onAccent },
+  analytics: { flexGrow: 1 },
   list: { paddingBottom: space[16] },
   separator: { height: space[2] },
   footer: { gap: space[2], paddingTop: space[4], alignItems: 'flex-start' },

@@ -32,6 +32,8 @@ export const space = {
   1: 4,
   1.5: 6,
   2: 8,
+  /** Tailwind's 2.5. The Analytics hi-fi leans on a 10pt step. */
+  2.5: 10,
   3: 12,
   4: 16,
   5: 20,

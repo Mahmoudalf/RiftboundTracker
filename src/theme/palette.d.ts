@@ -16,6 +16,12 @@ declare const palette: {
     overlay: string;
     border: string;
     borderSubtle: string;
+    /** A finding card — a surface read as an object, not a division. */
+    borderStrong: string;
+    /** Something you can press: the drawer toggle, an unselected chip. */
+    borderControl: string;
+    /** The rank numeral on a finding. Below `textHint` on purpose. */
+    textGhost: string;
     text: string;
     textSecondary: string;
     textMuted: string;
@@ -29,6 +35,13 @@ declare const palette: {
     win: string;
     loss: string;
     draw: string;
+    /** Foregrounds for a count sitting inside a filled result segment. */
+    onWin: string;
+    onLoss: string;
+    /** The accent as a state — a selected chip, an opened drawer. */
+    accentSoft: string;
+    accentBorder: string;
+    accentBright: string;
     provisional: string;
     warning: string;
     danger: string;

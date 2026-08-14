@@ -4,7 +4,7 @@ import type { GameRow, Result } from '@/db/schema/games';
 
 import {
   bestOfSegments,
-  matchupPlayDraw,
+  matchupKey,
   matchupSegments,
   playDrawSplit,
   rateOf,
@@ -89,22 +89,56 @@ describe('gamesNeeded', () => {
 });
 
 describe('rateOf', () => {
-  it('excludes draws from the rate but keeps them in the record', () => {
+  it('scores a draw as half a win and half a loss', () => {
     const rate = rateOf([...wins(3), ...losses(1), match({ result: 'draw' })]);
 
     expect(rate.wins).toBe(3);
     expect(rate.draws).toBe(1);
     expect(rate.total).toBe(5);
+    // Still reported, just no longer a denominator.
     expect(rate.decided).toBe(4);
-    // 3 of 4 decided, not 3 of 5 — a draw is not half a loss.
-    expect(rate.rate).toBe(0.75);
+    // 3.5 points over 5 games. Excluding the draw would say 75%, and counting
+    // it as a loss 60% — both take a side that the result did not.
+    expect(rate.points).toBe(3.5);
+    expect(rate.rate).toBe(0.7);
   });
 
-  it('has no rate at all when nothing was decided', () => {
-    const rate = rateOf([match({ result: 'draw' })]);
-    expect(rate.rate).toBeNull();
-    expect(rate.interval).toBeNull();
-    expect(rate.total).toBe(1);
+  it('puts a game of nothing but draws at exactly even', () => {
+    // The case that decided the rule. Ignoring draws left this with no rate at
+    // all, which is not what "everybody drew" means.
+    const rate = rateOf([match({ result: 'draw' }), match({ result: 'draw' })]);
+
+    expect(rate.rate).toBe(0.5);
+    expect(rate.interval).not.toBeNull();
+    expect(rate.total).toBe(2);
+  });
+
+  it('reads 6–6–1 as exactly even', () => {
+    /*
+     * The case the rule was chosen from. An equal record with a draw on top is
+     * 50 % and nothing else: 6.5 points over 13 games. Counting the draw as a
+     * loss would report 46 % for a player who has won and lost the same number
+     * of games, which is the skew this rule exists to remove.
+     */
+    const rate = rateOf([...wins(6), ...losses(6), match({ result: 'draw' })]);
+
+    expect(rate.total).toBe(13);
+    expect(rate.rate).toBe(0.5);
+  });
+
+  it('leaves a drawless record exactly where it was', () => {
+    // The rule change must be invisible to the majority of rows.
+    expect(rateOf([...wins(6), ...losses(4)]).rate).toBe(0.6);
+  });
+
+  it('keeps the interval honest with fractional points', () => {
+    // Wilson only ever uses p̂ and n, so half-points are legal input. The
+    // boundary cases must still fire on a whitewash and only on a whitewash.
+    expect(rateOf(wins(4)).interval).toMatchObject({ high: 1 });
+    expect(rateOf(losses(4)).interval).toMatchObject({ low: 0 });
+
+    const drawn = rateOf([...wins(3), match({ result: 'draw' })]);
+    expect(drawn.interval!.high).toBeLessThan(1);
   });
 
   it('is empty-safe', () => {
@@ -164,16 +198,31 @@ describe('matchupSegments', () => {
     expect(segments[0]!.rate.total).toBe(2);
   });
 
-  it('splits play and draw inside one matchup', () => {
-    const matches = [
-      match({ result: 'win', oppLegendName: 'Yasuo', onPlay: true }),
-      match({ result: 'loss', oppLegendName: 'Yasuo', onPlay: false }),
-    ];
-    const [segment] = matchupSegments(matches);
-    const split = matchupPlayDraw(matches, segment!.key)!;
+  /*
+   * `matchupPlayDraw` was tested here and is gone with the Analytics redesign.
+   *
+   * It answered "does going first matter in *this* matchup", and the old panel
+   * printed it as three dense lines under the matchup list. The `1_ANALYTIC02`
+   * drawer has no such row, so the function lost its only consumer — gap 15,
+   * the export nothing calls. Recorded in the roadmap rather than quietly kept,
+   * because the question is a good one and the design may want it back.
+   */
 
-    expect(split.onPlay.rate).toBe(1);
-    expect(split.onDraw.rate).toBe(0);
+  it('identifies an opponent by Legend and Champion together', () => {
+    // The key is the shared definition three callers now depend on. Two
+    // different Champions behind the same Legend are two different decks.
+    const matches = [
+      match({ result: 'win', oppLegendName: 'Yasuo', oppChampionName: 'Yasuo — Windrunner' }),
+      match({ result: 'loss', oppLegendName: 'Yasuo', oppChampionName: 'Yasuo — Stormcaller' }),
+    ];
+
+    expect(matchupSegments(matches)).toHaveLength(2);
+    expect(matchupKey(matches[0]!)).not.toBe(matchupKey(matches[1]!));
+  });
+
+  it('has no matchup for a game with no opponent recorded', () => {
+    expect(matchupKey(match({ result: 'win' }))).toBeNull();
+    expect(matchupSegments([match({ result: 'win' })])).toEqual([]);
   });
 });
 
@@ -243,7 +292,7 @@ describe('separable', () => {
     expect(separable(a, b)).toBe(true);
   });
 
-  it('never separates when one side has no decided matches', () => {
+  it('never separates when one side has no games at all', () => {
     expect(separable(rateOf(wins(10)), rateOf([]))).toBe(false);
   });
 });

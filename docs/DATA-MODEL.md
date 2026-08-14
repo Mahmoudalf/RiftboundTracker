@@ -474,12 +474,36 @@ CI  =  ────────────────────────�
                    1 + z²/n
 ```
 
+### What a draw is worth (settled 2026-08-14)
+
+**Half a win and half a loss.** Every game is a point — 1 for a win, ½ for a draw, 0 for a loss — and
+the rate is points over *games played*. This is the scoring tournaments already use, and it is the
+only handling under which a draw pulls the number toward 50 % rather than toward one side.
+
+| Rule | 6–5–1 | 6–6–1 | 10–0–1 |
+| --- | --- | --- | --- |
+| Draw counts as a loss | 50 % | 46 % | 91 % |
+| Draw ignored (the rule until 2026-08-14) | 54.5 % | 50 % | 100 % |
+| **Draw is half of each** | **54.2 %** | **50 %** | **95.5 %** |
+
+Ignoring draws was defensible — "of the games that were decided, how many did I win" — but it
+discards a real game, and at 10–0–1 it claims 100 % for a deck that has not won everything. Counting
+a draw as a loss is worse: it reports 46 % for a player who has won and lost the same number of
+games, which is precisely the false impression this app exists not to give.
+
+`Rate.decided` still reports wins plus losses, because `9–8–3` and `9–8` are different histories. It
+is no longer the denominator of anything.
+
+Fractional points are legal input to Wilson, which only ever uses p̂ and n. The boundary special-cases
+inside `wilson()` still fire on a whitewash and only on a whitewash, since any draw puts the value
+strictly between 0 and n.
+
 ### Statistical honesty rules
 
 Enforced in the analytics layer so no screen can accidentally opt out:
 
 - Every win rate carries its sample size and interval: `63% · 19–11 · 95% CI 45–78%`
-- Below **n = 20**, stats render in a muted "provisional" style
+- Below **n = 20 games**, stats render in a muted "provisional" style
 - `compareVersions()` returns `verdict: 'inconclusive'` whenever the intervals overlap, plus
   `gamesNeeded` — an estimate of how many more games would separate them
 - Version deltas are labelled **correlational**. The meta shifts and the pilot improves; the app

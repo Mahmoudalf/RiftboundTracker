@@ -54,15 +54,17 @@ export function VersionCompareSheet({
 
   const verdict = (() => {
     if (!rateA || !rateB) return null;
-    if (rateA.decided === 0 || rateB.decided === 0) {
-      return 'One of these has no decided matches yet, so there is nothing to compare.';
+    // `total`, not `decided`: since 2026-08-14 a draw is half a win and half a
+    // loss, so a version with nothing but draws has a real rate to compare.
+    if (rateA.total === 0 || rateB.total === 0) {
+      return 'One of these has no games logged yet, so there is nothing to compare.';
     }
     if (separable(rateA, rateB)) {
       const better = (rateB.rate ?? 0) > (rateA.rate ?? 0) ? b : a;
       return `v${better?.versionNumber} is measurably ahead — the intervals do not overlap.`;
     }
-    const thinner = rateA.decided <= rateB.decided ? rateA : rateB;
-    const more = gamesNeeded(thinner.wins, thinner.decided);
+    const thinner = rateA.total <= rateB.total ? rateA : rateB;
+    const more = gamesNeeded(thinner.points, thinner.total);
     return more === null
       ? 'Too close to call — the intervals overlap, and no realistic number of matches would separate them.'
       : `Too close to call — the intervals overlap. About ${more} more ${

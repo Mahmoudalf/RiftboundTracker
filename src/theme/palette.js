@@ -36,6 +36,19 @@ const neutral = {
    */
   border: 'rgba(255,255,255,0.08)',
   borderSubtle: 'rgba(255,255,255,0.05)',
+  /**
+   * Two heavier hairlines, from the Analytics hi-fi (`1_ANALYTIC02`).
+   *
+   * The design draws three weights of division, not one: `border` for passive
+   * rules between content, `borderStrong` for a surface that is *itself* an
+   * object you can read as a unit — a finding card — and `borderControl` for
+   * something you can press. Collapsing them onto `border` made the finding
+   * cards dissolve into the background they sit on.
+   */
+  borderStrong: 'rgba(255,255,255,0.12)',
+  borderControl: 'rgba(255,255,255,0.14)',
+  /** The rank numeral on a finding — deliberately below `textHint`. */
+  textGhost: '#3F3F42',
   text: '#F5F5F6',
   textSecondary: '#C9C9CD',
   textMuted: '#9C9CA1',
@@ -75,6 +88,25 @@ const semantic = {
   win: '#46C77E',
   loss: '#C7433D',
   draw: '#86868A',
+  /**
+   * Foregrounds for text sitting *inside* a filled result segment.
+   *
+   * Near-blacks tinted towards their own fill rather than one shared black, so
+   * the count on a green bar and the count on a red one both read as belonging
+   * to the bar rather than as a label dropped on top of it. Same reasoning as
+   * `onAccent`, which is a near-black red for exactly this.
+   */
+  onWin: '#0C1A12',
+  onLoss: '#1A0605',
+  /**
+   * The accent as a *state* rather than as a fill — a selected filter chip, an
+   * opened drawer. The design tints the surface and the border and lifts the
+   * label instead of inverting to a solid coral, because these controls stay
+   * legible-but-quiet while a primary action should not.
+   */
+  accentSoft: 'rgba(255,75,75,0.12)',
+  accentBorder: 'rgba(255,75,75,0.5)',
+  accentBright: '#FF8A8A',
   provisional: '#67676B',
   warning: '#D9932E',
   danger: '#C7433D',

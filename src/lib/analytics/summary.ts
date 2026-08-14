@@ -12,28 +12,50 @@ import { wilson, type Interval } from './wilson';
  *
  * ## Two rules that are not negotiable
  *
- * **Draws are excluded from the win rate.** A rate is "of the games that were
- * decided, how many did I win", and putting draws in the denominator drags the
- * number down in a way that reads as losing. They stay in the record, which is
- * where they are information.
+ * **A draw is half a win and half a loss.** Every game is worth a point: 1 for
+ * a win, ½ for a draw, 0 for a loss, and the rate is points over games played.
+ * It is the scoring every tournament already uses, and it is the only handling
+ * where a draw pulls the number toward 50 % instead of toward one side.
+ *
+ * The two alternatives both take a side, which is why neither survived:
+ *
+ * | Rule | 6–5–1 reads |
+ * | --- | --- |
+ * | Draw counts as a loss (draws in the denominator, wins in the numerator) | 50 % |
+ * | Draw ignored entirely (the rule until 2026-08-14) | 54.5 % |
+ * | **Draw is half of each** | **54.2 %** |
+ *
+ * Ignoring draws was defensible — it is "of the games that were decided, how
+ * many did I win" — but it throws away a real game, and at 10–0–1 it reports
+ * 100 % for a deck that has not won everything. Counting a draw as a loss is
+ * worse: it is the number this app is meant not to produce, a figure that reads
+ * as losing because of a result that was not a loss.
  *
  * **Every rate carries its sample size and interval.** `Rate` cannot be
  * constructed without them, so no screen can render one without — that is the
  * point of returning a struct rather than a number.
  */
 
-/** Below this many decided games, a rate is shown as provisional. */
+/** Below this many games, a rate is shown as provisional. */
 export const PROVISIONAL_N = 20;
 
 export interface Rate {
   wins: number;
   losses: number;
   draws: number;
-  /** Wins plus losses. The denominator of `rate`. */
+  /**
+   * Games that had a winner.
+   *
+   * Reported because "9–8–3" and "9–8" are different histories, but **no longer
+   * the denominator of anything** — that is `total`. Kept as a fact about the
+   * record rather than as an input to the rate.
+   */
   decided: number;
-  /** Every game, draws included. The honest "how much have I played". */
+  /** Every game. The denominator of `rate`. */
   total: number;
-  /** Null at zero decided games — there is no rate, not a rate of zero. */
+  /** Wins plus half a point per draw. The numerator of `rate`. */
+  points: number;
+  /** Null only at zero games — there is no rate, not a rate of zero. */
   rate: number | null;
   interval: Interval | null;
   provisional: boolean;
@@ -58,16 +80,26 @@ export function rateOf(matches: readonly { result: Result }[]): Rate {
     else draws++;
   }
 
-  const decided = wins + losses;
+  const total = matches.length;
+  /*
+   * Half a point per draw. Fractional successes are fine for Wilson — the
+   * formula only ever uses p̂ and n, and neither wants an integer. The two
+   * boundary special-cases inside `wilson` stay correct too: `points === 0` is
+   * every game lost and `points === total` is every game won, and a single
+   * draw puts the value strictly between them.
+   */
+  const points = wins + draws / 2;
+
   return {
     wins,
     losses,
     draws,
-    decided,
-    total: matches.length,
-    rate: decided === 0 ? null : wins / decided,
-    interval: decided === 0 ? null : wilson(wins, decided),
-    provisional: decided < PROVISIONAL_N,
+    decided: wins + losses,
+    total,
+    points,
+    rate: total === 0 ? null : points / total,
+    interval: total === 0 ? null : wilson(points, total),
+    provisional: total < PROVISIONAL_N,
   };
 }
 
@@ -140,41 +172,57 @@ export function playDrawSplit(matches: readonly GameRow[]): PlayDrawSplit {
 }
 
 /**
- * Performance against each opposing deck.
+ * How one opposing deck is identified.
  *
- * Keyed on the opposing **Legend and Chosen Champion together**, which is what
- * identifies a deck in Riftbound, and on the stored names rather than card ids
- * so that printings collapse and a card leaving the library changes nothing.
+ * The opposing **Legend and Chosen Champion together**, which is what
+ * identifies a deck in Riftbound, from the stored names rather than card ids so
+ * that printings collapse and a card leaving the library changes nothing. Null
+ * when no opponent was recorded.
+ *
+ * Exported because three callers need the same answer — the segment list, the
+ * per-matchup play/draw split, and the findings layer's complement. It was
+ * derived inline in two of them, which is two definitions of "the same
+ * opponent" that could drift apart without anything failing.
  */
+export function matchupKey(match: GameRow): string | null {
+  // `?? match.oppLabel` was here until migration 22 dropped that column. It
+  // was never written, so this has always fallen through to the null branch.
+  const legendName = match.oppLegendName;
+  if (!legendName) return null;
+  const champion = match.oppChampionName ? baseName(match.oppChampionName) : '';
+  return `${baseName(legendName).toLowerCase()}|${champion.toLowerCase()}`;
+}
+
+/** Performance against each opposing deck. */
 export function matchupSegments(matches: readonly GameRow[]): Segment[] {
   return segment(matches, (match) => {
-    // `?? match.oppLabel` was here until migration 22 dropped that column. It
-    // was never written, so this has always fallen through to the null branch.
+    const key = matchupKey(match);
     const legendName = match.oppLegendName;
-    if (!legendName) return null;
-    const legend = baseName(legendName);
-    const champion = match.oppChampionName ? baseName(match.oppChampionName) : undefined;
+    // Both checked rather than asserting the second from the first. `matchupKey`
+    // returning non-null does imply a Legend today, but that is a fact about its
+    // body, and a `!` here would be a claim the compiler stops rechecking.
+    if (!key || !legendName) return null;
     return {
-      key: `${legend.toLowerCase()}|${(champion ?? '').toLowerCase()}`,
-      label: legend,
-      sublabel: champion,
+      key,
+      label: baseName(legendName),
+      sublabel: match.oppChampionName ? baseName(match.oppChampionName) : undefined,
     };
   });
 }
 
-/** The play/draw split inside one matchup, for "does going first matter here". */
-export function matchupPlayDraw(
-  matches: readonly GameRow[],
-  key: string
-): PlayDrawSplit | null {
-  const rows = matches.filter((match) => {
-    const legendName = match.oppLegendName;
-    if (!legendName) return false;
-    const champion = match.oppChampionName ? baseName(match.oppChampionName) : '';
-    return `${baseName(legendName).toLowerCase()}|${champion.toLowerCase()}` === key;
-  });
-  return rows.length === 0 ? null : playDrawSplit(rows);
-}
+/*
+ * `matchupPlayDraw()` lived here — the play/draw split inside one matchup, for
+ * "does going first matter *here*".
+ *
+ * Removed with the Analytics redesign. The old panel printed it as three dense
+ * lines under the matchup list; the `1_ANALYTIC02` drawer has no row for it, so
+ * it lost its only consumer and became gap 15 — the export nothing calls. It
+ * goes rather than lingering, for the same reason `championTurnStats` did.
+ *
+ * The question is a good one and this is a five-line function over `matchupKey`
+ * and `playDrawSplit`, both of which are still here. If the design asks for it,
+ * it comes straight back.
+ */
 
 export function styleSegments(matches: readonly GameRow[]): Segment[] {
   return segment(matches, (match) => ({ key: match.gameStyle, label: match.gameStyle }));
