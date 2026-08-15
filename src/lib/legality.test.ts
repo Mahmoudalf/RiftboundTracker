@@ -12,6 +12,7 @@ import {
   deckCounts,
   defaultZoneFor,
   MAIN_DECK_SIZE,
+  MAIN_DECK_TARGET,
   RUNE_DECK_SIZE,
   slotBlockReason,
   type DeckList,
@@ -167,6 +168,18 @@ describe('checkLegality', () => {
     expect(result.counts.main).toBe(42);
     expect(result.issues.map((i) => i.code)).not.toContain('main-count');
     expect(result.legal).toBe(true);
+  });
+
+  /*
+   * The rule above was never wrong — the readout was. Five screens printed the
+   * minimum as `41/40`, the same `x/y` form the exact zones use, and two of them
+   * coloured the 41 in `danger` red while the verdict beside it read "Legal".
+   * This pins the notation that tells the two kinds of threshold apart; whether
+   * it reads correctly on screen is still a visual check, not this.
+   */
+  it('writes the main deck threshold as a minimum, not an exact count', () => {
+    expect(MAIN_DECK_TARGET).toBe('40+');
+    expect(MAIN_DECK_TARGET).not.toBe(String(MAIN_DECK_SIZE));
   });
 
   it('still requires the rune deck to be exactly 12', () => {

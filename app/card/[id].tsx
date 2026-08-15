@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import { getCard } from '@/db/queries/cards';
+import { useT } from '@/i18n';
 import { cardImage, cardImageBlur } from '@/lib/cdn';
 import { CARD_ASPECT, color, radius, space, spring } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
@@ -25,6 +26,7 @@ import { metaLine, text } from '@/theme/typography';
  * else is set below it in the card's own metadata idiom.
  */
 export default function CardDetailScreen() {
+  const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -60,9 +62,9 @@ export default function CardDetailScreen() {
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <EmptyState
-          title="Card not found"
-          body="It may have been removed from the card library. Refreshing the library in Settings usually fixes this."
-          actions={[{ label: 'Go back', onPress: () => router.back(), primary: true }]}
+          title={t('card.notFound')}
+          body={t('card.notFound.body')}
+          actions={[{ label: t('ui.goBack'), onPress: () => router.back(), primary: true }]}
         />
       </View>
     );
@@ -73,9 +75,9 @@ export default function CardDetailScreen() {
     card.orientation === 'landscape' ? artWidth * CARD_ASPECT : artWidth / CARD_ASPECT;
 
   const stats = [
-    card.energy !== null ? { label: 'Energy', value: card.energy } : null,
-    card.might !== null ? { label: 'Might', value: card.might } : null,
-    card.power !== null ? { label: 'Power', value: card.power } : null,
+    card.energy !== null ? { label: t('card.energy'), value: card.energy } : null,
+    card.might !== null ? { label: t('card.might'), value: card.might } : null,
+    card.power !== null ? { label: t('card.power'), value: card.power } : null,
   ].filter((s): s is { label: string; value: number } => s !== null);
 
   return (
@@ -152,7 +154,7 @@ export default function CardDetailScreen() {
       <Pressable
         onPress={() => router.back()}
         accessibilityRole="button"
-        accessibilityLabel="Close"
+        accessibilityLabel={t('ui.close')}
         style={({ pressed }) => [
           styles.close,
           { top: insets.top + space[2] },

@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
@@ -8,33 +7,28 @@ import { text } from '@/theme/typography';
 /**
  * A binder in the list.
  *
- * From the design: `padding:12 · radius:12 · background:#1B1B1E`, a 34×46 spine
- * on the left, name and subtitle in the middle, chevron on the right. Gallery
- * carries `border:1px rgba(255,255,255,.16)` and a DEFAULT tag; the rest have
- * neither, which is the whole visual difference between the one binder that is
- * always there and the ones you made.
+ * From the design: `padding:12 · radius:12 · background:#1B1B1E`, name and
+ * subtitle on the left, chevron on the right. Gallery carries
+ * `border:1px rgba(255,255,255,.16)` and a DEFAULT tag; the rest have neither,
+ * which is the whole visual difference between the one binder that is always
+ * there and the ones you made.
  *
- * The spine falls back to the design's 115° stripe when there is no art —
- * approximated with three bars, since RN has no repeating-linear-gradient.
+ * **The 34×46 spine is gone.** It was a striped plate standing in for card art
+ * that nothing ever supplied — `imageUrl` was a prop no caller passed, so every
+ * row in the app drew the placeholder and none ever drew the thing it stood in
+ * for. A slot reserved for a feature that does not exist reads as a broken
+ * image, not as a promise.
  */
 
 export interface BinderRowProps {
   name: string;
   subtitle: string;
-  /** Art for the spine. Null draws the striped placeholder. */
-  imageUrl?: string | null;
   /** Marks the always-present Gallery row. */
   isDefault?: boolean;
   onPress: () => void;
 }
 
-export function BinderRow({
-  name,
-  subtitle,
-  imageUrl = null,
-  isDefault = false,
-  onPress,
-}: BinderRowProps) {
+export function BinderRow({ name, subtitle, isDefault = false, onPress }: BinderRowProps) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -42,27 +36,6 @@ export function BinderRow({
       onPress={onPress}
       style={({ pressed }) => [styles.row, isDefault && styles.rowDefault, pressed && styles.pressed]}
     >
-      {imageUrl ? (
-        <Image
-          source={{ uri: imageUrl }}
-          style={styles.spine}
-          contentFit="cover"
-          contentPosition="top center"
-          transition={120}
-        />
-      ) : (
-        <View style={styles.spine}>
-          {/* The design's 115° stripe. RN has no repeating-linear-gradient, so
-              this is oversized bars rotated behind a clip — vertical bars read
-              as a broken image rather than as a spine. */}
-          <View style={styles.stripes}>
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <View key={i} style={[styles.stripe, i % 2 === 1 && styles.stripeAlt]} />
-            ))}
-          </View>
-        </View>
-      )}
-
       <View style={styles.body}>
         <View style={styles.nameRow}>
           <Text style={styles.name} numberOfLines={1}>
@@ -95,26 +68,6 @@ const styles = StyleSheet.create({
   },
   rowDefault: { borderColor: 'rgba(255,255,255,0.16)' },
   pressed: { opacity: 0.7 },
-
-  spine: {
-    width: 34,
-    height: 46,
-    borderRadius: radius.sm,
-    overflow: 'hidden',
-    backgroundColor: color.raised,
-  },
-  stripes: {
-    position: 'absolute',
-    // Oversized and offset so the rotation cannot expose a corner of the box.
-    width: 92,
-    height: 92,
-    left: -29,
-    top: -23,
-    flexDirection: 'row',
-    transform: [{ rotate: '25deg' }],
-  },
-  stripe: { flex: 1, backgroundColor: color.overlay },
-  stripeAlt: { backgroundColor: color.raised },
 
   body: { flex: 1, minWidth: 0 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },

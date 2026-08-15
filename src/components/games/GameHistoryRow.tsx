@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
 import type { CardFace, GameHistoryEntry } from '@/db/queries/history';
+import { useT, type Key } from '@/i18n';
 import { baseName } from '@/lib/card-identity';
 import { cardImage } from '@/lib/cdn';
 import { bestOfLabel, gameDate, gameStyleLabel } from '@/lib/format';
@@ -91,16 +92,28 @@ function Side({ legend, champion, align }: { legend: CardFace; champion: CardFac
   );
 }
 
-const RESULT_LABEL = { win: 'WIN', loss: 'LOSS', draw: 'DRAW' } as const;
+/*
+ * Keys, not words.
+ *
+ * This held the three English words directly and was invisible to two rounds
+ * of string-scanning, because nothing about `{ win: 'WIN' }` looks like copy to
+ * a scanner hunting for known prop names. It is the most-seen label in the app.
+ */
+const RESULT_LABEL = {
+  win: 'result.win',
+  loss: 'result.loss',
+  draw: 'result.draw',
+} as const satisfies Record<'win' | 'loss' | 'draw', Key>;
 
 export function GameHistoryRow({ entry, onPress }: GameHistoryRowProps) {
+  const t = useT();
   const { game, ours, theirs } = entry;
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={
-        `${RESULT_LABEL[game.result]} — ` +
+        `${t(RESULT_LABEL[game.result])} — ` +
         `${ours.legend.name ? baseName(ours.legend.name) : 'your deck'} versus ` +
         `${theirs.legend.name ? baseName(theirs.legend.name) : 'an unrecorded opponent'}`
       }
@@ -130,7 +143,7 @@ export function GameHistoryRow({ entry, onPress }: GameHistoryRowProps) {
               game.result === 'loss' && styles.resultLoss,
             ]}
           >
-            {RESULT_LABEL[game.result]}
+            {t(RESULT_LABEL[game.result])}
           </Text>
           <Text style={styles.meta} numberOfLines={1}>
             {metaLine(

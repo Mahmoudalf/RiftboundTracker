@@ -1,0 +1,625 @@
+import type { Translation } from './types';
+
+/**
+ * French.
+ *
+ * Translated for voice on the same terms as `de.ts`. This is the file to get
+ * outside eyes on: the owner proofreads German, so French rides on user
+ * feedback and every string here should be treated as a first draft until
+ * somebody who speaks it has read it in the app.
+ *
+ * Typography note for anyone editing: French puts a **narrow non-breaking
+ * space** before `:` `;` `!` `?` and inside `« »`. Where it matters the
+ * character is written literally (U+202F) rather than a plain space, so a line
+ * break cannot orphan the punctuation.
+ */
+export const fr: Translation = {
+  'game.result.win': 'Victoire',
+  'game.result.loss': 'Défaite',
+  'game.result.draw': 'Nul',
+
+  'game.style.casual': 'Détente',
+  'game.style.online': 'En ligne',
+  'game.style.tournament': 'Tournoi',
+  'game.style.testing': 'Test',
+
+  'event.style.nexusNight': 'Soirée Nexus',
+  'event.style.skirmish': 'Escarmouche',
+  'event.style.locals': 'Tournoi local',
+  'event.style.regionalQualifier': 'Qualification régionale',
+  'event.style.regionalFinal': 'Finale régionale',
+
+  'date.today': "Aujourd'hui",
+  'date.yesterday': 'Hier',
+  'date.daysAgo': 'il y a {days} jours',
+
+  'common.notRecorded': 'Non renseigné',
+  'common.cancel': 'Annuler',
+  'common.delete': 'Supprimer',
+  'common.back': 'Retour',
+
+  'game.title': 'Partie',
+  'game.notFound.title': 'Partie introuvable',
+  'game.notFound.body': 'Elle a peut-être été supprimée.',
+  'game.section.matchup': "L'affrontement",
+  'game.section.result': 'Résultat',
+  'game.section.oppLegend': "Légende de l'adversaire",
+  'game.section.oppChampion': 'Son champion',
+  'game.section.bestOf': 'Format',
+  'game.section.gameStyle': 'Type de partie',
+  'game.section.event': 'Événement',
+  'game.section.note': 'Note',
+  'game.deckDeleted': 'Deck supprimé',
+  'game.opponentNotRecorded': 'Adversaire non renseigné',
+  'game.championNotRecorded': 'Champion non renseigné',
+  'game.countsWithoutOpponent': 'La partie compte quand même',
+  'game.legendNotInLibrary': 'Légende absente de la bibliothèque',
+  'game.legendGone':
+    "Cette légende n'est plus dans la bibliothèque de cartes, son illustration ne peut donc pas s'afficher. La partie sait toujours contre qui vous avez joué.",
+  'game.noRounds': 'Aucune ronde',
+  'game.notePlaceholder': 'Tout ce qui mérite d’être retenu',
+  'game.nothingToChoose': 'Rien à choisir.',
+  'game.versionLocked':
+    "La version qui a joué cette partie ne peut pas être modifiée. Déplacer un résultat vers une liste qui ne l'a pas jouée est précisément ce que l'historique des versions existe pour empêcher.",
+  'game.delete': 'Supprimer la partie',
+  'game.deleteTitle': 'Supprimer cette partie ?',
+  'game.deleteBody': 'Elle ne comptera plus dans le bilan de ce deck.',
+
+  'game.section.theGame': 'La partie',
+  'game.section.theMatches': 'Les manches',
+  'game.matchNumber': 'Manche {number}',
+  'game.noMatches':
+    "Aucune manche n'a été enregistrée pour cette partie. Les parties saisies avant le détail par manche n'ont que leur résultat global, qui compte toujours dans chaque bilan.",
+  'game.depth.edit': 'Modifier le détail des manches',
+  'game.depth.add': 'Ajouter le détail des manches',
+  'game.depth.meta': 'Main de départ · Mulligan · Score final',
+  'game.depth.a11y': 'Ajouter le détail complet des manches',
+  'game.note.a11y': 'Note de la partie',
+
+  'log.title': 'Enregistrer une partie',
+  'log.close': 'Fermer',
+  'log.mode': 'Mode de saisie',
+  'log.mode.simplified': 'Simplifié',
+  'log.mode.advanced': 'Détaillé',
+  'log.mode.help':
+    'Le mode détaillé enregistre les mains de départ, les mulligans et le score de chaque manche en plus du résultat.',
+  'log.yourDeck': 'Votre deck',
+  'log.chooseDeck': 'Choisir un deck',
+  'log.legend': 'Légende',
+  'log.chooseLegend': 'Choisir une légende',
+  'log.chosenChampion': 'Champion',
+  'log.chooseChampion': 'Choisir un champion',
+  'log.legendFirst': "Choisissez d'abord une légende",
+  'log.opponentSkip': 'La partie compte même sans',
+  'log.noDeckYet': 'Aucun deck',
+  'log.opponentNotRecorded': 'Adversaire non renseigné',
+  'log.event.optional': 'Événement (facultatif)',
+  'log.event.placeholder': 'Soirée Nexus #4',
+  'log.event.a11y': "Nom de l'événement",
+  'log.event.help':
+    'Nommez ce tournoi — chaque ronde et chaque partie enregistrée sous ce nom sera regroupée.',
+  'log.continue': 'Continuer',
+  'log.continue.a11y': 'Continuer vers la relecture',
+  'log.stillPlaying': 'En cours',
+  'log.noGamesYet': 'Aucune manche enregistrée',
+  'log.derived': 'déduit des manches',
+  'log.notSavedYet': "Rien n'est encore enregistré — l'écran suivant vous relit la partie.",
+  'log.answerEach': 'Répondez à chaque manche ci-dessus. {count} gagnées emportent la partie.',
+  'log.outcome': 'Issue de la partie',
+  'log.review.title': 'Relire avant d’enregistrer',
+  'log.review.subtitle':
+    'Tout ce que vous avez passé est enregistré comme « non renseigné », jamais deviné.',
+  'log.review.finalize': 'Enregistrer',
+  'log.review.nextRound': 'Enregistrer la ronde suivante',
+  'log.row.deck': 'Deck',
+  'log.row.opponent': 'Adversaire',
+  'log.row.format': 'Format',
+  'log.row.event': 'Événement',
+  'log.row.note': 'Note',
+  'log.row.detail': 'Détail',
+  'log.row.matchDetail': 'Détail de la manche {number}',
+  'log.replacedOf': '{sent} remplacées sur {dealt}',
+  'log.empty.title': 'Aucun deck',
+  'log.empty.body':
+    "Une partie est rattachée à la version exacte du deck qui l'a jouée — il faut donc d'abord un deck.",
+  'log.empty.build': 'Créer un deck',
+  'log.toast': 'Enregistré · {deck}{version} est à {wins}–{losses} ({rate} %)',
+  'log.undo': 'Annuler',
+
+  'log.leave.title': 'Quitter sans enregistrer ?',
+  'log.leave.bodyComplete':
+    "Cette partie est complète mais pas encore enregistrée — fermer maintenant ne garde rien.",
+  'log.leave.bodyPartial':
+    "Rien n'est encore enregistré. L'adversaire, les manches et vos notes n'existent que sur cet écran.",
+  'log.leave.review': 'Relire et enregistrer',
+  'log.leave.discard': 'Abandonner et fermer',
+  'log.leave.stay': 'Continuer la saisie',
+
+  'match.card.theMatch': 'La manche',
+  'match.whoWon': 'Qui a gagné ?',
+  'match.whoWentFirst': 'Qui a commencé ?',
+  'match.iDid': 'Moi',
+  'match.theyDid': 'Lui',
+  'match.firstNotSet': 'premier joueur non renseigné',
+  'match.notSure': 'Je ne sais plus',
+  'match.ourField': 'Votre champ de bataille — depuis ce deck',
+  'match.ourField.placeholder': 'Choisir depuis ce deck',
+  'match.theirField': 'Son champ de bataille',
+  'match.theirField.placeholder': 'Rechercher un champ de bataille',
+  'match.result.win': 'V · Victoire',
+  'match.result.loss': 'D · Défaite',
+  'match.result.draw': 'N · Nul',
+  'match.pickField': 'Champ de bataille joué',
+  'match.openingHand': 'Main de départ — depuis ce deck',
+  'match.openingHand.help':
+    'Touchez une case pour choisir toute la main — jusqu’à {size} cartes, deux fois pour un second exemplaire.',
+  'match.mulligan': 'Mulligan',
+  'match.mulligan.help':
+    'Les deux premières — quelles cartes de votre main sont reparties, {max} au maximum. Les deux dernières — ce que vous avez repioché.',
+  'match.mulligan.over':
+    '{count} remises — Riftbound en recycle {max} au maximum. Conservé tel quel.',
+  'match.pick.hand': 'Votre main de départ',
+  'match.pick.drewBack': 'Ce que vous avez repioché',
+  'match.pick.whichBack': 'Quelles cartes sont reparties ?',
+  'match.pick.onlyDealt': 'Uniquement les cartes distribuées.',
+  'match.pick.fromDeck': 'Depuis {deck}',
+  'match.pick.partners': 'Champions qui accompagnent {legend}',
+  'match.pick.thisDeck': 'ce deck',
+  'match.pick.noChampion':
+    "Aucune unité champion de la bibliothèque n'accompagne cette légende.",
+  'match.pick.mulliganFirst':
+    "Renseignez d'abord la main de départ — une carte ne peut repartir que si elle a été distribuée.",
+  'match.pick.noMainDeck':
+    "Cette version du deck n'a aucune carte de deck principal que la bibliothèque puisse résoudre.",
+  'match.pick.libraryDownloading': "La bibliothèque de cartes n'a pas fini de se télécharger.",
+  'deck.title': 'Deck',
+  'deck.notFound.title': 'Deck introuvable',
+  'deck.notFound.body': 'Il a peut-être été supprimé.',
+  'deck.goBack': 'Retour',
+  'deck.inCollection': 'Dans votre collection',
+  'deck.preview': 'Aperçu du deck',
+  'deck.goldfish': 'Tirer une main test',
+  'deck.goldfish.a11y': 'Tirer une main test depuis cette version',
+  'deck.details': 'Détails du deck',
+  'deck.details.a11y': 'Renommer ce deck ou modifier ses notes',
+  'deck.duplicate': 'Copier ce deck',
+  'deck.edit': 'Modifier le deck',
+  'deck.delete': 'Supprimer le deck',
+  'deck.noGames':
+    "Aucune partie pour l'instant. Touchez le + dans la barre d'onglets pour en enregistrer une — elle se rattache à la version vers laquelle ce deck pointe.",
+  'deck.versionsHelp':
+    'Chaque modification après votre première partie crée ici une nouvelle version, avec les cartes exactes qui ont changé.',
+  'deck.noStats':
+    'Rien à mesurer pour le moment. Enregistrez une partie et le bilan, l’intervalle et le détail par version apparaîtront ici.',
+  'deck.recordAllVersions': 'Bilan · toutes versions',
+  'deck.byVersion': 'Par version',
+  'deck.compareHint':
+    "Utilisez « Comparer » dans l'onglet Versions pour voir les cartes derrière la différence.",
+
+  'editor.cancel.a11y': "Annuler l'édition",
+  'editor.save.a11y': 'Enregistrer le deck',
+  'editor.name': 'Nom du deck',
+  'editor.inDeck': 'Dans le deck',
+  'editor.inDeck.a11y': 'Afficher uniquement les cartes déjà dans le deck',
+  'editor.noCardsMatch': 'Aucune carte ne correspond.',
+  'editor.searchBattlefields': 'Rechercher un champ de bataille',
+  'editor.searchToAdd': 'Rechercher des cartes à ajouter',
+  'editor.searchSideboard': 'Rechercher des cartes pour la réserve',
+  'editor.pickLegendFirst': "Choisissez d'abord une légende",
+  'editor.pickLegendFirst.body':
+    "La légende décide des domaines que le deck peut contenir — il n'y a donc rien à proposer avant qu'elle soit choisie.",
+  'editor.leave.title': 'Quitter sans enregistrer ?',
+  'editor.leave.body':
+    "Le brouillon n'est stocké nulle part. Dans le modèle de versions, une modification non enregistrée n'est pas une frappe perdue : c'est un deck qui n'a jamais existé.",
+  'editor.leave.save': 'Enregistrer et quitter',
+  'editor.leave.discard': 'Abandonner et continuer',
+  'editor.leave.stay': 'Rester ici',
+  'editor.renamedTo': 'Renommé en {name}',
+
+  'build.title': 'Créer un deck',
+  'build.save': 'Enregistrer le deck',
+  'build.name': 'Nom du deck',
+  'build.prev': 'Étape précédente',
+  'build.next': 'Étape suivante',
+  'build.search': 'Rechercher des cartes',
+  'build.searchIdentity': 'Rechercher des cartes {domains}',
+  'build.searchLegends': 'Rechercher des légendes',
+  'build.searchBattlefields': 'Rechercher des champs de bataille',
+  'deck.goBack.a11y': 'Retour',
+  'deck.copyCode.a11y': 'Copier le code de ce deck dans le presse-papiers',
+  'deck.edit.a11y': 'Modifier le deck',
+  'build.noCards': 'Aucune carte',
+  'build.libraryDownloading':
+    "La bibliothèque de cartes n'a pas fini de se télécharger. Ouvrez l'onglet Collection pour la laisser finir, puis revenez.",
+  'build.noLegendMatch': 'Aucune légende ne correspond à ce nom.',
+  'build.noChampion':
+    "Aucune unité champion de la bibliothèque n'accompagne cette légende. Vous pouvez continuer sans.",
+  'build.noRunes': 'Aucune rune ne correspond à cette identité.',
+  'build.runesHelp':
+    'Réparti à parts égales entre vos deux domaines. Modifiez-le, ou choisissez une autre illustration — pour les règles, chaque impression d’une rune est la même carte.',
+  'build.saveAnyway':
+    "Un deck inachevé s'enregistre très bien — vous pourrez y revenir. Rien ici n'empêche l'enregistrement.",
+
+  "binder.fallbackName": "Classeur",
+  "binder.shown": "{count} affichées",
+  "binder.inLibrary": "{count} en bibliothèque",
+  "binder.syncing": "synchronisation",
+  "binder.setAll": "Toutes",
+  "binder.nSets": "{count} éditions",
+  "binder.setValue": "Édition · {value}",
+  "binder.sortValue": "Tri · {value}",
+  "binder.hint": "Touchez une carte pour ajouter ou retirer des exemplaires · les foils brillent",
+  "binder.hintGallery": "La bibliothèque, avec toutes ses cartes. Rangez des exemplaires dans un classeur pour suivre ce que vous possédez.",
+  "binder.stillDownloading": "Téléchargement en cours",
+  "binder.stillDownloading.body": "La bibliothèque de cartes arrive encore. Ce qui est déjà là est consultable.",
+  "binder.nothingMatches": "Aucun résultat",
+  "binder.nothingMatches.body": "Aucune carte de la bibliothèque ne correspond à ces filtres.",
+  "binder.inThisBinder": "{count} dans ce classeur",
+  "binder.finish.sameTotal": "Compté dans le même total",
+  "binder.finish.regular": "Impression normale",
+  "binder.finish.notPrinted": "Non imprimée dans cette finition",
+  "binder.finish.add": "Ajouter un exemplaire {finish}",
+  "binder.finish.remove": "Retirer un exemplaire {finish}",
+  "binder.deleteTitle": "Supprimer {name} ?",
+  "binder.deleteThis": "ce classeur",
+  "binder.deleteBody": "Les {count} exemplaires rangés ici ne compteront plus dans votre collection. Les cartes elles-mêmes ne sont pas touchées — seul ce classeur disparaît.",
+  "binder.deleteBodyOne": "L unique exemplaire rangé ici ne comptera plus dans votre collection. La carte elle-même n est pas touchée — seul ce classeur disparaît.",
+  "binder.deleteEmpty": "Rien n’y est rangé.",
+  "binder.rename.a11y": "Nom du classeur",
+  "binder.filtersActive": "{count} filtres actifs",
+  'binder.notInLibrary': 'Absente de la bibliothèque',
+  'binder.delete': 'Supprimer ce classeur',
+  'binder.delete.body':
+    "Les cartes partent avec — votre collection baisse de tout ce qui y était rangé. Rien n'est retiré de la bibliothèque.",
+  'binder.name': 'Nom du classeur',
+  'binder.namePlaceholder': "Classeur d'échange",
+  'binder.search': 'Rechercher un nom, un texte ou un mot-clé',
+  'binder.searchLibrary': 'Rechercher dans la bibliothèque',
+  'binder.set': 'Édition',
+  'binder.allSets': 'Toutes les éditions',
+  'binder.sort': 'Tri',
+
+  'import.title': 'Importer un deck',
+  'import.paste': 'Coller depuis le presse-papiers',
+  'import.read': 'Lire le code',
+  'import.save': 'Enregistrer ce deck',
+  'import.codePlaceholder': 'Collez un code de deck — le texte autour ne gêne pas',
+  'import.code': 'Code du deck',
+  'import.name': 'Nom du deck',
+  'import.namePlaceholder': 'Nommez ce deck',
+  'import.noChampion':
+    "Ce code ne nomme pas de champion — les anciens codes le font rarement. Choisissez-en un dans l'éditeur après l'enregistrement.",
+  'import.different': 'Utiliser un autre code',
+
+  'stats.title': 'Statistiques',
+  'stats.deck': 'Deck',
+  'stats.noDecks': 'Aucun deck',
+  'stats.noDecks.body':
+    "Les statistiques viennent des parties, et une partie est toujours rattachée à un deck. Créez-en un d'abord.",
+  'stats.noGames': 'Aucune partie',
+  'stats.noEvents': 'Aucun événement',
+  'stats.noEvents.body':
+    "Un événement regroupe les rondes d'un tournoi ou d'une soirée de jeu — vous voyez comment s'est passée la journée, pas seulement le bilan global du deck. Enregistrez une partie, choisissez un type organisé et nommez-le.",
+
+  'filters.clearAll': 'Tout effacer',
+  'filters.close': 'Fermer les filtres',
+  'filters.hideAltArt': 'Masquer les illustrations alternatives',
+  'filters.hideAltArt.help':
+    'Les impressions alternatives dupliquent des cartes déjà présentes dans la grille.',
+  'filters.domain': 'Domaine',
+  'filters.type': 'Type',
+  'filters.cost': 'Coût',
+  'filters.rarity': 'Rareté',
+  'filters.set': 'Édition',
+  'filters.sortBy': 'Trier par',
+
+  'detail.title': 'Détail des manches',
+  'detail.save': 'Enregistrer le détail',
+  'detail.help':
+    "Tout ici est facultatif et indépendant — un score sans main de départ compte quand même dans la répartition des scores. Laissez vide ce dont vous ne vous souvenez pas plutôt que de deviner.",
+  'detail.notEditable':
+    "Les manches jouées ne sont pas modifiables ici — le résultat de la partie en découle, en ajouter une laisserait cet écran contredire ce qu'il décrit. Corrigez les manches sur la partie elle-même.",
+  'detail.noMatches': 'Aucune manche enregistrée',
+  'detail.noMatches.body':
+    "Cette partie a été saisie avant le détail par manche, ou ses manches ont été effacées. Le détail se rattache à une manche — il n'y a donc rien à quoi le rattacher.",
+
+  'goldfish.title': 'Main test',
+  'goldfish.draw': 'Piocher une carte',
+  'goldfish.draw.a11y': 'Piocher une carte',
+  'goldfish.empty': 'Le deck est vide — toutes les cartes sont en main.',
+  'goldfish.reshuffle': 'Mélanger et redistribuer',
+  'goldfish.reshuffle.a11y': 'Mélanger et distribuer une nouvelle main',
+  'goldfish.nothing': 'Rien à piocher',
+  'goldfish.nothing.body':
+    "Cette version n'a pas encore de deck principal, il n'y a donc pas de main d'ouverture. Ajoutez des cartes et revenez.",
+
+  'event.title': 'Événement',
+  'event.notFound': 'Événement introuvable',
+  'event.notFound.body':
+    "Il a peut-être été supprimé. Les parties qui s'y sont jouées restent dans votre historique.",
+  'event.edit': "Modifier l'événement",
+  'event.details': "Détails de l'événement",
+  'event.delete': "Supprimer l'événement",
+  'event.style': "Type d'événement",
+  'event.placement': 'Quel classement avez-vous fait ?',
+
+  'decks.title': 'Decks',
+  'decks.empty': 'Suivez un deck à travers chaque changement',
+  'decks.empty.body':
+    "Les parties restent rattachées à la liste exacte qui les a jouées — modifier un deck ne réécrit donc jamais son historique.",
+  'decks.import': 'Importer un code de deck',
+  'decks.build': 'Créer un deck',
+
+  'collection.title': 'Collection',
+  "collection.copies": "cartes",
+  "collection.distinctOf": "{distinct} sur {total} cartes",
+  "collection.searchCount": "Rechercher {count} cartes — hors ligne",
+  "collection.searchPlain": "Rechercher dans la bibliothèque",
+  "collection.stillDownloading": "La bibliothèque se télécharge encore, le total va donc augmenter.",
+  "collection.galleryRow": "Toutes les cartes de la bibliothèque · {copies} cartes possédées",
+  "collection.binderRow": "{distinct} différentes · {copies} cartes",
+  "collection.binderEmpty": "Vide — rien n’y est encore rangé",
+  "collection.showMoreSets": "Afficher {count} éditions de plus",
+  "collection.showOneMoreSet": "Afficher 1 édition de plus",
+  "collection.showFewerSets": "Afficher moins d’éditions",
+  "collection.setProgress.a11y": "{label}, {owned} sur {total} cartes",
+  'collection.newBinder': 'Nouveau classeur',
+  'collection.searchLibrary': 'Rechercher dans la bibliothèque',
+
+  'pool.clear': 'Effacer les filtres',
+  'pool.search': 'Rechercher des cartes',
+  'pool.sort': 'Tri',
+  'pool.type': 'Type',
+  'pool.set': 'Édition',
+
+  'analytics.casualGames': 'Parties détente',
+  'analytics.overall': "Global",
+  'analytics.turnOrder': "QUI COMMENCE",
+  'analytics.wentFirst': "A commencé",
+  'analytics.wentSecond': "A suivi",
+  'analytics.gameStyle': "TYPE DE PARTIE",
+  'analytics.openingHands': "MAINS DE DÉPART",
+  'analytics.howClose': "ÉCART",
+  'analytics.cardsThrownBack': "CARTES QUE VOUS REMETTEZ",
+  'analytics.scoreMargin': "ÉCART DE SCORE",
+  'analytics.theyScoredInWins': "Leurs points dans vos victoires",
+  'analytics.youScoredInLosses': "Vos points dans vos défaites",
+  'analytics.currentStreak': "Série en cours",
+  'analytics.longestRun': "Plus longue série",
+  'analytics.gamesCount': "{count} parties",
+  'analytics.winRate': 'taux de victoire',
+  'analytics.moreBreakdowns': 'Plus de détails',
+  'analytics.opponent': 'Adversaire',
+  'analytics.empty': 'Aucune partie enregistrée',
+  'analytics.empty.body':
+    'Le taux de victoire, les constats et les détails apparaissent dès votre première partie enregistrée avec ce deck.',
+
+  'zone.legendChampion': 'Légende et champion',
+  "zone.battlefieldsShort": "Champs",
+  "deck.cardCount": "{count} cartes",
+  "deck.coverageCount": "{owned}/{required} cartes",
+  "deck.preview.list": "Liste",
+  "deck.preview.gallery": "Galerie",
+  "deck.preview.list.a11y": "Vue liste",
+  "deck.preview.gallery.a11y": "Vue galerie",
+  "deck.legal": "Légal",
+  "deck.notLegal": "! Non légal",
+  "version.compare": "Comparer",
+  "version.compareTwo": "Comparer deux versions",
+  "version.compareTapTwo": "Touchez deux versions à comparer",
+  "version.compareTapOneMore": "Encore une · v{version} sélectionnée",
+  "build.mainMeta": "{count}/{target} cartes",
+  "build.sideboardMeta": "{count} cartes — facultatif",
+  "build.sideboardOptional": "Facultatif — à passer",
+  "legality.moreToFix": "Encore {count} à corriger.",
+  "legality.unresolved": "{count} cartes de ce deck ne sont pas dans la bibliothèque : les comptes ci-dessus sont donc inférieurs d'autant. Elles sont conservées à l'enregistrement.",
+  "legality.unresolvedOne": "1 carte de ce deck n'est pas dans la bibliothèque : les comptes ci-dessus sont donc inférieurs d'autant. Elle est conservée à l'enregistrement.",
+  'zone.legend': 'Légende',
+  'zone.champion': 'Champion',
+  'zone.main': 'Deck principal',
+  'zone.mainShort': 'Principal',
+  'zone.runes': 'Runes',
+  'zone.battlefields': 'Champs de bataille',
+  'zone.sideboard': 'Réserve',
+
+  'tab.decks': 'Decks',
+  'tab.collection': 'Collection',
+  'tab.stats': 'Stats',
+  'tab.you': 'Vous',
+  'tab.logGame.hint': "Ouvre la feuille d'enregistrement",
+
+  'deckTab.overview': 'Aperçu',
+  'deckTab.versions': 'Versions',
+  'deckTab.matches': 'Parties',
+  'deckTab.stats': 'Stats',
+
+  'statsTab.games': 'Parties',
+  'statsTab.analytics': 'Analyse',
+  'statsTab.events': 'Événements',
+  'stats.allDecks': 'Tous les decks',
+
+  'action.share': 'Partager',
+  'action.edit': 'Modifier',
+  'action.save': 'Enregistrer',
+  'action.done': 'Terminé',
+  'action.clear': 'Effacer',
+  'action.next': 'Suivant',
+  'action.new': 'Nouveau',
+  'action.import': 'Importer',
+  'action.archive': 'Archiver',
+  'action.overwrite': 'Écraser',
+  'action.keepAsIs': 'Laisser tel quel',
+  'action.backToDecks': 'Retour aux decks',
+  'action.openCollection': 'Ouvrir la collection',
+
+  'deck.archived': 'Archivé',
+  'deck.current': 'Actuel',
+  'deck.archiveThis': 'Archiver ce deck',
+  'deck.restoreArchive': "Sortir de l'archive",
+  'deck.archiveTitle': 'Archiver {name} ?',
+  'deck.shareFailed': 'La génération du code de deck a échoué.',
+  'import.unreadable': "Ce code n'a pas pu être lu.",
+
+  'collection.binders': 'Classeurs',
+  'collection.gallery': 'Galerie',
+  'binder.sort.name': 'Nom',
+  'binder.sort.collector': 'Numéro de collection',
+  'binder.sort.energy': 'Énergie',
+  'binder.sort.rarity': 'Rareté',
+  'filters.title': 'Filtres',
+  'filters.sort.relevance': 'Pertinence',
+  'filters.sort.name': 'Nom',
+  'filters.sort.cost': 'Coût',
+  'filters.sort.collector': "Ordre d'édition",
+  'filters.sort.rarity': 'Rareté',
+  'pool.sort.energy': "Coût en énergie",
+  'pool.sort.name': 'Nom',
+
+  'card.energy': 'Énergie',
+  'card.might': 'Puissance',
+  'card.power': 'Force',
+
+  'build.pickLegend': 'Choisir une légende',
+  'build.pickChampion': 'Choisir un champion',
+  'build.review': 'Relecture',
+
+  'event.rounds': 'Rondes',
+
+  'result.win': 'VICTOIRE',
+  'result.loss': 'DÉFAITE',
+  'result.draw': 'NUL',
+
+  'sync.checking': 'Recherche de nouvelles cartes',
+  'sync.downloading': 'Téléchargement des cartes',
+  'sync.indexing': "Construction de l'index de recherche",
+  'sync.failed': 'Échec de la synchronisation',
+
+  'legality.noLegend': 'Choisissez une légende — elle fixe les domaines du deck',
+  'legality.noChampion': 'Choisissez une unité champion',
+
+  'hands.decidedByMore': 'Écart plus net',
+
+  'finding.version.ahead': '{current} devance {previous}.',
+  'finding.version.behind': '{current} est derrière {previous}.',
+  'finding.version.evidence':
+    '{current} {currentRate} sur {currentGames} parties · {previous} {previousRate} sur {previousGames}',
+
+  'finding.matchup.worse': 'Les decks {opponent} vous battent.',
+  'finding.matchup.better': 'Vous battez les decks {opponent}.',
+  'finding.matchup.evidence':
+    '{opponent} · {record} · {rate} contre {restRate} dans vos autres parties',
+
+  'finding.card.headline': 'Vous remettez {card} plus souvent que vous ne la gardez.',
+  'finding.card.evidence': '{mulliganed} des {seen} mains de départ où elle est apparue',
+
+  'finding.margin.winClose': 'Vous gagnez les serrées et perdez les nettes.',
+  'finding.margin.winClear': 'Vos victoires sont nettes et vos défaites serrées.',
+  'finding.margin.evidence':
+    'Serrées {close} · nettes {clear} ({recorded} manches sur {total} avec un score)',
+
+  'finding.order.first': 'Commencer aide ce deck de façon mesurable.',
+  'finding.order.second': 'Jouer en second aide ce deck de façon mesurable.',
+  'finding.order.evidence':
+    'En commençant {onPlay} · en second {onDraw} ({recorded} parties sur {total} renseignées)',
+
+  'finding.nextStep':
+    "Rien ne se détache encore — environ {more} {games} de plus commenceraient à le montrer.",
+  'finding.nextStep.uncapped':
+    "Rien ne se détache encore. Les écarts observés sont plus petits que ce que ce nombre de parties peut résoudre.",
+  'finding.game': 'partie',
+  'finding.games': 'parties',
+
+  'ui.dismiss': 'Fermer',
+  'ui.close': 'Fermer',
+  'ui.goBack': 'Retour',
+  'ui.notes': 'Notes',
+  'ui.logGame': 'Enregistrer une partie',
+
+  'profile.library': 'Bibliothèque de cartes',
+  'profile.library.stored':
+    '{count} cartes stockées sur cet appareil. Navigation, recherche et construction de deck fonctionnent sans connexion.',
+  'profile.library.empty': 'Aucune carte stockée.',
+  'profile.library.refresh': 'Actualiser la bibliothèque',
+  'profile.library.refreshing': 'Actualisation…',
+  'profile.about': 'À propos',
+  'profile.about.unofficial':
+    "Riftbound Tracker est un projet de fan non officiel. Il n'est ni affilié à Riot Games, ni approuvé ou sponsorisé par eux.",
+  'profile.about.attribution':
+    "Les données de cartes proviennent de Riftcodex. Les illustrations, noms et textes de jeu sont la propriété de Riot Games, utilisés selon la politique « Legal Jibber Jabber » de Riot pour du contenu de fan non commercial.",
+
+  'card.notFound': 'Carte introuvable',
+  'card.notFound.body':
+    "Elle a peut-être été retirée de la bibliothèque. Actualiser la bibliothèque dans les réglages corrige généralement le problème.",
+
+  'binder.new': 'Nouveau classeur',
+  'binder.new.subtitle':
+    "Un endroit pour ranger vos cartes — un classeur d'échange, une boîte de deck, une étagère.",
+
+  'legality.legal': 'Deck légal',
+  'legality.main': 'Principal',
+  'legality.runes': 'Runes',
+  'legality.fields': 'Champs',
+
+  'version.keepEditing': 'Continuer à modifier',
+  'version.nameThis': 'Nommer cette version',
+  'version.label': 'Libellé de version',
+  'version.fork': "Bifurquer d'ici",
+  'version.labelNotes': 'Libellé et notes',
+  'version.delete': 'Supprimer la version',
+  'version.noChanges': 'Aucun changement de carte',
+  'version.didItHelp': 'Est-ce que ça a aidé ?',
+  'version.correlational':
+    "Corrélation, pas causalité. Le métajeu évolue et les joueurs progressent : une version qui semble meilleure a peut-être simplement été jouée plus tard.",
+  'version.whatChanged': 'Ce qui a changé',
+  'version.identical': 'Ces deux listes sont identiques.',
+
+  'winRate.noMatches': 'Aucune partie',
+  'deckCard.legendArt': 'Illustration de la légende',
+  'deckPreview.yourDeck': 'Votre deck',
+
+  'match.noBattlefields':
+    "La version actuelle de ce deck n'a aucun champ de bataille. Ajoutez-en dans l'éditeur de deck et ils apparaîtront ici.",
+  'match.slot.card': 'Carte',
+  'match.slot.mull': 'Rendue',
+  'match.slot.drew': 'Piochée',
+  'match.slot.dealt.a11y':
+    'Carte {index} de la main de départ : {card}. Touchez pour choisir la main.',
+  'match.slot.dealtEmpty.a11y':
+    'Carte {index} de la main de départ, non choisie. Touchez pour choisir la main.',
+  'match.slot.mull.a11y': 'Remise : {card}. Touchez pour changer ce qui est reparti.',
+  'match.slot.mullEmpty.a11y':
+    'Case de mulligan {index}, vide. Touchez pour choisir les cartes reparties.',
+  'match.slot.drew.a11y': 'Remplacement {index} : {card}. Touchez pour choisir ce que vous avez pioché.',
+  'match.slot.drewLocked.a11y':
+    'Case de remplacement, indisponible tant qu’aucune carte n’est repartie.',
+  'match.score': 'Score',
+  'match.score.notSet': 'Non défini',
+  'match.readBack.won': 'Gagnée',
+  'match.readBack.lost': 'Perdue',
+  'match.readBack.drew': 'Nulle',
+  'match.readBack.firstNotRecorded': 'premier joueur non renseigné',
+  'match.readBack.youFirst': 'vous avez commencé',
+  'match.readBack.theyFirst': "l'adversaire a commencé",
+  'match.readBack.ourFieldMissing': 'le vôtre non renseigné',
+  'match.readBack.theirFieldMissing': 'le sien non renseigné',
+
+  'match.outcome.won': 'GAGNÉ',
+  'match.outcome.lost': 'PERDU',
+  'match.outcome.drew': 'NUL',
+  'match.youWentFirst': 'Vous avez commencé',
+  'match.theyWentFirst': "L'adversaire a commencé",
+  'match.score.you': 'Vous',
+  'match.score.them': 'Eux',
+  'match.hand.dealt': '{count} distribuées',
+  'match.hand.sentBack': '{count} remises',
+  'match.hand.keptAll': 'toutes gardées',
+  'match.hand.drewBack': 'Repiochées',
+  'match.hand.cardGone': 'Absente de la bibliothèque',
+
+  'profile.title': 'Vous',
+  'profile.localOnly': 'Local uniquement',
+  'profile.nothingLeaves': 'Rien ne quitte cet appareil',
+  'profile.language': 'Langue',
+  'profile.languageHelp':
+    'Les noms de cartes et les textes de règles restent en anglais — ils doivent correspondre aux cartes que vous avez en main.',
+};

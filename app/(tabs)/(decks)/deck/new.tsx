@@ -33,12 +33,13 @@ import {
 import { createDeck } from '@/db/queries/decks';
 import type { CardRow } from '@/db/schema/cards';
 import { useDeckEditor } from '@/features/decks/useDeckEditor';
+import { useT } from '@/i18n';
 import { baseName, cardKey, variantLabel } from '@/lib/card-identity';
 import {
   BATTLEFIELD_COUNT,
   checkLegality,
   COPY_LIMIT,
-  MAIN_DECK_SIZE,
+  MAIN_DECK_TARGET,
   RUNE_DECK_SIZE,
   type DeckSlot,
   type DeckZone,
@@ -74,6 +75,7 @@ type Step = (typeof STEPS)[number];
 const MAIN_DECK_TYPES = ['Unit', 'Spell', 'Gear'];
 
 export default function NewDeckScreen() {
+  const t = useT();
   const [stepIndex, setStepIndex] = useState(0);
   const [filters, setFilters] = useState<PoolFilterState>(EMPTY_POOL_FILTERS);
   const step = STEPS[stepIndex]!;
@@ -209,13 +211,13 @@ export default function NewDeckScreen() {
 
   if (legends.length === 0) {
     return (
-      <Screen title="Build a deck">
+      <Screen title={t('build.title')}>
         <EmptyState
-          title="No cards yet"
-          body="The card library has not finished downloading. Open the Collection tab to let it finish, then come back."
+          title={t('build.noCards')}
+          body={t('build.libraryDownloading')}
           actions={[
-            { label: 'Open Collection', onPress: () => router.replace('/collection'), primary: true },
-            { label: 'Go back', onPress: () => router.back() },
+            { label: t('action.openCollection'), onPress: () => router.replace('/collection'), primary: true },
+            { label: t('ui.goBack'), onPress: () => router.back() },
           ]}
         />
       </Screen>
@@ -225,18 +227,18 @@ export default function NewDeckScreen() {
   /* ---------------------------------------------------------------- chrome */
 
   const HEADINGS: Record<Step, { title: string; meta: string }> = {
-    legend: { title: 'Pick a Legend', meta: 'It sets the deck’s two domains' },
+    legend: { title: t('build.pickLegend'), meta: 'It sets the deck’s two domains' },
     champion: {
-      title: 'Pick a Champion',
+      title: t('build.pickChampion'),
       meta: legend ? `Partners ${baseName(legend.name)}` : '',
     },
-    main: { title: 'Main deck', meta: `${legality.counts.main}/${MAIN_DECK_SIZE} cards` },
+    main: { title: t('zone.main'), meta: t('build.mainMeta', { count: legality.counts.main, target: MAIN_DECK_TARGET }) },
     runes: {
-      title: 'Runes',
+      title: t('zone.runes'),
       meta: `${legality.counts.rune}/${RUNE_DECK_SIZE} — split evenly by default`,
     },
     battlefields: {
-      title: 'Battlefields',
+      title: t('zone.battlefields'),
       meta: `${legality.counts.battlefield}/${BATTLEFIELD_COUNT} — all must be different`,
     },
     /*
@@ -246,10 +248,13 @@ export default function NewDeckScreen() {
      * unable to hold something every other screen would happily show it.
      */
     sideboard: {
-      title: 'Sideboard',
-      meta: sideboardCount > 0 ? `${sideboardCount} cards — optional` : 'Optional — skip it',
+      title: t('zone.sideboard'),
+      meta:
+        sideboardCount > 0
+          ? t('build.sideboardMeta', { count: sideboardCount })
+          : t('build.sideboardOptional'),
     },
-    overview: { title: 'Review', meta: 'Name it and save' },
+    overview: { title: t('build.review'), meta: 'Name it and save' },
   };
 
   /*
@@ -266,19 +271,18 @@ export default function NewDeckScreen() {
       <CardPoolFilters
         value={filters}
         onChange={setFilters}
-        resultCount={mainPool.length}
-        placeholder={`Search ${legend?.domains.join(' / ') ?? ''} cards`}
+        placeholder={t('build.searchIdentity', { domains: legend?.domains.join(' / ') ?? '' })}
         editable={!!legend}
       />
     ) : step === 'legend' || step === 'battlefields' ? (
       <TextInput
         value={filters.search}
         onChangeText={(search) => setFilters({ ...filters, search })}
-        placeholder={step === 'legend' ? 'Search Legends' : 'Search Battlefields'}
+        placeholder={step === 'legend' ? t('build.searchLegends') : t('build.searchBattlefields')}
         placeholderTextColor={color.textFaint}
         style={styles.search}
         autoCorrect={false}
-        accessibilityLabel="Search cards"
+        accessibilityLabel={t('build.search')}
       />
     ) : undefined;
 
@@ -301,7 +305,7 @@ export default function NewDeckScreen() {
             selectedId={legend?.id}
             onSelect={onPickLegend}
             header={searchField}
-            emptyMessage="No Legend matches that name."
+            emptyMessage={t('build.noLegendMatch')}
           />
         ) : null}
 
@@ -311,7 +315,7 @@ export default function NewDeckScreen() {
             mode="single"
             selectedId={champion?.id}
             onSelect={onPickChampion}
-            emptyMessage="No Champion Unit in the library partners this Legend. You can continue without one."
+            emptyMessage={t('build.noChampion')}
           />
         ) : null}
 
@@ -355,12 +359,9 @@ export default function NewDeckScreen() {
             onAdd={(card) => adjust(card, 'rune', 1)}
             onRemove={(card) => adjust(card, 'rune', -1)}
             header={
-              <Text style={styles.hint}>
-                Started at an even split of your two domains. Change it, or pick a different
-                art — every printing of a rune is the same card to the rules.
-              </Text>
+              <Text style={styles.hint}>{t('build.runesHelp')}</Text>
             }
-            emptyMessage="No runes match this identity."
+            emptyMessage={t('build.noRunes')}
           />
         ) : null}
 
@@ -407,11 +408,11 @@ export default function NewDeckScreen() {
               <TextInput
                 value={name}
                 onChangeText={setName}
-                placeholder="Deck name"
+                placeholder={t('build.name')}
                 placeholderTextColor={color.textFaint}
                 style={styles.nameInput}
                 returnKeyType="done"
-                accessibilityLabel="Deck name"
+                accessibilityLabel={t('build.name')}
               />
 
               <LegalityBar result={legality} />
@@ -423,10 +424,7 @@ export default function NewDeckScreen() {
                       {issue.message}
                     </Text>
                   ))}
-                  <Text style={styles.hint}>
-                    An unfinished deck saves fine — you can come back to it. Nothing here blocks
-                    saving.
-                  </Text>
+                  <Text style={styles.hint}>{t('build.saveAnyway')}</Text>
                 </View>
               ) : null}
 
@@ -439,7 +437,7 @@ export default function NewDeckScreen() {
                 onPress={onCreate}
                 style={({ pressed }) => [styles.primary, pressed && styles.pressedButton]}
               >
-                <Text style={styles.primaryLabel}>Save deck</Text>
+                <Text style={styles.primaryLabel}>{t('build.save')}</Text>
               </Pressable>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -451,7 +449,7 @@ export default function NewDeckScreen() {
       <View style={styles.footer}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Previous step"
+          accessibilityLabel={t('build.prev')}
           onPress={() => (stepIndex === 0 ? router.back() : go(-1))}
           style={({ pressed }) => [styles.secondary, pressed && styles.pressedButton]}
         >
@@ -461,7 +459,7 @@ export default function NewDeckScreen() {
         {step !== 'overview' ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Next step"
+            accessibilityLabel={t('build.next')}
             disabled={!legend}
             onPress={() => go(1)}
             style={({ pressed }) => [
@@ -471,7 +469,7 @@ export default function NewDeckScreen() {
               pressed && styles.pressedButton,
             ]}
           >
-            <Text style={styles.primaryLabel}>Next</Text>
+            <Text style={styles.primaryLabel}>{t('action.next')}</Text>
           </Pressable>
         ) : null}
       </View>

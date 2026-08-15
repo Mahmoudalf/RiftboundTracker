@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
+import { useT } from '@/i18n';
 import { baseName } from '@/lib/card-identity';
 import type { DeckDiff } from '@/lib/deck-diff';
 import { color, radius, space } from '@/theme/tokens';
@@ -54,6 +55,7 @@ export function VersionNodeDetail({
   onRename,
   onDelete,
 }: VersionNodeDetailProps) {
+  const t = useT();
   const ins = [
     ...(diff?.added ?? []).map((e) => entryLabel(e.card, e.quantity, '+')),
     ...(diff?.changed ?? [])
@@ -123,17 +125,17 @@ export function VersionNodeDetail({
           onPress={onFork}
           style={({ pressed }) => [styles.action, pressed && styles.pressed]}
         >
-          <Text style={styles.actionLabel}>Fork from here</Text>
+          <Text style={styles.actionLabel}>{t('version.fork')}</Text>
         </Pressable>
       </View>
 
       <View style={styles.minor}>
         <Pressable accessibilityRole="button" onPress={onRename} hitSlop={8}>
-          <Text style={styles.minorLabel}>Label & notes</Text>
+          <Text style={styles.minorLabel}>{t('version.labelNotes')}</Text>
         </Pressable>
         {canDelete ? (
           <Pressable accessibilityRole="button" onPress={onDelete} hitSlop={8}>
-            <Text style={styles.minorDanger}>Delete version</Text>
+            <Text style={styles.minorDanger}>{t('version.delete')}</Text>
           </Pressable>
         ) : null}
       </View>

@@ -19,6 +19,7 @@ import {
   type EventStyle,
   type GameRow as GameRowType,
 } from '@/db/schema/games';
+import { useT } from '@/i18n';
 import { eventStyleLabel, gameDate, recordLine } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
@@ -43,6 +44,7 @@ function placeLabel(place: number): string {
 }
 
 export default function EventDetailScreen() {
+  const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [event, setEvent] = useState<EventSummary | null>(null);
   const [games, setGames] = useState<GameRowType[]>([]);
@@ -72,7 +74,7 @@ export default function EventDetailScreen() {
         ? `The ${games.length} ${games.length === 1 ? 'game' : 'games'} played here are kept — they still count towards your deck and overall records. Only the grouping goes.`
         : 'This event has no games logged against it.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
@@ -87,11 +89,11 @@ export default function EventDetailScreen() {
 
   if (!event) {
     return (
-      <Screen title="Event">
+      <Screen title={t('event.title')}>
         <EmptyState
-          title="Event not found"
-          body="It may have been deleted. Any games played at it are still in your history."
-          actions={[{ label: 'Go back', onPress: () => router.back(), primary: true }]}
+          title={t('event.notFound')}
+          body={t('event.notFound.body')}
+          actions={[{ label: t('ui.goBack'), onPress: () => router.back(), primary: true }]}
         />
       </Screen>
     );
@@ -111,14 +113,14 @@ export default function EventDetailScreen() {
       action={
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Edit event"
+          accessibilityLabel={t('event.edit')}
           onPress={() => {
             setStyle(event.eventType);
             setEditing(true);
           }}
           style={({ pressed }) => [styles.edit, pressed && styles.pressed]}
         >
-          <Text style={styles.editLabel}>Edit</Text>
+          <Text style={styles.editLabel}>{t('action.edit')}</Text>
         </Pressable>
       }
     >
@@ -156,7 +158,7 @@ export default function EventDetailScreen() {
           </Text>
         ) : (
           <View style={styles.rounds}>
-            <Text style={styles.sectionLabel}>Rounds</Text>
+            <Text style={styles.sectionLabel}>{t('event.rounds')}</Text>
             {games.map((game, index) => (
               <View key={game.id} style={styles.round}>
                 <Text style={styles.roundNumber}>{index + 1}</Text>
@@ -173,13 +175,13 @@ export default function EventDetailScreen() {
           onPress={onDelete}
           style={({ pressed }) => [styles.delete, pressed && styles.pressed]}
         >
-          <Text style={styles.deleteLabel}>Delete event</Text>
+          <Text style={styles.deleteLabel}>{t('event.delete')}</Text>
         </Pressable>
       </ScrollView>
 
       <DetailsSheet
         visible={editing}
-        title="Event details"
+        title={t('event.details')}
         nameLabel="Name"
         namePlaceholder="Nexus Night #4"
         initialName={event.name}
@@ -188,7 +190,7 @@ export default function EventDetailScreen() {
         onClose={() => setEditing(false)}
         extra={
           <>
-            <Text style={styles.sectionLabel}>Event style</Text>
+            <Text style={styles.sectionLabel}>{t('event.style')}</Text>
             <View style={styles.styleRow}>
               {EVENT_STYLES.map((key) => (
                 <Pressable
@@ -227,7 +229,7 @@ export default function EventDetailScreen() {
       */}
       <DetailsSheet
         visible={placing}
-        title="Where did you place?"
+        title={t('event.placement')}
         nameLabel="Final placement"
         namePlaceholder="3"
         initialName={event.finalPlacement ? String(event.finalPlacement) : ''}

@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import { countMatchingCards, facetValues, type CardSort } from '@/db/queries/cards';
 import { useCardFilters } from '@/features/cards/useCardFilters';
+import { useT, type Key } from '@/i18n';
 import { domainColor, PLAYABLE_DOMAINS } from '@/theme/domains';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
@@ -24,19 +25,20 @@ import { text } from '@/theme/typography';
  * so there is nothing to "apply" and no way to lose a selection by dismissing.
  */
 
-const SORTS: { value: CardSort; label: string }[] = [
+const SORTS = [
   // "Best match" only differs from Name while a search term is active; without
   // one, queryCards treats it as Name.
-  { value: 'relevance', label: 'Best match' },
-  { value: 'name', label: 'Name' },
-  { value: 'energy', label: 'Cost' },
-  { value: 'collector', label: 'Set order' },
-  { value: 'rarity', label: 'Rarity' },
-];
+  { value: 'relevance', label: 'filters.sort.relevance' },
+  { value: 'name', label: 'filters.sort.name' },
+  { value: 'energy', label: 'filters.sort.cost' },
+  { value: 'collector', label: 'filters.sort.collector' },
+  { value: 'rarity', label: 'filters.sort.rarity' },
+] as const satisfies readonly { value: CardSort; label: Key }[];
 
 const ENERGY_VALUES = [0, 1, 2, 3, 4, 5, 6, 7];
 
 export default function FiltersScreen() {
+  const t = useT();
   const insets = useSafeAreaInsets();
   const filters = useCardFilters();
 
@@ -50,7 +52,7 @@ export default function FiltersScreen() {
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Filters</Text>
+        <Text style={styles.title}>{t('filters.title')}</Text>
         <View style={styles.headerActions}>
           {activeCount > 0 ? (
             <Pressable
@@ -58,13 +60,13 @@ export default function FiltersScreen() {
               accessibilityRole="button"
               style={({ pressed }) => [styles.clear, pressed && styles.pressed]}
             >
-              <Text style={styles.clearLabel}>Clear all</Text>
+              <Text style={styles.clearLabel}>{t('filters.clearAll')}</Text>
             </Pressable>
           ) : null}
           <Pressable
             onPress={() => router.back()}
             accessibilityRole="button"
-            accessibilityLabel="Close filters"
+            accessibilityLabel={t('filters.close')}
             style={({ pressed }) => [styles.close, pressed && styles.pressed]}
           >
             <Icon name="close" size={20} color={color.text} />
@@ -76,7 +78,7 @@ export default function FiltersScreen() {
         contentContainerStyle={styles.body}
         showsVerticalScrollIndicator={false}
       >
-        <Section title="Domain">
+        <Section title={t('filters.domain')}>
           <View style={styles.wrap}>
             {PLAYABLE_DOMAINS.map((domain) => (
               <Chip
@@ -97,7 +99,7 @@ export default function FiltersScreen() {
           </View>
         </Section>
 
-        <Section title="Type">
+        <Section title={t('filters.type')}>
           <View style={styles.wrap}>
             {types.map((type) => (
               <Chip
@@ -110,7 +112,7 @@ export default function FiltersScreen() {
           </View>
         </Section>
 
-        <Section title="Cost">
+        <Section title={t('filters.cost')}>
           <View style={styles.wrap}>
             {ENERGY_VALUES.map((value) => (
               <Chip
@@ -123,7 +125,7 @@ export default function FiltersScreen() {
           </View>
         </Section>
 
-        <Section title="Rarity">
+        <Section title={t('filters.rarity')}>
           <View style={styles.wrap}>
             {rarities.map((rarity) => (
               <Chip
@@ -136,7 +138,7 @@ export default function FiltersScreen() {
           </View>
         </Section>
 
-        <Section title="Set">
+        <Section title={t('filters.set')}>
           <View style={styles.wrap}>
             {sets.map((set) => (
               <Chip
@@ -149,12 +151,12 @@ export default function FiltersScreen() {
           </View>
         </Section>
 
-        <Section title="Sort by">
+        <Section title={t('filters.sortBy')}>
           <View style={styles.wrap}>
             {SORTS.map((sort) => (
               <Chip
                 key={sort.value}
-                label={sort.label}
+                label={t(sort.label)}
                 selected={filters.sort === sort.value}
                 onPress={() => filters.setSort(sort.value)}
               />
@@ -164,10 +166,8 @@ export default function FiltersScreen() {
 
         <View style={styles.switchRow}>
           <View style={styles.switchCopy}>
-            <Text style={styles.switchLabel}>Hide alternate art</Text>
-            <Text style={styles.switchHint}>
-              Alternate printings duplicate cards already in the grid.
-            </Text>
+            <Text style={styles.switchLabel}>{t('filters.hideAltArt')}</Text>
+            <Text style={styles.switchHint}>{t('filters.hideAltArt.help')}</Text>
           </View>
           <Switch
             value={filters.hideAlternateArt}

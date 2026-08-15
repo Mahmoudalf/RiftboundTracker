@@ -3,6 +3,7 @@ import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Pressable } from '@/components/ui/Pressable';
+import { useT } from '@/i18n';
 import { suggestLabelFromDiff, type DeckDiff } from '@/lib/deck-diff';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
@@ -44,6 +45,7 @@ export function SaveVersionSheet({
   onCancel,
   onSave,
 }: SaveVersionSheetProps) {
+  const t = useT();
   const insets = useSafeAreaInsets();
 
   // Suggested once, at mount. The caller mounts this sheet only when there is a
@@ -62,7 +64,7 @@ export function SaveVersionSheet({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCancel}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Dismiss"
+        accessibilityLabel={t('ui.dismiss')}
         onPress={onCancel}
         style={styles.scrim}
       />
@@ -90,10 +92,10 @@ export function SaveVersionSheet({
             <TextInput
               value={label}
               onChangeText={setLabel}
-              placeholder="Name this version"
+              placeholder={t('version.nameThis')}
               placeholderTextColor={color.textFaint}
               style={styles.input}
-              accessibilityLabel="Version label"
+              accessibilityLabel={t('version.label')}
               returnKeyType="done"
             />
           </>
@@ -126,7 +128,7 @@ export function SaveVersionSheet({
             onPress={onCancel}
             style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
           >
-            <Text style={styles.cancelLabel}>Keep editing</Text>
+            <Text style={styles.cancelLabel}>{t('version.keepEditing')}</Text>
           </Pressable>
         </View>
       </View>

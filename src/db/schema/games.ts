@@ -219,8 +219,10 @@ export const games = sqliteTable(
      * was being fed by a column nothing could fill. `mulligans` held a count
      * that `matches.mulliganed` supersedes by holding the actual cards.
      *
-     * Removed before M7 rather than after: a column that reaches Supabase
-     * acquires an RLS policy and a sync engine, and stops being free to delete.
+     * Removed before the Cloud milestone rather than after: a column that
+     * reaches Supabase acquires an RLS policy and a sync engine, and stops
+     * being free to delete. Named rather than numbered — Cloud was M7 when this
+     * was written and is M8 since Localization took that slot.
      */
 
     ...syncColumns,

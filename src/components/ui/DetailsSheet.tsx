@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Modal, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
+import { useT } from '@/i18n';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -59,6 +60,7 @@ function DetailsForm({
   extra,
   secondary,
 }: DetailsSheetProps) {
+  const t = useT();
   const [name, setName] = useState(initialName);
   const [notes, setNotes] = useState(initialNotes);
 
@@ -68,7 +70,7 @@ function DetailsForm({
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Dismiss"
+        accessibilityLabel={t('ui.dismiss')}
         onPress={onClose}
         style={styles.scrim}
       />
@@ -88,7 +90,7 @@ function DetailsForm({
           accessibilityLabel={nameLabel}
         />
 
-        <Text style={styles.label}>Notes</Text>
+        <Text style={styles.label}>{t('ui.notes')}</Text>
         <TextInput
           value={notes}
           onChangeText={setNotes}
@@ -97,7 +99,7 @@ function DetailsForm({
           style={[styles.input, styles.notes]}
           multiline
           textAlignVertical="top"
-          accessibilityLabel="Notes"
+          accessibilityLabel={t('ui.notes')}
         />
 
         {extra}
@@ -108,7 +110,7 @@ function DetailsForm({
             onPress={onClose}
             style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
           >
-            <Text style={styles.secondaryLabel}>Cancel</Text>
+            <Text style={styles.secondaryLabel}>{t('common.cancel')}</Text>
           </Pressable>
 
           <Pressable
@@ -121,7 +123,7 @@ function DetailsForm({
               pressed && styles.pressed,
             ]}
           >
-            <Text style={styles.primaryLabel}>Save</Text>
+            <Text style={styles.primaryLabel}>{t('action.save')}</Text>
           </Pressable>
         </View>
 

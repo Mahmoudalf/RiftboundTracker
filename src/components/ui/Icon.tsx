@@ -18,7 +18,8 @@ export type IconName =
   | 'filter'
   | 'close'
   | 'chevron-right'
-  | 'check';
+  | 'check'
+  | 'pencil';
 
 interface IconProps {
   name: IconName;
@@ -90,6 +91,22 @@ export function Icon({ name, size = 24, color = '#E8EAF0', active = false }: Ico
         <>
           <Circle cx="11" cy="11" r="6.5" {...common} />
           <Path d="m16 16 4.5 4.5" {...common} />
+        </>
+      )}
+
+      {name === 'pencil' && (
+        <>
+          {/*
+            Flat-terminal nib, not a tapered point.
+
+            The set is drawn on a 24 grid with one stroke weight and squared-off
+            ends, so a conventional pencil — which needs a taper and a second
+            weight for the tip — would be the one icon here that looked bought
+            rather than drawn. The barrel is a parallelogram and the nib is the
+            same shape cut short, which keeps the whole thing on the grid.
+          */}
+          <Path d="M14.5 4.5 19.5 9.5 9 20H4v-5z" {...common} fill={fill} fillOpacity={fillOpacity} />
+          <Path d="m12.5 6.5 5 5" {...common} />
         </>
       )}
 

@@ -250,6 +250,35 @@ export function cardNamesByIds(ids: readonly string[]): Map<string, string> {
   return new Map(rows.map((row) => [row.id, row.name]));
 }
 
+/**
+ * Whole cards for a set of ids, in one query.
+ *
+ * The hydrating counterpart to `cardNamesByIds`, for the surfaces that show a
+ * card **as a card** rather than as a label — a recorded opening hand, where
+ * you are being asked to recognise your own deck and art is what you recognise
+ * it by.
+ *
+ * Batched for the reason that function's note gives in reverse: a Bo3 read-back
+ * resolves the deal, the mulligan and the replacements for three matches, and
+ * calling `getCard` per tile would put ~18 synchronous SQLite reads inside every
+ * keystroke of the note field on the same screen.
+ *
+ * Ids the mirror cannot resolve are **absent from the map**, so a caller can
+ * still tell "this printing left the library" apart from "no card here".
+ */
+export function cardsByIds(ids: readonly string[]): Map<string, CardRow> {
+  if (ids.length === 0) return new Map();
+  const unique = [...new Set(ids)];
+  const placeholders = unique.map(() => '?').join(',');
+
+  const rows = conn().getAllSync<Record<string, unknown>>(
+    `SELECT * FROM cards WHERE id IN (${placeholders})`,
+    [...unique]
+  );
+
+  return new Map(rows.map((row) => [String(row.id), hydrateCard(row)]));
+}
+
 /** How many cards a filter set would match, without selecting or hydrating them. */
 export function countMatchingCards(filters: CardFilters = {}): number {
   const { where, params } = buildFilter(filters);

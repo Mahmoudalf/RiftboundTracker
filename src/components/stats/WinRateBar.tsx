@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { useT } from '@/i18n';
 import type { Rate } from '@/lib/analytics/summary';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
@@ -28,6 +29,7 @@ interface WinRateBarProps {
 const pct = (value: number) => `${Math.round(value * 100)}%`;
 
 export function WinRateBar({ rate, label, sublabel, compact = false }: WinRateBarProps) {
+  const t = useT();
   const record =
     `${rate.wins}–${rate.losses}` + (rate.draws > 0 ? `–${rate.draws}` : '');
 
@@ -55,7 +57,7 @@ export function WinRateBar({ rate, label, sublabel, compact = false }: WinRateBa
         so "played, none decided" describes a state that can no longer exist.
       */}
       {rate.rate === null || !rate.interval ? (
-        <Text style={styles.undecided}>No matches</Text>
+        <Text style={styles.undecided}>{t('winRate.noMatches')}</Text>
       ) : (
         <>
           <View style={[styles.track, compact && styles.trackCompact]}>

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
+import { useT } from '@/i18n';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -26,11 +27,12 @@ interface SheetProps {
 }
 
 export function Sheet({ visible, title, subtitle, onClose, children, actions }: SheetProps) {
+  const t = useT();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Dismiss"
+        accessibilityLabel={t('ui.dismiss')}
         onPress={onClose}
         style={styles.scrim}
       />

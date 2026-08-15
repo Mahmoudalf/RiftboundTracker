@@ -4,10 +4,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WinRateBar } from '@/components/stats/WinRateBar';
 import { Pressable } from '@/components/ui/Pressable';
 import type { DeckVersionRow } from '@/db/schema/decks';
+import { useT } from '@/i18n';
 import { rateOf, separable, type Rate } from '@/lib/analytics/summary';
 import { gamesNeeded } from '@/lib/analytics/wilson';
 import type { DeckDiff } from '@/lib/deck-diff';
-import { MAIN_DECK_SIZE } from '@/lib/legality';
+import { MAIN_DECK_TARGET } from '@/lib/legality';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -47,6 +48,7 @@ export function VersionCompareSheet({
   matchesByVersion,
   onClose,
 }: VersionCompareSheetProps) {
+  const t = useT();
   const insets = useSafeAreaInsets();
 
   const rateA: Rate | null = a && matchesByVersion ? rateOf(matchesByVersion.get(a.id) ?? []) : null;
@@ -86,11 +88,11 @@ export function VersionCompareSheet({
           </Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Close"
+            accessibilityLabel={t('ui.close')}
             onPress={onClose}
             style={({ pressed }) => [styles.close, pressed && styles.pressed]}
           >
-            <Text style={styles.closeLabel}>Done</Text>
+            <Text style={styles.closeLabel}>{t('action.done')}</Text>
           </Pressable>
         </View>
 
@@ -104,7 +106,7 @@ export function VersionCompareSheet({
                     {version.label ?? (index === 0 ? 'Earlier' : 'Later')}
                   </Text>
                   <Text style={styles.stat}>
-                    {version.mainCount}/{MAIN_DECK_SIZE} main
+                    {version.mainCount}/{MAIN_DECK_TARGET} main
                   </Text>
                   <Text style={styles.stat}>
                     {matchCounts.get(version.id) ?? 0} matches
@@ -119,21 +121,18 @@ export function VersionCompareSheet({
 
           {rateA && rateB ? (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Did it help?</Text>
+              <Text style={styles.sectionLabel}>{t('version.didItHelp')}</Text>
               <WinRateBar rate={rateA} label={`v${a?.versionNumber}`} compact />
               <WinRateBar rate={rateB} label={`v${b?.versionNumber}`} compact />
               {verdict ? <Text style={styles.verdict}>{verdict}</Text> : null}
-              <Text style={styles.note}>
-                Correlational, not causal. The metagame moves and pilots improve, so a version that
-                looks better may simply have been played later.
-              </Text>
+              <Text style={styles.note}>{t('version.correlational')}</Text>
             </View>
           ) : null}
 
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>What changed</Text>
+            <Text style={styles.sectionLabel}>{t('version.whatChanged')}</Text>
             {diff ? (
-              <DeckDiffView diff={diff} emptyMessage="These two lists are identical." />
+              <DeckDiffView diff={diff} emptyMessage={t('version.identical')} />
             ) : null}
           </View>
         </ScrollView>

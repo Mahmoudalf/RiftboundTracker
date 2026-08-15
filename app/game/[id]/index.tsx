@@ -3,10 +3,18 @@ import { useCallback, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { CardPickerSheet } from '@/components/decks/CardPickerSheet';
+import { MatchReadback } from '@/components/games/MatchReadback';
+import { MatchupCard, MatchupDivider } from '@/components/games/MatchupCard';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ChoiceRow, SectionLabel, SelectField } from '@/components/ui/Field';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
-import { getCard, listChampionsForLegend, listLegends } from '@/db/queries/cards';
+import {
+  cardsByIds,
+  getCard,
+  listChampionsForLegend,
+  listLegends,
+} from '@/db/queries/cards';
 import { getDeck, getVersion, versionCardNames } from '@/db/queries/decks';
 import { getEvent } from '@/db/queries/events';
 import {
@@ -25,6 +33,7 @@ import {
   type Result,
   type GameStyle,
 } from '@/db/schema/games';
+import { useT, type Key } from '@/i18n';
 import { baseName, cardKey } from '@/lib/card-identity';
 import { gameDate, gameStyleLabel, recordLine } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
@@ -45,11 +54,19 @@ import { metaLine, text } from '@/theme/typography';
  * resulting statistic true.
  */
 
-const RESULTS: { key: Result; label: string }[] = [
-  { key: 'win', label: 'Win' },
-  { key: 'loss', label: 'Loss' },
-  { key: 'draw', label: 'Draw' },
-];
+/*
+ * Result → catalogue key, not result → English.
+ *
+ * These three sit in a `ChoiceRow`: equal thirds of the screen, one line, no
+ * wrap. It is the tightest container in the app and the first place a
+ * translation breaks — natural German for "Draw" is `Unentschieden`, which does
+ * not fit and is deliberately shortened in `de.ts`.
+ */
+const RESULTS = [
+  { key: 'win', label: 'game.result.win' },
+  { key: 'loss', label: 'game.result.loss' },
+  { key: 'draw', label: 'game.result.draw' },
+] as const satisfies readonly { key: Result; label: Key }[];
 
 interface Option<T> {
   key: string;
@@ -72,59 +89,27 @@ function withCurrent<T>(offered: Option<T>[], current: T, label: (value: T) => s
   return [...offered, { key: `held-${String(current)}`, label: label(current), value: current }];
 }
 
-/**
- * One match's recorded detail, as a sentence rather than a form.
+/*
+ * `MatchSummary` lived here — one match rendered as a sentence.
  *
- * Everything the `matches` table holds was invisible on this screen until now —
- * the log form has written match rows since M4 and nothing ever read them back,
- * so turn order and both Battlefields were recorded and then unreachable. That
- * is the same "query layer ahead of the screens" gap the roadmap names twice.
+ * It was written when this screen was the only thing reading the `matches`
+ * table back, and prose was the argument: a record being checked against
+ * memory, not a control being operated. Replaced by `MatchReadback` because
+ * the sentence turned out to be wrong three times over, not merely plain:
  *
- * Reads as prose because it is a record being checked against memory, not a
- * control being operated. Anything unrecorded is simply absent — a row of
- * "Not recorded" repeated four times says nothing except that the screen has
- * fields.
+ * - It printed `openingHand` under the word **"Kept"**. That column stopped
+ *   meaning "the cards kept" and started meaning the whole deal, so every card
+ *   sent back was listed as kept *and* as sent back, in one sentence.
+ * - It joined names with `, ` — and Riftbound names are `Name, Epithet`. A hand
+ *   holding two "Kayle, Justified" read as four separate items.
+ * - It never showed `replacements` at all.
+ *
+ * The replacement shows the same facts as tiles, in the order and the visual
+ * language the log form uses to capture them.
  */
-function MatchSummary({
-  match,
-  cardNames,
-}: {
-  match: MatchRow;
-  cardNames: Map<string, string>;
-}) {
-  const name = (id: string) => cardNames.get(id) ?? 'a card no longer in the list';
-
-  const outcome = match.result === 'win' ? 'Won' : match.result === 'loss' ? 'Lost' : 'Drew';
-  const turnOrder =
-    match.onPlay === null ? null : match.onPlay ? 'on the play' : 'on the draw';
-  const score =
-    match.scoreFor !== null && match.scoreAgainst !== null
-      ? `${match.scoreFor}–${match.scoreAgainst}`
-      : null;
-
-  const hand = (() => {
-    if (match.openingHand === null && match.mulliganed === null) return null;
-    const kept = (match.openingHand ?? []).map(name);
-    const back = (match.mulliganed ?? []).map(name);
-    const parts = [kept.length > 0 ? `Kept ${kept.join(', ')}` : 'Kept nothing'];
-    if (back.length > 0) parts.push(`sent back ${back.join(', ')}`);
-    return parts.join(', ');
-  })();
-
-  return (
-    <View style={styles.match}>
-      <View style={styles.matchHead}>
-        <Text style={styles.matchTitle}>Match {match.matchNumber}</Text>
-        <Text style={styles.matchOutcome}>
-          {metaLine(outcome, turnOrder, score ? `${score} points` : null)}
-        </Text>
-      </View>
-      {hand ? <Text style={styles.matchLine}>{hand}.</Text> : null}
-    </View>
-  );
-}
 
 export default function GameDetailScreen() {
+  const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [game, setGame] = useState(() => getGame(id));
   const [matches, setMatches] = useState<MatchRow[]>(() => listMatches(id));
@@ -147,11 +132,11 @@ export default function GameDetailScreen() {
 
   if (!game) {
     return (
-      <Screen title="Game">
+      <Screen title={t('game.title')}>
         <EmptyState
-          title="Game not found"
-          body="It may have been deleted."
-          actions={[{ label: 'Back', onPress: () => router.back(), primary: true }]}
+          title={t('game.notFound.title')}
+          body={t('game.notFound.body')}
+          actions={[{ label: t('common.back'), onPress: () => router.back(), primary: true }]}
         />
       </Screen>
     );
@@ -159,6 +144,14 @@ export default function GameDetailScreen() {
 
   const deck = getDeck(game.deckId);
   const version = getVersion(game.deckVersionId);
+  /*
+   * The Legend's art, for our side of the matchup.
+   *
+   * Read from the deck's Legend rather than stored on the game: the deck is
+   * what played, and a game that outlives a printing leaving the library should
+   * lose the picture, not the record. Null simply draws the plate.
+   */
+  const ourLegend = deck?.legendCardId ? getCard(deck.legendCardId) : null;
   // Read inline like the deck and version above, and re-read on every render
   // for the same reason: deleting the event elsewhere must stop linking to it.
   const event = game.eventId ? getEvent(game.eventId) : null;
@@ -174,6 +167,22 @@ export default function GameDetailScreen() {
    * that already stores the name instead of by a fourth copy of it.
    */
   const cardNames = versionCardNames(game.deckVersionId);
+
+  /*
+   * Every printing any recorded hand refers to, in one query.
+   *
+   * `mulliganed` is included even though it is meant to be a subset of
+   * `openingHand`: rows written before that redefinition hold the two as
+   * disjoint sets, and `HandReadback` reconstructs the deal from both — so the
+   * ids it may need to draw are the union, not the deal alone.
+   */
+  const handCards = cardsByIds(
+    matches.flatMap((m) => [
+      ...(m.openingHand ?? []),
+      ...(m.mulliganed ?? []),
+      ...(m.replacements ?? []),
+    ])
+  );
 
   /** Whether any of the second-tier fields have been filled in at all. */
   const recordedDepth = matches.some(
@@ -196,10 +205,10 @@ export default function GameDetailScreen() {
   };
 
   const onDelete = () => {
-    Alert.alert('Delete this game?', 'It will stop counting towards this deck’s record.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('game.deleteTitle'), t('game.deleteBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: () => {
           deleteGame(id);
@@ -209,40 +218,32 @@ export default function GameDetailScreen() {
     ]);
   };
 
-  const chipRow = <T,>(
-    options: { key: string; label: string; value: T }[],
-    current: T,
-    onSelect: (value: T) => void
-  ) => (
-    <View style={styles.segmented}>
-      {options.map((option) => (
-        <Pressable
-          key={option.key}
-          accessibilityRole="button"
-          accessibilityState={{ selected: current === option.value }}
-          onPress={() => onSelect(option.value)}
-          style={({ pressed }) => [
-            styles.segment,
-            current === option.value && styles.segmentActive,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text
-            style={[
-              styles.segmentLabel,
-              current === option.value && styles.segmentLabelActive,
-            ]}
-          >
-            {option.label}
-          </Text>
-        </Pressable>
-      ))}
-    </View>
-  );
+  /*
+   * `chipRow` lived here — the screen's own segmented control.
+   *
+   * Deleted in favour of `ChoiceRow`, the design's. The local one sized each
+   * chip to its label, so a row's cells came out at three different widths and
+   * stopped short of the screen: measured on this screen at 120/137/142 for
+   * Win-Loss-Draw, 93/119/126 for the Best-of row, and 166/160/**256** for the
+   * game styles, all against a 945px screen they left a third of empty. The
+   * design's control is `flex: 1` at a fixed height, so every option in a row is
+   * the same target whatever it is called — and the log form has been using it
+   * since the retheme, which is why the two screens stopped looking related.
+   */
 
   return (
+    /*
+     * The header names the *screen*, not the opponent.
+     *
+     * It used to set the opponent's Legend in the 30px display face — so a game
+     * against "Draven - Glorious Executioner" spent two wrapped lines saying
+     * something the `OPPONENT'S LEGEND` field twenty points below said again,
+     * and the deck that actually played was demoted to metadata. The matchup
+     * belongs in the two cards under it, where both sides get equal weight and
+     * the art that makes either recognisable.
+     */
     <Screen
-      title={game.oppLegendName ? baseName(game.oppLegendName) : 'Match'}
+      title={t('game.title')}
       meta={metaLine(
         deck?.name,
         version ? `v${version.versionNumber}` : null,
@@ -250,58 +251,79 @@ export default function GameDetailScreen() {
       )}
     >
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        {/*
+          Who played whom, before anything is asked about it — the same pair of
+          cards the log form opens with, so the game is read back in the shape
+          it was entered.
+        */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Result</Text>
-          {chipRow(
-            RESULTS.map((r) => ({ key: r.key, label: r.label, value: r.key })),
-            game.result,
-            (value) => patch({ result: value })
-          )}
+          <SectionLabel>{t('game.section.matchup')}</SectionLabel>
+          <MatchupCard
+            side="you"
+            title={deck?.name ?? t('game.deckDeleted')}
+            subtitle={metaLine(
+              version ? `v${version.versionNumber}` : null,
+              game.battlefieldName ? baseName(game.battlefieldName) : null
+            )}
+            imageUrl={ourLegend?.imageUrl ?? null}
+          />
+          <MatchupDivider />
+          <MatchupCard
+            side="them"
+            title={
+              game.oppLegendName ? baseName(game.oppLegendName) : t('game.opponentNotRecorded')
+            }
+            subtitle={
+              game.oppChampionName
+                ? baseName(game.oppChampionName)
+                : game.oppLegendName
+                  ? t('game.championNotRecorded')
+                  : t('game.countsWithoutOpponent')
+            }
+            imageUrl={oppLegendCard?.imageUrl ?? null}
+          />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Opponent&apos;s Legend</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setPicker('legend')}
-            style={({ pressed }) => [styles.field, pressed && styles.pressed]}
-          >
-            <Text style={game.oppLegendName ? styles.fieldValue : styles.fieldPlaceholder}>
-              {game.oppLegendName ? baseName(game.oppLegendName) : 'Not recorded'}
-            </Text>
-          </Pressable>
+          <SectionLabel>{t('game.section.result')}</SectionLabel>
+          <ChoiceRow<Result>
+            options={RESULTS.map((r) => ({ key: r.key, label: t(r.label), value: r.key }))}
+            value={game.result}
+            onSelect={(value) => patch({ result: value })}
+            tall
+          />
+        </View>
+
+        <View style={styles.section}>
+          <SectionLabel>{t('game.section.oppLegend')}</SectionLabel>
+          <SelectField
+            placeholder={t('common.notRecorded')}
+            value={game.oppLegendName ? baseName(game.oppLegendName) : null}
+            open={false}
+            onToggle={() => setPicker('legend')}
+          />
           {game.oppLegendCardId && !oppLegendCard ? (
-            <Text style={styles.warning}>
-              This Legend is no longer in the card library, so its art cannot be shown. The game
-              still knows who you played.
-            </Text>
+            <Text style={styles.warning}>{t('game.legendGone')}</Text>
           ) : null}
         </View>
 
         {game.oppLegendName ? (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Their Chosen Champion</Text>
-            <Pressable
-              accessibilityRole="button"
+            <SectionLabel>{t('game.section.oppChampion')}</SectionLabel>
+            <SelectField
+              placeholder={
+                oppLegendCard ? t('common.notRecorded') : t('game.legendNotInLibrary')
+              }
+              value={game.oppChampionName ? baseName(game.oppChampionName) : null}
+              open={false}
+              onToggle={() => setPicker('champion')}
               disabled={!oppLegendCard}
-              onPress={() => setPicker('champion')}
-              style={({ pressed }) => [
-                styles.field,
-                !oppLegendCard && styles.fieldDisabled,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text
-                style={game.oppChampionName ? styles.fieldValue : styles.fieldPlaceholder}
-              >
-                {game.oppChampionName ? baseName(game.oppChampionName) : 'Not recorded'}
-              </Text>
-            </Pressable>
+            />
           </View>
         ) : null}
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Best of</Text>
+          <SectionLabel>{t('game.section.bestOf')}</SectionLabel>
           {/*
             `—` survives here and not on the log form.
 
@@ -310,24 +332,25 @@ export default function GameDetailScreen() {
             unset. This screen's job is to correct the record, and "I do not
             actually know" is a correction someone is entitled to make.
           */}
-          {chipRow<number | null>(
-            withCurrent<number | null>(
+          <ChoiceRow<number | null>
+            options={withCurrent<number | null>(
               [
                 { key: 'none', label: '—', value: null },
                 ...BEST_OF_OPTIONS.map((n) => ({ key: String(n), label: `Bo${n}`, value: n })),
               ],
               game.bestOf,
               (value) => `Bo${value}`
-            ),
-            game.bestOf,
-            (value) => patch({ bestOf: value })
-          )}
+            )}
+            value={game.bestOf}
+            onSelect={(value) => patch({ bestOf: value })}
+            tall
+          />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Game style</Text>
-          {chipRow<GameStyle>(
-            withCurrent<GameStyle>(
+          <SectionLabel>{t('game.section.gameStyle')}</SectionLabel>
+          <ChoiceRow<GameStyle>
+            options={withCurrent<GameStyle>(
               LOGGED_GAME_STYLES.map((key) => ({
                 key,
                 label: gameStyleLabel(key),
@@ -335,10 +358,11 @@ export default function GameDetailScreen() {
               })),
               game.gameStyle,
               gameStyleLabel
-            ),
-            game.gameStyle,
-            (value) => patch({ gameStyle: value })
-          )}
+            )}
+            value={game.gameStyle}
+            onSelect={(value) => patch({ gameStyle: value })}
+            tall
+          />
         </View>
 
         {/*
@@ -350,7 +374,7 @@ export default function GameDetailScreen() {
         */}
         {event ? (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Event</Text>
+            <SectionLabel>{t('game.section.event')}</SectionLabel>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Open ${event.name}`}
@@ -361,79 +385,88 @@ export default function GameDetailScreen() {
                 {event.name}
               </Text>
               <Text style={styles.eventLinkMeta}>
-                {recordLine(event.wins, event.losses, event.draws) ?? 'No rounds'}
+                {recordLine(event.wins, event.losses, event.draws) ?? t('game.noRounds')}
               </Text>
             </Pressable>
           </View>
         ) : null}
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>
-            {matches.length === 1 ? 'The game' : 'The matches'}
-          </Text>
+          <SectionLabel>
+            {matches.length === 1 ? t('game.section.theGame') : t('game.section.theMatches')}
+          </SectionLabel>
           {matches.length === 0 ? (
-            <Text style={styles.footnote}>
-              No matches were recorded for this game. Games logged before per-match detail existed
-              have only their overall result, which still counts towards every record.
-            </Text>
+            <Text style={styles.footnote}>{t('game.noMatches')}</Text>
           ) : (
-            <>
+            <View style={styles.matches}>
               {matches.map((m) => (
-                <MatchSummary key={m.id} match={m} cardNames={cardNames} />
+                <MatchReadback
+                  key={m.id}
+                  match={m}
+                  title={
+                    matches.length === 1
+                      ? t('game.section.theGame')
+                      : t('game.matchNumber', { number: m.matchNumber })
+                  }
+                  cards={handCards}
+                  names={cardNames}
+                />
               ))}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Add in-depth match detail"
+                accessibilityLabel={t('game.depth.a11y')}
                 onPress={() => router.push(`/game/${id}/matches`)}
                 style={({ pressed }) => [styles.depth, pressed && styles.pressed]}
               >
                 <Text style={styles.depthLabel}>
-                  {recordedDepth ? 'Edit match detail' : 'Add match detail'}
+                  {recordedDepth ? t('game.depth.edit') : t('game.depth.add')}
                 </Text>
-                <Text style={styles.depthMeta}>
-                  Opening deal · Champion turns · final score
-                </Text>
+                {/*
+                  "Champion turns" was listed here until now. That field went
+                  with migration 19 — the column was dropped — so the button
+                  advertised a thing the screen behind it cannot record.
+                */}
+                <Text style={styles.depthMeta}>{t('game.depth.meta')}</Text>
               </Pressable>
-            </>
+            </View>
           )}
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Note</Text>
+          <SectionLabel>{t('game.section.note')}</SectionLabel>
           <TextInput
             value={notes}
             onChangeText={setNotes}
             onBlur={() => patch({ notes: notes.trim() || null })}
-            placeholder="Anything worth remembering"
+            placeholder={t('game.notePlaceholder')}
             placeholderTextColor={color.textFaint}
             style={styles.notes}
             multiline
-            accessibilityLabel="Game note"
+            accessibilityLabel={t('game.note.a11y')}
           />
         </View>
 
-        <Text style={styles.footnote}>
-          Which version played this game cannot be changed. Moving a result onto a list that did
-          not play it is what the version history exists to prevent.
-        </Text>
+        <Text style={styles.footnote}>{t('game.versionLocked')}</Text>
 
         <Pressable
           accessibilityRole="button"
           onPress={onDelete}
           style={({ pressed }) => [styles.delete, pressed && styles.pressed]}
         >
-          <Text style={styles.deleteLabel}>Delete game</Text>
+          <Text style={styles.deleteLabel}>{t('game.delete')}</Text>
         </Pressable>
       </ScrollView>
 
       <CardPickerSheet
         visible={picker !== null}
-        title={picker === 'legend' ? 'Opponent’s Legend' : 'Their Chosen Champion'}
+        title={
+          picker === 'legend' ? t('game.section.oppLegend') : t('game.section.oppChampion')
+        }
         cards={picker === 'legend' ? listLegends() : championChoices()}
         selectedId={
           picker === 'legend' ? game.oppLegendCardId : game.oppChampionCardId
         }
-        emptyMessage="Nothing to choose from."
+        emptyMessage={t('game.nothingToChoose')}
         onSelect={(card: CardRow) => {
           if (picker === 'legend') {
             // Changing the Legend invalidates the Champion — it was chosen from
@@ -452,31 +485,7 @@ export default function GameDetailScreen() {
 const styles = StyleSheet.create({
   body: { paddingBottom: space[16], gap: space[5] },
   section: { gap: space[2] },
-  sectionLabel: { ...text.meta, color: color.textSecondary },
-  segmented: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
-  segment: {
-    minHeight: 40,
-    justifyContent: 'center',
-    paddingHorizontal: space[3],
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: color.border,
-  },
-  segmentActive: { backgroundColor: color.accent, borderColor: color.text },
-  segmentLabel: { ...text.small, color: color.textSecondary },
-  segmentLabelActive: { color: color.onAccent },
-  field: {
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: space[3],
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: color.border,
-    backgroundColor: color.surface,
-  },
-  fieldDisabled: { opacity: 0.5 },
-  fieldValue: { ...text.small, color: color.text },
-  fieldPlaceholder: { ...text.small, color: color.textFaint },
+  matches: { gap: space[3] },
   warning: { ...text.microMeta, color: color.warning },
   notes: {
     ...text.small,
@@ -509,24 +518,6 @@ const styles = StyleSheet.create({
   },
   eventLinkLabel: { ...text.bodyMedium, color: color.text, flexShrink: 1 },
   eventLinkMeta: { ...text.microMeta, color: color.textMuted },
-
-  match: {
-    gap: space[1],
-    paddingVertical: space[2],
-    borderBottomWidth: 1,
-    borderBottomColor: color.borderSubtle,
-  },
-  matchHead: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: space[3],
-  },
-  matchTitle: { ...text.smallMedium, color: color.text },
-  matchOutcome: { ...text.microMeta, color: color.textMuted, flexShrink: 1, textAlign: 'right' },
-  // Prose, so `caption` rather than the uppercase micro face — these are
-  // sentences someone reads, not labels they scan.
-  matchLine: { ...text.caption, color: color.textMuted },
 
   depth: {
     gap: 2,

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { OptionRow, SectionLabel, SelectField } from '@/components/ui/Field';
+import { useT } from '@/i18n';
 import { color, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -28,6 +29,7 @@ export interface ScoreRowProps {
 }
 
 export function ScoreRow({ scoreFor, scoreAgainst, onChange }: ScoreRowProps) {
+  const t = useT();
   /*
    * One open field at a time.
    *
@@ -47,7 +49,7 @@ export function ScoreRow({ scoreFor, scoreAgainst, onChange }: ScoreRowProps) {
       <Text style={styles.label}>{label}</Text>
       <SelectField
         compact
-        placeholder="Not set"
+        placeholder={t('match.score.notSet')}
         value={value === null ? null : String(value)}
         open={open === side}
         onToggle={() => setOpen((current) => (current === side ? null : side))}
@@ -71,10 +73,10 @@ export function ScoreRow({ scoreFor, scoreAgainst, onChange }: ScoreRowProps) {
 
   return (
     <View style={styles.block}>
-      <SectionLabel>Score</SectionLabel>
+      <SectionLabel>{t('match.score')}</SectionLabel>
       <View style={styles.row}>
-        {column('you', 'You', scoreFor, (next) => onChange({ scoreFor: next }))}
-        {column('them', 'Them', scoreAgainst, (next) => onChange({ scoreAgainst: next }))}
+        {column('you', t('match.score.you'), scoreFor, (next) => onChange({ scoreFor: next }))}
+        {column('them', t('match.score.them'), scoreAgainst, (next) => onChange({ scoreAgainst: next }))}
       </View>
     </View>
   );

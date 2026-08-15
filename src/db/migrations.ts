@@ -748,7 +748,10 @@ export const MIGRATIONS: readonly Migration[] = [
   {
     version: 22,
     up: /* sql */ `
-      -- Write-only storage, removed before M7 mirrors it into Postgres.
+      -- Write-only storage, removed before the Cloud milestone mirrors it into
+      -- Postgres. (Cloud was M7 when this shipped; it is M8 since Localization
+      -- took that number. Migration text is history and must not be rewritten,
+      -- so the milestone is named rather than numbered from here on.)
       --
       -- The post-M6 audit found six places where the schema holds something no
       -- code path can produce or consume. Left alone, each would be created in

@@ -2,6 +2,7 @@ import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { Pressable } from '@/components/ui/Pressable';
+import { useT } from '@/i18n';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -69,6 +70,7 @@ function Tick() {
 }
 
 export function Dropdown<T extends string | null>(props: DropdownProps<T>) {
+  const t = useT();
   const { label, options, open, onOpenChange, onSelect } = props;
   const selected = props.multiple ? props.values : [props.value];
 
@@ -109,7 +111,7 @@ export function Dropdown<T extends string | null>(props: DropdownProps<T>) {
       >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Dismiss"
+          accessibilityLabel={t('ui.dismiss')}
           onPress={() => onOpenChange(false)}
           style={styles.scrim}
         />
@@ -155,7 +157,7 @@ export function Dropdown<T extends string | null>(props: DropdownProps<T>) {
                 style={({ pressed }) => [styles.footerButton, pressed && styles.pressed]}
               >
                 <Text style={[styles.clearLabel, chosen.length === 0 && styles.disabled]}>
-                  Clear
+                  {t('action.clear')}
                 </Text>
               </Pressable>
               <Pressable
@@ -163,7 +165,7 @@ export function Dropdown<T extends string | null>(props: DropdownProps<T>) {
                 onPress={() => onOpenChange(false)}
                 style={({ pressed }) => [styles.footerButton, pressed && styles.pressed]}
               >
-                <Text style={styles.doneLabel}>Done</Text>
+                <Text style={styles.doneLabel}>{t('action.done')}</Text>
               </Pressable>
             </View>
           ) : null}

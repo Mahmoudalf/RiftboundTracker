@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { DeckSlotRow } from '@/components/decks/DeckSlotRow';
 import { Pressable } from '@/components/ui/Pressable';
+import { useT, type Key } from '@/i18n';
 import { isLandscapeCard, uprightArt } from '@/lib/card-art';
 import { baseName } from '@/lib/card-identity';
 import { cardImage } from '@/lib/cdn';
@@ -19,29 +20,32 @@ import { text } from '@/theme/typography';
  * to be the last honest look at the list.
  */
 
-const ZONES: { zone: string; label: string }[] = [
-  { zone: 'legend', label: 'Legend' },
-  { zone: 'champion', label: 'Champion' },
-  { zone: 'main', label: 'Main deck' },
-  { zone: 'rune', label: 'Runes' },
-  { zone: 'battlefield', label: 'Battlefields' },
-  { zone: 'sideboard', label: 'Sideboard' },
-];
+const ZONES = [
+  { zone: 'legend', label: 'zone.legend' },
+  { zone: 'champion', label: 'zone.champion' },
+  { zone: 'main', label: 'zone.main' },
+  { zone: 'rune', label: 'zone.runes' },
+  { zone: 'battlefield', label: 'zone.battlefields' },
+  { zone: 'sideboard', label: 'zone.sideboard' },
+] as const satisfies readonly { zone: string; label: Key }[];
 
 export function DeckPreview({ slots }: { slots: readonly DeckSlot[] }) {
+  const t = useT();
   const [view, setView] = useState<'list' | 'gallery'>('list');
 
   return (
     <View style={styles.root}>
       <View style={styles.head}>
-        <Text style={styles.headLabel}>Your deck</Text>
+        <Text style={styles.headLabel}>{t('deckPreview.yourDeck')}</Text>
         <View style={styles.toggle}>
           {(['list', 'gallery'] as const).map((v) => (
             <Pressable
               key={v}
               accessibilityRole="button"
               accessibilityState={{ selected: view === v }}
-              accessibilityLabel={v === 'list' ? 'List view' : 'Gallery view'}
+              accessibilityLabel={
+                v === 'list' ? t('deck.preview.list.a11y') : t('deck.preview.gallery.a11y')
+              }
               onPress={() => setView(v)}
               style={[styles.option, view === v && styles.optionOn]}
             >

@@ -63,6 +63,7 @@ import {
   TOAST_UNDOABLE_MS,
   useToast,
 } from '@/features/games/useToast';
+import { useT, type Key } from '@/i18n';
 import { rateOf } from '@/lib/analytics/summary';
 import { isLandscapeCard } from '@/lib/card-art';
 import { baseName } from '@/lib/card-identity';
@@ -98,11 +99,11 @@ type Preview = 'list' | 'gallery';
  */
 const VERSIONS_SHOWN = 30;
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'versions', label: 'Versions' },
-  { key: 'matches', label: 'Matches' },
-  { key: 'stats', label: 'Stats' },
+const TABS: { key: Tab; label: Key }[] = [
+  { key: 'overview', label: 'deckTab.overview' },
+  { key: 'versions', label: 'deckTab.versions' },
+  { key: 'matches', label: 'deckTab.matches' },
+  { key: 'stats', label: 'deckTab.stats' },
 ];
 
 /** The hero image's height, from the design. */
@@ -122,24 +123,24 @@ const GALLERY_ASPECT = 108 / 151;
  * single card, and two consecutive one-card sections leave the pair stacked
  * down the left edge with two headers and a lot of nothing beside them.
  */
-const GALLERY_GROUPS: { zones: DeckZone[]; label: string }[] = [
-  { zones: ['legend', 'champion'], label: 'Legend & Champion' },
-  { zones: ['main'], label: 'Main deck' },
-  { zones: ['rune'], label: 'Runes' },
-  { zones: ['battlefield'], label: 'Battlefields' },
-  { zones: ['sideboard'], label: 'Sideboard' },
+const GALLERY_GROUPS: { zones: DeckZone[]; label: Key }[] = [
+  { zones: ['legend', 'champion'], label: 'zone.legendChampion' },
+  { zones: ['main'], label: 'zone.main' },
+  { zones: ['rune'], label: 'zone.runes' },
+  { zones: ['battlefield'], label: 'zone.battlefields' },
+  { zones: ['sideboard'], label: 'zone.sideboard' },
 ];
 
-const ZONE_ORDER: { zone: DeckZone; label: string; fixed?: boolean }[] = [
-  { zone: 'legend', label: 'Legend', fixed: true },
-  { zone: 'champion', label: 'Champion', fixed: true },
-  { zone: 'main', label: 'Main deck' },
-  { zone: 'rune', label: 'Runes' },
-  { zone: 'battlefield', label: 'Battlefields' },
+const ZONE_ORDER: { zone: DeckZone; label: Key; fixed?: boolean }[] = [
+  { zone: 'legend', label: 'zone.legend', fixed: true },
+  { zone: 'champion', label: 'zone.champion', fixed: true },
+  { zone: 'main', label: 'zone.main' },
+  { zone: 'rune', label: 'zone.runes' },
+  { zone: 'battlefield', label: 'zone.battlefields' },
   // Only rendered when non-empty. Nothing in the builder creates a sideboard —
   // they arrive by import — but a zone that is stored, forked and re-exported
   // while being invisible is worse than either having it or not.
-  { zone: 'sideboard', label: 'Sideboard' },
+  { zone: 'sideboard', label: 'zone.sideboard' },
 ];
 
 /**
@@ -161,6 +162,7 @@ function BackChevron() {
 }
 
 export default function DeckDetailScreen() {
+  const t = useT();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -357,7 +359,7 @@ export default function DeckDetailScreen() {
         'Could not build a code',
         err instanceof DeckCodeError
           ? err.message
-          : 'Something went wrong building the deck code.'
+          : t('deck.shareFailed')
       );
       return;
     }
@@ -387,7 +389,7 @@ export default function DeckDetailScreen() {
         // Sharing is a second intent, not a second step. Offered here so it
         // costs one more tap rather than making everyone take it.
         action: {
-          label: 'Share',
+          label: t('action.share'),
           onPress: () => {
             void Share.share({ message: `${deck?.name ?? 'Deck'}\n\n${result.code}` });
           },
@@ -431,12 +433,12 @@ export default function DeckDetailScreen() {
     }
 
     Alert.alert(
-      `Archive ${deck?.name}?`,
+      t('deck.archiveTitle', { name: deck?.name ?? '' }),
       'It leaves the deck list. Its versions and match history are kept, and it still counts in your overall stats — "Show archived" on the Decks tab brings it back.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Archive',
+          text: t('action.archive'),
           onPress: () => {
             archiveDeck(id, true);
             setEditingDeck(false);
@@ -449,7 +451,7 @@ export default function DeckDetailScreen() {
 
   const onDelete = () => {
     Alert.alert('Delete this deck?', 'Its versions and match history go with it.', [
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('common.cancel'), style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
@@ -463,11 +465,11 @@ export default function DeckDetailScreen() {
 
   if (!deck) {
     return (
-      <Screen title="Deck">
+      <Screen title={t('deck.title')}>
         <EmptyState
-          title="Deck not found"
-          body="It may have been deleted."
-          actions={[{ label: 'Back to decks', onPress: () => router.replace('/'), primary: true }]}
+          title={t('deck.notFound.title')}
+          body={t('deck.notFound.body')}
+          actions={[{ label: t('action.backToDecks'), onPress: () => router.replace('/'), primary: true }]}
         />
       </Screen>
     );
@@ -516,36 +518,12 @@ export default function DeckDetailScreen() {
         <View style={[styles.heroControls, { top: insets.top + space[2] }]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Go back"
+            accessibilityLabel={t('deck.goBack.a11y')}
             onPress={() => router.back()}
             style={({ pressed }) => [styles.heroCircle, pressed && styles.pressed]}
           >
             <BackChevron />
           </Pressable>
-
-          <View style={styles.heroActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Copy this deck's code to the clipboard"
-              onPress={onExport}
-              style={({ pressed }) => [styles.heroPill, pressed && styles.pressed]}
-            >
-              <Text style={styles.heroPillLabel}>Share</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Edit deck"
-              onPress={() => {
-                // Before the push, so the mark covers the transition too — the
-                // other suspect for the half-second this measures.
-                markEditTap();
-                router.push(`/deck/${id}/edit`);
-              }}
-              style={({ pressed }) => [styles.heroPill, pressed && styles.pressed]}
-            >
-              <Text style={styles.heroPillLabel}>Edit</Text>
-            </Pressable>
-          </View>
         </View>
 
         <View style={styles.heroTitle}>
@@ -556,7 +534,7 @@ export default function DeckDetailScreen() {
             {metaLine(
               current ? `v${current.versionNumber}` : null,
               current?.label,
-              deck.archivedAt ? 'Archived' : 'Current'
+              deck.archivedAt ? t('deck.archived') : t('deck.current')
             )}
           </Text>
         </View>
@@ -575,26 +553,27 @@ export default function DeckDetailScreen() {
           </View>
         ))}
         <View style={styles.chip}>
-          <Text style={styles.chipLabel}>{totalCards} cards</Text>
+          <Text style={styles.chipLabel}>{t('deck.cardCount', { count: totalCards })}</Text>
         </View>
         <View style={[styles.chip, !legality.legal && styles.chipWarn]}>
           <Text style={[styles.chipLabel, !legality.legal && styles.chipWarnLabel]}>
-            {legality.legal ? 'Legal' : '! Not legal'}
+            {legality.legal ? t('deck.legal') : t('deck.notLegal')}
           </Text>
         </View>
       </View>
 
       <View style={styles.tabs}>
-        {TABS.map((t) => (
+        {/* `item`, not `t` — the map parameter shadowed the translate function. */}
+        {TABS.map((item) => (
           <Pressable
-            key={t.key}
+            key={item.key}
             accessibilityRole="tab"
-            accessibilityState={{ selected: tab === t.key }}
-            onPress={() => setTab(t.key)}
-            style={[styles.tab, tab === t.key && styles.tabActive]}
+            accessibilityState={{ selected: tab === item.key }}
+            onPress={() => setTab(item.key)}
+            style={[styles.tab, tab === item.key && styles.tabActive]}
           >
-            <Text style={[styles.tabLabel, tab === t.key && styles.tabLabelActive]}>
-              {t.label}
+            <Text style={[styles.tabLabel, tab === item.key && styles.tabLabelActive]}>
+              {t(item.label)}
             </Text>
           </Pressable>
         ))}
@@ -649,33 +628,78 @@ export default function DeckDetailScreen() {
               logging, or tracking a deck you own none of, because playing
               online is a perfectly good reason to have one.
             */}
-            {coverage && coverage.required > 0 ? (
-              <View style={styles.coverage}>
-                <Text style={styles.sectionLabel}>In your collection</Text>
-                <Text
-                  style={[
-                    styles.coverageCount,
-                    coverage.owned < coverage.required && styles.coverageShort,
-                  ]}
+            {/*
+              Coverage on the left, the deck's two actions on the right.
+
+              Share and Edit used to float over the hero art as translucent
+              pills. Two problems with that: they sat on whatever the Legend's
+              illustration happened to be, so their contrast was a matter of luck,
+              and they were the two most-used controls on the screen parked at
+              its least reachable corner.
+
+              This row already existed and was half empty. The actions are
+              `marginLeft: 'auto'` rather than the row being
+              `space-between`, so they stay right-aligned even on a deck with no
+              coverage to show — which is the case that would otherwise have
+              dropped them off the screen entirely, since the block below is
+              conditional.
+            */}
+            <View style={styles.overviewRow}>
+              {coverage && coverage.required > 0 ? (
+                <View style={styles.coverage}>
+                  <Text style={styles.sectionLabel}>{t('deck.inCollection')}</Text>
+                  <Text
+                    style={[
+                      styles.coverageCount,
+                      coverage.owned < coverage.required && styles.coverageShort,
+                    ]}
+                  >
+                    {t('deck.coverageCount', {
+                      owned: coverage.owned,
+                      required: coverage.required,
+                    })}
+                  </Text>
+                  {/* The fraction, not a shopping list. Naming four cards and
+                      "and 6 more" is longer, truncated, and says less than
+                      "44/59" already does. */}
+                </View>
+              ) : null}
+
+              <View style={styles.deckActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('deck.copyCode.a11y')}
+                  onPress={onExport}
+                  style={({ pressed }) => [styles.deckAction, pressed && styles.pressed]}
                 >
-                  {coverage.owned}/{coverage.required} cards
-                </Text>
-                {/* The fraction, not a shopping list. Naming four cards and
-                    "and 6 more" is longer, truncated, and says less than
-                    "44/59" already does. */}
+                  <Text style={styles.deckActionLabel}>{t('action.share')}</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('deck.edit.a11y')}
+                  onPress={() => {
+                    // Before the push, so the mark covers the transition too —
+                    // the other suspect for the half-second this measures.
+                    markEditTap();
+                    router.push(`/deck/${id}/edit`);
+                  }}
+                  style={({ pressed }) => [styles.deckAction, pressed && styles.pressed]}
+                >
+                  <Text style={styles.deckActionLabel}>{t('action.edit')}</Text>
+                </Pressable>
               </View>
-            ) : null}
+            </View>
 
             {deck.notes ? <Text style={styles.notes}>{deck.notes}</Text> : null}
 
             {/*
-              Deck preview. Rows read the list; gallery reads the deck — which
+              {t('deck.preview')}. Rows read the list; gallery reads the deck — which
               cards you own the art of, and how the thing looks laid out. Two
               answers to different questions, so it is a toggle rather than a
               replacement.
             */}
             <View style={styles.previewHeader}>
-              <Text style={styles.sectionLabel}>Deck preview</Text>
+              <Text style={styles.sectionLabel}>{t('deck.preview')}</Text>
               <View style={styles.segmented}>
                 {(['list', 'gallery'] as const).map((mode) => (
                   <Pressable
@@ -692,7 +716,7 @@ export default function DeckDetailScreen() {
                     <Text
                       style={[styles.segmentLabel, preview === mode && styles.segmentLabelOn]}
                     >
-                      {mode === 'list' ? 'List' : 'Gallery'}
+                      {mode === 'list' ? t('deck.preview.list') : t('deck.preview.gallery')}
                     </Text>
                   </Pressable>
                 ))}
@@ -702,13 +726,13 @@ export default function DeckDetailScreen() {
             {(preview === 'gallery'
               ? GALLERY_GROUPS.map((g) => ({
                   key: g.zones.join('+'),
-                  label: g.label,
+                  label: t(g.label),
                   zones: g.zones,
                   fixed: false,
                 }))
               : ZONE_ORDER.map((z) => ({
                   key: z.zone,
-                  label: z.label,
+                  label: t(z.label),
                   zones: [z.zone],
                   fixed: z.fixed ?? false,
                 }))
@@ -789,40 +813,37 @@ export default function DeckDetailScreen() {
                 question about this list, asked before taking it anywhere. */}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Draw a test hand from this version"
+              accessibilityLabel={t('deck.goldfish.a11y')}
               onPress={() =>
                 deck.currentVersionId && router.push(`/goldfish/${deck.currentVersionId}`)
               }
               style={({ pressed }) => [styles.footAction, pressed && styles.pressed]}
             >
-              <Text style={styles.footActionLabel}>Draw a test hand</Text>
+              <Text style={styles.footActionLabel}>{t('deck.goldfish')}</Text>
             </Pressable>
 
             <View style={styles.footActions}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Rename this deck or edit its notes"
+                accessibilityLabel={t('deck.details.a11y')}
                 onPress={() => setEditingDeck(true)}
                 style={({ pressed }) => [styles.footAction, pressed && styles.pressed]}
               >
-                <Text style={styles.footActionLabel}>Deck details</Text>
+                <Text style={styles.footActionLabel}>{t('deck.details')}</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
                 onPress={onDelete}
                 style={({ pressed }) => [styles.footAction, pressed && styles.pressed]}
               >
-                <Text style={styles.deleteLabel}>Delete deck</Text>
+                <Text style={styles.deleteLabel}>{t('deck.delete')}</Text>
               </Pressable>
             </View>
           </View>
         ) : tab === 'matches' ? (
           <View style={styles.overview}>
             {matches.length === 0 ? (
-              <Text style={styles.hint}>
-                No games yet. Tap the + in the tab bar to log one — it attaches to whichever
-                version this deck currently points at.
-              </Text>
+              <Text style={styles.hint}>{t('deck.noGames')}</Text>
             ) : (
               <>
                 <Text style={styles.sectionLabel}>
@@ -854,11 +875,12 @@ export default function DeckDetailScreen() {
                 <Text style={styles.compareStatus}>
                   {compareMode
                     ? compare.length === 0
-                      ? 'Tap two versions to compare'
-                      : `Tap one more · v${
-                          versions.find((v) => v.id === compare[0])?.versionNumber ?? ''
-                        } selected`
-                    : 'Compare two versions'}
+                      ? t('version.compareTapTwo')
+                      : t('version.compareTapOneMore', {
+                          version:
+                            versions.find((v) => v.id === compare[0])?.versionNumber ?? '',
+                        })
+                    : t('version.compareTwo')}
                 </Text>
                 <Pressable
                   accessibilityRole="button"
@@ -875,7 +897,7 @@ export default function DeckDetailScreen() {
                       compareMode && styles.compareButtonLabelActive,
                     ]}
                   >
-                    {compareMode ? 'Cancel' : 'Compare'}
+                    {compareMode ? t('common.cancel') : t('version.compare')}
                   </Text>
                 </Pressable>
               </View>
@@ -928,29 +950,23 @@ export default function DeckDetailScreen() {
             ) : null}
 
             {versions.length > 1 ? null : (
-              <Text style={styles.hint}>
-                Every edit after your first match creates a new version here, with the exact
-                cards that changed.
-              </Text>
+              <Text style={styles.hint}>{t('deck.versionsHelp')}</Text>
             )}
           </View>
         ) : tab === 'stats' ? (
           <View style={styles.overview}>
             {matches.length === 0 ? (
-              <Text style={styles.hint}>
-                Nothing to measure yet. Log a game and the record, the interval, and the
-                per-version breakdown all appear here.
-              </Text>
+              <Text style={styles.hint}>{t('deck.noStats')}</Text>
             ) : (
               <>
-                <Text style={styles.sectionLabel}>Record · all versions</Text>
+                <Text style={styles.sectionLabel}>{t('deck.recordAllVersions')}</Text>
                 {/* The rate lives in the bar, which cannot render one without
                     its sample size and interval. */}
                 <WinRateBar rate={rateOf(matches)} />
 
                 {versionPerformance.length > 1 ? (
                   <View style={styles.versionBlock}>
-                    <Text style={styles.sectionLabel}>By version</Text>
+                    <Text style={styles.sectionLabel}>{t('deck.byVersion')}</Text>
                     {versionPerformance.map((stat) => (
                       <WinRateBar
                         key={stat.versionIds.join('+')}
@@ -964,9 +980,7 @@ export default function DeckDetailScreen() {
                         compact
                       />
                     ))}
-                    <Text style={styles.hint}>
-                      Use Compare in the Versions tab to see the cards behind the difference.
-                    </Text>
+                    <Text style={styles.hint}>{t('deck.compareHint')}</Text>
                   </View>
                 ) : null}
               </>
@@ -987,7 +1001,7 @@ export default function DeckDetailScreen() {
 
       <DetailsSheet
         visible={editingDeck}
-        title="Deck details"
+        title={t('deck.details')}
         nameLabel="Name"
         namePlaceholder="Deck name"
         initialName={deck.name}
@@ -996,7 +1010,7 @@ export default function DeckDetailScreen() {
         onClose={() => setEditingDeck(false)}
         onSave={onSaveDeckDetails}
         secondary={{
-          label: deck.archivedAt ? 'Restore from archive' : 'Archive this deck',
+          label: deck.archivedAt ? t('deck.restoreArchive') : t('deck.archiveThis'),
           onPress: onArchive,
         }}
       />
@@ -1024,14 +1038,16 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.bg },
 
   hero: { height: HERO_HEIGHT, overflow: 'hidden' },
-  heroControls: {
-    position: 'absolute',
-    left: space[4],
-    right: space[4],
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+  /*
+   * The back control, and nothing else.
+   *
+   * It was a row spanning the hero with Share and Edit at the far end, hence
+   * the `right` edge and `space-between`. Those two moved down to the coverage
+   * row, so what is left is one 36pt circle pinned to the left — a full-width
+   * row justifying a single child is a layout describing a thing that is no
+   * longer there.
+   */
+  heroControls: { position: 'absolute', left: space[4] },
   heroCircle: {
     width: 36,
     height: 36,
@@ -1040,16 +1056,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroActions: { flexDirection: 'row', gap: space[2] },
-  heroPill: {
-    height: 36,
-    paddingHorizontal: space[4],
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(15,15,16,0.62)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroPillLabel: { ...text.smallMedium, color: color.text },
+  /*
+   * `heroActions`, `heroPill` and `heroPillLabel` lived here — the translucent
+   * Share and Edit pills that floated over the Legend art. They read against
+   * whatever illustration happened to be behind them and sat in the corner
+   * furthest from a thumb; both now sit on the coverage row as `deckAction`.
+   */
   heroTitle: {
     position: 'absolute',
     left: space[4],
@@ -1214,6 +1226,21 @@ const styles = StyleSheet.create({
   issue: { ...text.small, color: color.warning },
   notes: { ...text.small, color: color.textSecondary },
   coverage: { gap: space[1] },
+  /** Coverage and the two actions, baseline-aligned along the bottom. */
+  overviewRow: { flexDirection: 'row', alignItems: 'flex-end', gap: space[3] },
+  // `auto` rather than the row being `space-between`: with no coverage to show
+  // there is nothing to be spaced against, and the pair would fall to the left.
+  deckActions: { flexDirection: 'row', gap: space[2], marginLeft: 'auto' },
+  deckAction: {
+    height: 36,
+    paddingHorizontal: space[4],
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: color.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deckActionLabel: { ...text.smallMedium, color: color.text },
   footActions: { flexDirection: 'row', gap: space[2], paddingTop: space[2] },
   footAction: {
     flex: 1,

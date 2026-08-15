@@ -1,32 +1,34 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { useT } from '@/i18n';
 import type { LegalityResult } from '@/lib/legality';
-import {
-  BATTLEFIELD_COUNT,
-  MAIN_DECK_SIZE,
-  RUNE_DECK_SIZE,
-} from '@/lib/legality';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
 /**
- * Where the deck stands, as a sentence.
+ * What is wrong with the deck, when something is.
  *
- * The design replaces the old bar with a card: a mark, the counts in mono, and
- * underneath them **what is actually wrong**, in words. A bar could say
- * `Main 38/40` in amber and leave the reader to work out that two cards are
- * missing; the sentence says *"add 2"*.
+ * The design drew this as a card carrying the counts in mono with the problem
+ * underneath, and it held that shape until the editor's zone tabs took the
+ * counts over. Those tabs are a better home for a fraction than any readout:
+ * they print `12/12` against the zone's own threshold *and* are the control you
+ * press to go and change it.
  *
- * From the design: `padding 11px 13px · radius 12 · background #1B1B1E ·
- * border rgba(255,255,255,.08)`; an 18px ringed mark, amber `!` or green `✓`;
- * the summary at `600 11.5px` mono and the verdict at `400 11.5px`.
+ * So what is left here is the half the tabs cannot show — a fourth copy of a
+ * card, an off-identity card, a Champion that does not partner the Legend — plus
+ * the unresolved-cards note and the fork warning. With none of those, the
+ * component renders **nothing**: a bordered box reading "Legal" costs the same
+ * space as one that says something.
+ *
+ * From the design, for the states that do render: `padding 11px 13px · radius 12
+ * · background #1B1B1E · border rgba(255,255,255,.08)`, an 18px ringed amber `!`,
+ * text at `400 11.5px`.
  */
 
 export interface LegalityCardProps {
   legality: LegalityResult;
-  sideboard: number;
   /**
-   * Cards in the deck the library cannot draw. The counts below are short by
+   * Cards in the deck the library cannot draw. The zone counts are short by
    * exactly this much, and without saying so the deck just looks wrong.
    */
   unresolved?: number;
@@ -36,46 +38,61 @@ export interface LegalityCardProps {
 
 export function LegalityCard({
   legality,
-  sideboard,
   unresolved = 0,
   footnote = null,
 }: LegalityCardProps) {
-  const { counts, issues, legal } = legality;
+  const t = useT();
+  const { issues } = legality;
+
+  /**
+   * The first issue the **counts cannot state on their own**.
+   *
+   * The editor's zone tabs now carry `40/40+`, `12/12`, `3/3`, so a `-count`
+   * issue is already on screen, in the control you would use to fix it, in a
+   * colour. Repeating it here as a sentence is the third copy of one fact that
+   * this card was carrying until now.
+   *
+   * What the tabs cannot say is everything else: a fourth copy of a card, an
+   * off-identity card, a Champion that does not partner the Legend, one
+   * Signature too many. Those are what this card is for.
+   *
+   * The same rule `LegalityBar` already applies, and for the same stated reason
+   * — *"count issues are already shown as numbers, so the line adds what they
+   * can't"*.
+   */
+  const spoken = issues.find((issue) => !issue.code.endsWith('-count')) ?? null;
+  const otherSpoken = issues.filter((issue) => !issue.code.endsWith('-count')).length - 1;
 
   /*
-   * One issue, not all of them.
+   * Silent unless there is something to report.
    *
-   * A deck mid-build fails four rules at once, and four sentences is a wall
-   * that gets skipped. The first is the one to fix — they are ordered by the
-   * zone you fill first.
+   * A card that renders "Legal" into a bordered box is a box saying nothing,
+   * and it costs the same vertical space as one saying something. Nothing to
+   * fix, nothing unresolved and no fork warning means no card — which is the
+   * same principle the verdict line itself moved to: only speak when something
+   * is wrong.
    */
-  const verdict = legal
-    ? 'Legal — every zone is within its limits.'
-    : (issues[0]?.message ?? 'Not legal yet.');
+  if (!spoken && unresolved === 0 && !footnote) return null;
 
   return (
     <View style={styles.card}>
-      <View style={styles.head}>
-        <View style={[styles.mark, legal ? styles.markOk : styles.markWarn]}>
-          <Text style={[styles.markGlyph, legal ? styles.markGlyphOk : styles.markGlyphWarn]}>
-            {legal ? '✓' : '!'}
+      {spoken ? (
+        <View style={styles.head}>
+          <View style={[styles.mark, styles.markWarn]}>
+            <Text style={[styles.markGlyph, styles.markGlyphWarn]}>!</Text>
+          </View>
+          <Text style={styles.verdictInline}>
+            {spoken.message}
+            {otherSpoken > 0 ? ` ${t('legality.moreToFix', { count: otherSpoken })}` : ''}
           </Text>
         </View>
-        <Text style={styles.summary} numberOfLines={1}>
-          Main {counts.main}/{MAIN_DECK_SIZE} · Runes {counts.rune}/{RUNE_DECK_SIZE} · BF{' '}
-          {counts.battlefield}/{BATTLEFIELD_COUNT} · Side {sideboard}
-        </Text>
-      </View>
-
-      <Text style={styles.verdict}>
-        {verdict}
-        {issues.length > 1 ? ` ${issues.length - 1} more to fix.` : ''}
-      </Text>
+      ) : null}
 
       {unresolved > 0 ? (
-        <Text style={styles.unresolved}>
-          {unresolved} card{unresolved === 1 ? '' : 's'} in this deck are not in the library, so
-          the counts above are short by that much. They are kept when you save.
+        <Text style={[styles.unresolved, spoken && styles.spaced]}>
+          {unresolved === 1
+            ? t('legality.unresolvedOne')
+            : t('legality.unresolved', { count: unresolved })}
         </Text>
       ) : null}
 
@@ -84,43 +101,20 @@ export function LegalityCard({
   );
 }
 
-/**
- * The same verdict, one line high, for a header that has to stay pinned.
+/*
+ * `LegalityStrip` lived here — the pinned one-line `Main 40/40+ · Runes 12/12 ·
+ * BF 3/3 · Side 0`.
  *
- * The editor's chrome was measured at 61% of the screen, leaving about a card
- * and a half visible. The full card moved into the list's own scroll so it is
- * there when you scroll to the top and out of the way while you browse — but
- * the running counts are the one part you want *while* adding cards, so this
- * stays behind.
+ * Deleted rather than kept, because the editor was stating those counts **three
+ * times**: this strip, the zone tabs' bare numbers, and the card above. The
+ * tabs took the job: they now print `40/40+` and `12/12` against their own
+ * thresholds, and unlike either readout they are also the control you press to
+ * go and fix the number. Two of the three were pure chrome on a screen whose
+ * chrome had already been measured at 61% of the display.
  *
- * Co-located with the card rather than given its own file, because the two
- * render the same fact and the mark, the counts and the thresholds all have to
- * mean the same thing in both. Two files is how they drift.
- *
- * Deliberately no verdict sentence and no footnote: the sentence is the part
- * that changes length, and a pinned row that grows and shrinks pushes the list
- * under the reader's finger. Both are a scroll away.
+ * Its only consumer was the deck editor, so leaving it exported with nobody
+ * calling it is exactly the dead-export class the post-M6 audit exists to catch.
  */
-export function LegalityStrip({
-  legality,
-  sideboard,
-}: Pick<LegalityCardProps, 'legality' | 'sideboard'>) {
-  const { counts, legal } = legality;
-
-  return (
-    <View style={styles.strip}>
-      <View style={[styles.mark, legal ? styles.markOk : styles.markWarn]}>
-        <Text style={[styles.markGlyph, legal ? styles.markGlyphOk : styles.markGlyphWarn]}>
-          {legal ? '✓' : '!'}
-        </Text>
-      </View>
-      <Text style={styles.summary} numberOfLines={1}>
-        Main {counts.main}/{MAIN_DECK_SIZE} · Runes {counts.rune}/{RUNE_DECK_SIZE} · BF{' '}
-        {counts.battlefield}/{BATTLEFIELD_COUNT} · Side {sideboard}
-      </Text>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   card: {
@@ -131,15 +125,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: color.border,
   },
-  head: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  // No border and no fill: pinned directly under the header it belongs to,
-  // where a second bordered box would read as a control rather than a readout.
-  strip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[2],
-    paddingBottom: space[2],
-  },
+  // `flex-start`, not `center`: the message wraps to two lines on a narrow
+  // phone, and centring would float the mark against the middle of a paragraph.
+  head: { flexDirection: 'row', alignItems: 'flex-start', gap: space[2] },
   mark: {
     width: 18,
     height: 18,
@@ -148,14 +136,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  markOk: { borderColor: color.win },
   markWarn: { borderColor: color.warning },
   markGlyph: { ...text.caption, fontSize: 10, lineHeight: 12 },
-  markGlyphOk: { color: color.win },
   markGlyphWarn: { color: color.warning },
-  summary: { ...text.numeric, fontSize: 11.5, color: color.text, flex: 1 },
-  verdict: { ...text.caption, fontSize: 11.5, color: color.textSecondary, marginTop: 5 },
-  unresolved: { ...text.caption, fontSize: 11.5, color: color.warning, marginTop: 5 },
+  // Beside the mark rather than under it — with the counts gone there is one
+  // sentence here, and stacking it under an 18px dot wastes the line.
+  verdictInline: {
+    ...text.caption,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: color.textSecondary,
+    flex: 1,
+  },
+  unresolved: { ...text.caption, fontSize: 11.5, color: color.warning },
+  /** Only when something sits above it. */
+  spaced: { marginTop: 5 },
   footnote: {
     ...text.caption,
     fontSize: 11.5,

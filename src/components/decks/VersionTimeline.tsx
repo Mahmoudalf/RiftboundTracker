@@ -3,8 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
 import type { DeckVersionRow } from '@/db/schema/decks';
+import { useT } from '@/i18n';
 import type { DeckDiff } from '@/lib/deck-diff';
-import { MAIN_DECK_SIZE } from '@/lib/legality';
+import { MAIN_DECK_TARGET } from '@/lib/legality';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
@@ -63,6 +64,7 @@ export function VersionTimeline({
   onPress,
   onLongPress,
 }: VersionTimelineProps) {
+  const t = useT();
   return (
     <View style={styles.root}>
       {nodes.map((node, index) => {
@@ -129,7 +131,7 @@ export function VersionTimeline({
                     ? `Forked from v${node.parentNumber}`
                     : null,
                   formatDate(version.createdAt),
-                  `${version.mainCount}/${MAIN_DECK_SIZE}`,
+                  `${version.mainCount}/${MAIN_DECK_TARGET}`,
                   version.isLegal ? 'Legal' : 'Incomplete',
                   // A locked version with no matches only exists before M4, via
                   // the dev lock. "No games yet" there would contradict the
@@ -157,7 +159,7 @@ export function VersionTimeline({
               {expandedId === version.id && renderDetail ? (
                 renderDetail(node)
               ) : node.diff ? (
-                <DeckDiffView diff={node.diff} limit={6} emptyMessage="No card changes" />
+                <DeckDiffView diff={node.diff} limit={6} emptyMessage={t('version.noChanges')} />
               ) : null}
             </Pressable>
           </View>

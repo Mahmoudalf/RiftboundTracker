@@ -1,4 +1,5 @@
 import type { MatchRow } from '@/db/schema/games';
+import { t } from '@/i18n';
 
 import { rateOf, type Coverage, type Rate, type Segment } from './summary';
 
@@ -231,7 +232,7 @@ export function scoreStats(games: readonly MatchRow[]): ScoreStat {
     });
   }
   if (clear.length > 0) {
-    segments.push({ key: 'clear', label: 'Decided by more', rate: rateOf(clear) });
+    segments.push({ key: 'clear', label: t('hands.decidedByMore'), rate: rateOf(clear) });
   }
 
   return {

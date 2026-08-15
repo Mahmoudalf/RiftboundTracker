@@ -4,6 +4,7 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Dropdown, type DropdownOption } from '@/components/ui/Dropdown';
 import { Pressable } from '@/components/ui/Pressable';
 import { setFacets, type CardSort } from '@/db/queries/cards';
+import { useT, type Key } from '@/i18n';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -29,10 +30,10 @@ const POOL_KINDS = [
   { key: 'Champion', label: 'Champion', kind: 'supertype' as const },
 ];
 
-const SORTS: DropdownOption<Extract<CardSort, 'name' | 'energy'>>[] = [
-  { value: 'energy', label: 'Energy cost' },
-  { value: 'name', label: 'Name' },
-];
+const SORT_KEYS = [
+  { value: 'energy', label: 'pool.sort.energy' },
+  { value: 'name', label: 'pool.sort.name' },
+] as const satisfies readonly { value: Extract<CardSort, 'name' | 'energy'>; label: Key }[];
 
 export interface PoolFilterState {
   search: string;
@@ -66,8 +67,6 @@ type OpenMenu = 'sort' | 'type' | 'set' | null;
 interface CardPoolFiltersProps {
   value: PoolFilterState;
   onChange: (next: PoolFilterState) => void;
-  /** Shown beside the controls so the effect of a change is visible. */
-  resultCount: number;
   placeholder?: string;
   editable?: boolean;
 }
@@ -75,11 +74,16 @@ interface CardPoolFiltersProps {
 export function CardPoolFilters({
   value,
   onChange,
-  resultCount,
-  placeholder = 'Search cards',
+  placeholder,
   editable = true,
 }: CardPoolFiltersProps) {
+  const t = useT();
   const [menu, setMenu] = useState<OpenMenu>(null);
+  // Translated at render, because `SORT_KEYS` is module scope and would
+  // otherwise freeze the language the bundle first started in.
+  const sortOptions: DropdownOption<Extract<CardSort, 'name' | 'energy'>>[] = SORT_KEYS.map(
+    (s) => ({ value: s.value, label: t(s.label) })
+  );
   const sets = useMemo(() => setFacets(), []);
 
   /*
@@ -106,20 +110,20 @@ export function CardPoolFilters({
       <TextInput
         value={value.search}
         onChangeText={(search) => onChange({ ...value, search })}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('pool.search')}
         placeholderTextColor={color.textFaint}
         style={styles.search}
         autoCorrect={false}
         editable={editable}
-        accessibilityLabel="Search cards"
+        accessibilityLabel={t('pool.search')}
       />
 
       <View style={styles.row}>
         <View style={styles.slot}>
           <Dropdown
-            label="Sort"
+            label={t('pool.sort')}
             value={value.sort}
-            options={SORTS}
+            options={sortOptions}
             open={menu === 'sort'}
             onOpenChange={(open) => setMenu(open ? 'sort' : null)}
             onSelect={(sort) => onChange({ ...value, sort })}
@@ -128,7 +132,7 @@ export function CardPoolFilters({
         <View style={styles.slot}>
           <Dropdown
             multiple
-            label="Type"
+            label={t('pool.type')}
             values={value.kinds}
             options={kindOptions}
             open={menu === 'type'}
@@ -140,7 +144,7 @@ export function CardPoolFilters({
         <View style={styles.slot}>
           <Dropdown
             multiple
-            label="Set"
+            label={t('pool.set')}
             values={value.setIds}
             options={setOptions}
             open={menu === 'set'}
@@ -154,18 +158,23 @@ export function CardPoolFilters({
       {/*
         Always rendered, even with nothing to clear — this row keeps the header
         a constant height, which is the whole reason the list below stays put.
+        That is now its **only** job, so it must not become conditional.
+
+        It used to lead with "381 cards". That number counts the pool you could
+        add from, not anything about the deck you are building, and it changes
+        with every keystroke in the search field — a large, restless figure
+        answering a question nobody asked. The zone tabs carry the counts that
+        matter.
       */}
       <View style={styles.meta}>
-        <Text style={styles.count}>
-          {resultCount} {resultCount === 1 ? 'card' : 'cards'}
-        </Text>
+        <View style={styles.metaSpacer} />
         {filtered ? (
           <Pressable
             accessibilityRole="button"
             onPress={() => onChange({ ...value, kinds: [], setIds: [] })}
             style={({ pressed }) => [styles.clear, pressed && styles.pressed]}
           >
-            <Text style={styles.clearLabel}>Clear filters</Text>
+            <Text style={styles.clearLabel}>{t('pool.clear')}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -174,7 +183,15 @@ export function CardPoolFilters({
 }
 
 const styles = StyleSheet.create({
-  root: { paddingBottom: space[2] },
+  /*
+   * No bottom padding of its own.
+   *
+   * The `meta` row already reserves 32pt below the selects, so this was 8 more
+   * on top of a gap that is empty in every state except "filters applied". Both
+   * screens that use this follow it with a card grid and own the spacing before
+   * it themselves.
+   */
+  root: { paddingBottom: 0 },
   search: {
     ...text.small,
     color: color.text,
@@ -194,7 +211,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     height: 32,
   },
-  count: { ...text.microMeta, color: color.textMuted },
+  // Pushes Clear to the right where the count used to end.
+  metaSpacer: { flex: 1 },
   clear: { justifyContent: 'center', height: 32, paddingLeft: space[3] },
   clearLabel: { ...text.microMeta, color: color.info },
   pressed: { opacity: 0.75 },

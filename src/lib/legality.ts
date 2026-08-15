@@ -1,4 +1,5 @@
 import type { CardRow } from '@/db/schema/cards';
+import { t } from '@/i18n';
 
 import {
   baseName,
@@ -62,6 +63,23 @@ export const RULES_VERSION = 2;
 
 /** Rule 103.2 — "A Main Deck of **at least** 40 cards". A minimum, not a target. */
 export const MAIN_DECK_SIZE = 40;
+
+/**
+ * How the main deck's threshold is written on screen — **`40+`, never `40`**.
+ *
+ * Every other zone in the same readout is an exact requirement, so `x/y` had
+ * come to mean "y is the number you must hit": `Runes 12/12`, `BF 3/3`. Printing
+ * the minimum in that same form made `Main 41/40` read as one card over the
+ * limit, and it sat directly beside a verdict saying the deck was legal. Two
+ * screens went further and coloured 41 in `danger` red while declaring the same
+ * deck legal — a readout arguing with itself.
+ *
+ * The rule was right and the notation was lying about which kind of rule it was.
+ * Exported as a string so the exact and the minimum zones are visibly different
+ * wherever they appear together, and so the five places that render this cannot
+ * drift apart.
+ */
+export const MAIN_DECK_TARGET = `${MAIN_DECK_SIZE}+`;
 /** Rule 103.3.a — exactly 12 Rune Cards. */
 export const RUNE_DECK_SIZE = 12;
 /** Rule 103.4.a — dictated by the Mode of Play; 3 for standard Constructed. */
@@ -232,7 +250,7 @@ export function checkLegality(list: DeckList): LegalityResult {
   if (!legend) {
     issues.push({
       code: 'no-legend',
-      message: 'Pick a Legend — it sets the deck’s domains',
+      message: t('legality.noLegend'),
       cardIds: [],
     });
   }
@@ -240,7 +258,7 @@ export function checkLegality(list: DeckList): LegalityResult {
   if (!champion) {
     issues.push({
       code: 'no-champion',
-      message: 'Pick a Champion Unit',
+      message: t('legality.noChampion'),
       cardIds: [],
     });
   } else if (!isChampionUnit(champion)) {

@@ -26,6 +26,7 @@ import { listMatches, saveMatches } from '@/db/queries/matches';
 import type { CardRow } from '@/db/schema/cards';
 import type { MatchRow } from '@/db/schema/games';
 import { TOAST_CONFIRM_MS, useToast } from '@/features/games/useToast';
+import { useT } from '@/i18n';
 import { baseName, cardKey } from '@/lib/card-identity';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
@@ -90,6 +91,7 @@ function draftHand(match: MatchRow): OpeningHandValue {
 }
 
 export default function GameMatchesScreen() {
+  const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const showToast = useToast((s) => s.show);
 
@@ -128,11 +130,11 @@ export default function GameMatchesScreen() {
 
   if (!game) {
     return (
-      <Screen title="Match detail">
+      <Screen title={t('detail.title')}>
         <EmptyState
-          title="Game not found"
-          body="It may have been deleted."
-          actions={[{ label: 'Back', onPress: () => router.back(), primary: true }]}
+          title={t('game.notFound.title')}
+          body={t('game.notFound.body')}
+          actions={[{ label: t('common.back'), onPress: () => router.back(), primary: true }]}
         />
       </Screen>
     );
@@ -142,11 +144,11 @@ export default function GameMatchesScreen() {
 
   if (matches.length === 0) {
     return (
-      <Screen title="Match detail" meta={deck?.name}>
+      <Screen title={t('detail.title')} meta={deck?.name}>
         <EmptyState
-          title="No matches recorded"
-          body="This game was logged before per-match detail existed, or its matches were cleared. Detail attaches to a match, so there is nothing to attach it to yet."
-          actions={[{ label: 'Back', onPress: () => router.back(), primary: true }]}
+          title={t('detail.noMatches')}
+          body={t('detail.noMatches.body')}
+          actions={[{ label: t('common.back'), onPress: () => router.back(), primary: true }]}
         />
       </Screen>
     );
@@ -236,15 +238,11 @@ export default function GameMatchesScreen() {
 
   return (
     <Screen
-      title="Match detail"
+      title={t('detail.title')}
       meta={metaLine(deck?.name, `${matches.length} match${matches.length === 1 ? '' : 'es'}`)}
     >
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        <Text style={styles.intro}>
-          Everything here is optional and independent — a score with no opening hand still counts
-          towards the score breakdown. Leave anything you do not remember blank rather than
-          guessing at it.
-        </Text>
+        <Text style={styles.intro}>{t('detail.help')}</Text>
 
         {matches.map((match, i) => (
           <MatchDetailCard
@@ -273,14 +271,10 @@ export default function GameMatchesScreen() {
           onPress={onSave}
           style={({ pressed }) => [styles.save, pressed && styles.pressed]}
         >
-          <Text style={styles.saveLabel}>Save detail</Text>
+          <Text style={styles.saveLabel}>{t('detail.save')}</Text>
         </Pressable>
 
-        <Text style={styles.footnote}>
-          Which matches were played is not editable here — the game result is derived from them, so
-          adding one would let this screen contradict the record it describes. Correct the matches
-          on the game itself.
-        </Text>
+        <Text style={styles.footnote}>{t('detail.notEditable')}</Text>
       </ScrollView>
 
       <CardPickerSheet

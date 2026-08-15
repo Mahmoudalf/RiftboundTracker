@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import { markLogStart } from '@/features/games/timing';
+import { useT, type Key } from '@/i18n';
 import { color, elevation, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -36,14 +37,19 @@ import { text } from '@/theme/typography';
  */
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
-const TABS: { name: string; label: string; icon: IconName }[] = [
-  { name: '(decks)', label: 'Decks', icon: 'decks' },
-  { name: 'collection', label: 'Collection', icon: 'cards' },
-  { name: 'stats', label: 'Stats', icon: 'stats' },
-  { name: 'profile', label: 'You', icon: 'profile' },
+// Keys, translated at render — a module-scope constant evaluates once and
+// would otherwise freeze whatever language the bundle first started in.
+const TABS: { name: string; label: Key; icon: IconName }[] = [
+  { name: '(decks)', label: 'tab.decks', icon: 'decks' },
+  // Parenthesised: the tab is a route *group* owning its own stack, so the
+  // navigator knows it by the group's name, not by the screen inside it.
+  { name: '(collection)', label: 'tab.collection', icon: 'cards' },
+  { name: 'stats', label: 'tab.stats', icon: 'stats' },
+  { name: 'profile', label: 'tab.you', icon: 'profile' },
 ];
 
 export function TabBar({ state, navigation }: TabBarProps) {
+  const t = useT();
   const insets = useSafeAreaInsets();
 
   const onLogMatch = () => {
@@ -70,7 +76,7 @@ export function TabBar({ state, navigation }: TabBarProps) {
         key={tab.name}
         accessibilityRole="tab"
         accessibilityState={{ selected: focused }}
-        accessibilityLabel={tab.label}
+        accessibilityLabel={t(tab.label)}
         style={styles.tab}
         onPress={() => {
           const route = state.routes[routeIndex];
@@ -118,7 +124,7 @@ export function TabBar({ state, navigation }: TabBarProps) {
             { color: focused ? color.accent : color.textFaint },
           ]}
         >
-          {tab.label}
+          {t(tab.label)}
         </Text>
       </Pressable>
     );
@@ -136,8 +142,8 @@ export function TabBar({ state, navigation }: TabBarProps) {
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Log a game"
-          accessibilityHint="Opens the match log sheet"
+          accessibilityLabel={t('ui.logGame')}
+          accessibilityHint={t('tab.logGame.hint')}
           onPress={onLogMatch}
           style={({ pressed }) => [
             styles.action,

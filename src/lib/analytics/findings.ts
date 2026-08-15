@@ -1,4 +1,5 @@
 import type { MatchRow, GameRow } from '@/db/schema/games';
+import { t } from '@/i18n';
 
 import { cardHandStats, scoreStats } from './hands';
 import {
@@ -187,12 +188,18 @@ function versionFinding(
     kind: 'version',
     key: `version:${current.version.id}`,
     strength: Math.abs(currentRate - previousRate),
-    headline: better
-      ? `${currentLabel} is beating ${previousLabel}.`
-      : `${currentLabel} is behind ${previousLabel}.`,
-    evidence:
-      `${currentLabel} ${pct(currentRate)} over ${current.rate.total} games · ` +
-      `${previousLabel} ${pct(previousRate)} over ${previous.rate.total}`,
+    headline: t(better ? 'finding.version.ahead' : 'finding.version.behind', {
+      current: currentLabel,
+      previous: previousLabel,
+    }),
+    evidence: t('finding.version.evidence', {
+      current: currentLabel,
+      currentRate: pct(currentRate),
+      currentGames: current.rate.total,
+      previous: previousLabel,
+      previousRate: pct(previousRate),
+      previousGames: previous.rate.total,
+    }),
     link: context.deckId ? { to: 'deck', id: context.deckId } : null,
   };
 }
@@ -242,12 +249,15 @@ function matchupFinding(games: readonly GameRow[]): Finding | null {
         kind: 'matchup',
         key: `matchup:${segment.key}`,
         strength: Math.abs(rate - (rest.rate ?? 0)),
-        headline: worse
-          ? `${segment.label} decks beat you.`
-          : `You beat ${segment.label} decks.`,
-        evidence:
-          `${opponent} · ${record(segment.rate)} · ${pct(rate)} against ` +
-          `${pct(rest.rate ?? 0)} in your other games`,
+        headline: t(worse ? 'finding.matchup.worse' : 'finding.matchup.better', {
+          opponent: segment.label,
+        }),
+        evidence: t('finding.matchup.evidence', {
+          opponent,
+          record: record(segment.rate),
+          rate: pct(rate),
+          restRate: pct(rest.rate ?? 0),
+        }),
         link: null,
       },
     });
@@ -293,8 +303,11 @@ function cardFinding(matches: readonly MatchRow[], context: FindingContext): Fin
     kind: 'card',
     key: `card:${worst.cardId}`,
     strength: (worst.mulliganRate - MULLIGAN_FLOOR) * 2,
-    headline: `You throw ${name} back more often than you keep it.`,
-    evidence: `${worst.mulliganed} of ${worst.seen} opening hands it was dealt in`,
+    headline: t('finding.card.headline', { card: name }),
+    evidence: t('finding.card.evidence', {
+      mulliganed: worst.mulliganed,
+      seen: worst.seen,
+    }),
     link: { to: 'card', id: worst.cardId },
   };
 }
@@ -314,13 +327,15 @@ function marginFinding(matches: readonly MatchRow[]): Finding | null {
     kind: 'margin',
     key: 'margin',
     strength: Math.abs(closeRate - clearRate),
-    headline:
-      closeRate > clearRate
-        ? 'You win the close ones and lose the clear ones.'
-        : 'Your wins are clear and your losses are close.',
-    evidence:
-      `Close ${record(close.rate)} · clear ${record(clear.rate)} ` +
-      `(${scores.coverage.recorded} of ${scores.coverage.total} matches scored)`,
+    headline: t(
+      closeRate > clearRate ? 'finding.margin.winClose' : 'finding.margin.winClear'
+    ),
+    evidence: t('finding.margin.evidence', {
+      close: record(close.rate),
+      clear: record(clear.rate),
+      recorded: scores.coverage.recorded,
+      total: scores.coverage.total,
+    }),
     link: null,
   };
 }
@@ -339,10 +354,13 @@ function orderFinding(games: readonly GameRow[]): Finding | null {
     kind: 'order',
     key: 'order',
     strength: Math.abs(playRate - drawRate),
-    headline: `Going ${first ? 'first' : 'second'} measurably helps this deck.`,
-    evidence:
-      `On the play ${record(split.onPlay)} · on the draw ${record(split.onDraw)} ` +
-      `(${split.coverage.recorded} of ${split.coverage.total} games recorded)`,
+    headline: t(first ? 'finding.order.first' : 'finding.order.second'),
+    evidence: t('finding.order.evidence', {
+      onPlay: record(split.onPlay),
+      onDraw: record(split.onDraw),
+      recorded: split.coverage.recorded,
+      total: split.coverage.total,
+    }),
     link: null,
   };
 }
@@ -397,11 +415,17 @@ export function nextStep(games: readonly GameRow[]): string | null {
    * near 50 % is hundreds of games. Printing that number is not advice, so the
    * sentence stops at the finding — the same call the play/draw verdict made.
    */
-  if (more === null) {
-    return 'Nothing separates yet. The differences so far are smaller than this many games can resolve.';
-  }
+  if (more === null) return t('finding.nextStep.uncapped');
 
-  return `Nothing separates yet — about ${more} more ${
-    more === 1 ? 'game' : 'games'
-  } would start to tell.`;
+  return t('finding.nextStep', {
+    more,
+    /*
+     * The noun is its own key rather than an inline ternary.
+     *
+     * German and French both inflect it, and a plural chosen by English grammar
+     * would be wrong in either even with the two words translated — the
+     * *decision* about which form to use has to be translatable too.
+     */
+    games: more === 1 ? t('finding.game') : t('finding.games'),
+  });
 }

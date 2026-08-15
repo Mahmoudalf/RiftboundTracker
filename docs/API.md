@@ -285,6 +285,15 @@ changes verdicts.
 **1. The Main Deck is a minimum, not a fixed size.** 103.2 says "A Main Deck of *at least* 40 cards".
 A 42-card deck is legal. Treating 40 as exact reports it as two cards over.
 
+> **It has to be *written* as a minimum too.** Re-verified against the Core Rules on 2026-08-14 after
+> a 41-card deck was reported as a bug. The rule was right; the readout was not. Every screen printed
+> `Main 41/40` — the same `x/y` form the exact zones use (`Runes 12/12`, `BF 3/3`) — so the notation
+> itself said "one over", sitting directly beside a verdict reading *"Legal — every zone is within
+> its limits."* `LegalityBar` went further and coloured the 41 in `danger` red while its own status
+> line said "Legal deck". Fixed by exporting `MAIN_DECK_TARGET` (`"40+"`) as the one display form,
+> and by teaching `LegalityBar`'s `Count` which thresholds are minima — a minimum can be met but
+> never exceeded, so it has no "over" state to warn about.
+
 **2. The copy limit is scoped to the Main Deck — and the sideboard shares its pool.** 103.2.b: "Your
 **Main Deck** can include up to 3 copies of the same named card." The Rune Deck (103.3) states no
 copy limit at all, and Battlefields have their own rule instead. This matters because there are only

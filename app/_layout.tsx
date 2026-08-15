@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '../global.css';
 
 import { Toast } from '@/components/ui/Toast';
+import { useLocale } from '@/i18n';
 import { color } from '@/theme/tokens';
 import { fonts } from '@/theme/typography';
 
@@ -28,6 +29,23 @@ const queryClient = new QueryClient({
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(fonts);
+  /**
+   * Changing language remounts the tree.
+   *
+   * Most translated strings are produced by plain functions — `gameStyleLabel`,
+   * `gameDate`, the result labels — which call `t()` imperatively and so do not
+   * subscribe to the locale. Making every one of them a hook would turn a
+   * formatting helper into something only a component can call, and `lib/` would
+   * stop being pure.
+   *
+   * Keying the navigator on the locale buys correctness for one line instead:
+   * every screen re-reads every string, once, at the moment the language
+   * changes. It is a heavy remount, and it happens on a deliberate settings
+   * action a user performs approximately never — the wrong thing to optimise
+   * for, against a whole-app subscription rule that would be easy to forget in
+   * one place and never notice.
+   */
+  const locale = useLocale((s) => s.locale);
 
   useEffect(() => {
     // Hide the splash on error too — a missing font should degrade to the
@@ -43,6 +61,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <StatusBar style="light" />
           <Stack
+            key={locale}
             screenOptions={{
               headerShown: false,
               contentStyle: { backgroundColor: color.bg },

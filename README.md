@@ -94,7 +94,7 @@ installed SDK — a mismatched one targets a different Hermes and stops transpil
 | [`docs/API.md`](docs/API.md) | Riftcodex API reference — verified endpoints, schemas, measurements |
 | [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) | Database schema, version locking, analytics engine |
 | [`docs/DESIGN.md`](docs/DESIGN.md) | Design system, navigation, key user flows |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Milestones M0–M8 with acceptance criteria |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Milestones M0–M9 with acceptance criteria |
 
 ---
 

@@ -196,8 +196,8 @@ the fallback name for an opponent outside the card library, so a live "Unknown o
 being fed by a column nothing could fill. `mulligans` held a count that `matches.mulliganed`
 supersedes by holding the actual cards.
 
-Removed before M7 rather than after — a column that reaches Supabase acquires an RLS policy and a
-sync engine, and stops being free to delete.
+Removed before the Cloud milestone rather than after — a column that reaches Supabase acquires an RLS
+policy and a sync engine, and stops being free to delete.
 
 `deck_id` is stored alongside `deck_version_id` on purpose: deck-level aggregates never need a join,
 and no version-level operation can orphan a game.

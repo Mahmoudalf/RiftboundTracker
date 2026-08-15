@@ -53,7 +53,15 @@ export interface CardSlotProps {
   placeholder?: string;
   /** Measured by the parent — see `slotWidthFor`. */
   width: number;
-  onPress: () => void;
+  /**
+   * Omit to render the slot as a **read-only** tile.
+   *
+   * The same shape, drawn as a `View` rather than a `Pressable`: a recorded hand
+   * being read back is not a control, and announcing four buttons that do
+   * nothing is worse than announcing none. The empty-slot glyph goes with it —
+   * a `+` on a read-back is an offer the screen cannot honour.
+   */
+  onPress?: () => void;
   accessibilityLabel?: string;
 }
 
@@ -95,19 +103,30 @@ export function CardSlot({
   const drew = state === 'replacement' && card !== null;
   const dashed = state === 'replacement' && !card;
   const artHeight = Math.round(width / CARD_RATIO);
+  const readOnly = onPress === undefined;
+
+  const label =
+    accessibilityLabel ??
+    (card
+      ? `${baseName(card.name)}${mulliganed ? ', sent back' : drew ? ', drawn back' : ''}`
+      : placeholder);
+
+  // Same style list either way, so going read-only cannot move a tile.
+  const Frame = readOnly ? View : Pressable;
+  const interaction = readOnly
+    ? { accessibilityRole: 'text' as const, style: [styles.slot, { width }] }
+    : {
+        accessibilityRole: 'button' as const,
+        onPress,
+        style: ({ pressed }: { pressed: boolean }) => [
+          styles.slot,
+          { width },
+          pressed && styles.pressed,
+        ],
+      };
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={
-        accessibilityLabel ??
-        (card
-          ? `${baseName(card.name)}${mulliganed ? ', sent back' : drew ? ', drawn back' : ''}`
-          : placeholder)
-      }
-      onPress={onPress}
-      style={({ pressed }) => [styles.slot, { width }, pressed && styles.pressed]}
-    >
+    <Frame accessibilityLabel={label} {...interaction}>
       <View
         style={[
           styles.frame,
@@ -144,7 +163,7 @@ export function CardSlot({
             */}
             {mulliganed ? <View style={styles.wash} /> : null}
           </>
-        ) : (
+        ) : readOnly ? null : (
           <Text style={styles.glyph}>{state === 'replacement' ? '⌕' : '+'}</Text>
         )}
 
@@ -171,7 +190,7 @@ export function CardSlot({
       >
         {card ? baseName(card.name) : placeholder}
       </Text>
-    </Pressable>
+    </Frame>
   );
 }
 

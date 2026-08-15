@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
+import { useT } from '@/i18n';
 import {
   BATTLEFIELD_COUNT,
   MAIN_DECK_SIZE,
@@ -16,9 +17,29 @@ interface LegalityBarProps {
   onPress?: () => void;
 }
 
-function Count({ label, actual, required }: { label: string; actual: number; required: number }) {
-  const done = actual === required;
-  const over = actual > required;
+/**
+ * One zone's count against its threshold.
+ *
+ * `minimum` is what separates the Main Deck from the other two. Without it this
+ * treated every threshold as exact, so a legal 41-card Main Deck (103.2 — "at
+ * least 40") was painted in `danger` red beside a status line reading "Legal
+ * deck". The colour and the notation both have to know which kind of rule they
+ * are drawing, or they contradict the verdict standing next to them.
+ */
+function Count({
+  label,
+  actual,
+  required,
+  minimum = false,
+}: {
+  label: string;
+  actual: number;
+  required: number;
+  minimum?: boolean;
+}) {
+  const done = minimum ? actual >= required : actual === required;
+  // A minimum cannot be exceeded, only met — so there is no "over" to warn about.
+  const over = !minimum && actual > required;
   return (
     <View style={styles.count}>
       <Text style={styles.countLabel}>{label}</Text>
@@ -29,7 +50,10 @@ function Count({ label, actual, required }: { label: string; actual: number; req
         ]}
       >
         {actual}
-        <Text style={styles.countTotal}>/{required}</Text>
+        <Text style={styles.countTotal}>
+          /{required}
+          {minimum ? '+' : ''}
+        </Text>
       </Text>
     </View>
   );
@@ -47,6 +71,7 @@ function Count({ label, actual, required }: { label: string; actual: number; req
  * progress just teaches people not to use it.
  */
 export function LegalityBar({ result, onPress }: LegalityBarProps) {
+  const t = useT();
   const { counts, issues, legal } = result;
   // Count issues are already shown as numbers, so the line adds what they can't.
   const headline = issues.find((i) => !i.code.endsWith('-count')) ?? issues[0];
@@ -65,16 +90,14 @@ export function LegalityBar({ result, onPress }: LegalityBarProps) {
       style={styles.root}
     >
       <View style={styles.counts}>
-        <Count label="Main" actual={counts.main} required={MAIN_DECK_SIZE} />
-        <Count label="Runes" actual={counts.rune} required={RUNE_DECK_SIZE} />
-        <Count label="Fields" actual={counts.battlefield} required={BATTLEFIELD_COUNT} />
+        <Count label={t('legality.main')} actual={counts.main} required={MAIN_DECK_SIZE} minimum />
+        <Count label={t('legality.runes')} actual={counts.rune} required={RUNE_DECK_SIZE} />
+        <Count label={t('legality.fields')} actual={counts.battlefield} required={BATTLEFIELD_COUNT} />
       </View>
 
       <View style={styles.status}>
         {legal ? (
-          <Text style={[styles.message, { color: color.win }]} numberOfLines={1}>
-            Legal deck
-          </Text>
+          <Text style={[styles.message, { color: color.win }]} numberOfLines={1}>{t('legality.legal')}</Text>
         ) : (
           <Text style={[styles.message, { color: color.warning }]} numberOfLines={1}>
             {headline?.message}

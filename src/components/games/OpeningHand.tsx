@@ -3,6 +3,7 @@ import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { CardSlot, SLOT_GAP, slotWidthFor } from '@/components/games/CardSlot';
 import { SectionLabel } from '@/components/ui/Field';
 import type { CardRow } from '@/db/schema/cards';
+import { useT } from '@/i18n';
 import { color, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -162,6 +163,7 @@ export interface OpeningHandProps {
 }
 
 export function OpeningHand({ value, onPickRow }: OpeningHandProps) {
+  const t = useT();
   const { dealt, mulliganed, replacements } = value;
   const sentBack = mulliganed.length;
 
@@ -179,7 +181,7 @@ export function OpeningHand({ value, onPickRow }: OpeningHandProps) {
   return (
     <>
       <View style={styles.block}>
-        <SectionLabel>Opening hand — from this deck</SectionLabel>
+        <SectionLabel>{t('match.openingHand')}</SectionLabel>
         <View style={styles.grid}>
           {dealt.map((card, i) => (
             <CardSlot
@@ -187,24 +189,23 @@ export function OpeningHand({ value, onPickRow }: OpeningHandProps) {
               width={slotWidth}
               card={card}
               state={mulliganed.includes(i) ? 'mulliganed' : 'kept'}
-              placeholder="Card"
+              placeholder={t('match.slot.card')}
               onPress={() => onPickRow('dealt')}
               accessibilityLabel={
                 card
-                  ? `Card ${i + 1} of the opening hand: ${card.name}. Tap to choose the hand.`
-                  : `Card ${i + 1} of the opening hand, not chosen. Tap to choose the hand.`
+                  ? t('match.slot.dealt.a11y', { index: i + 1, card: card.name })
+                  : t('match.slot.dealtEmpty.a11y', { index: i + 1 })
               }
             />
           ))}
         </View>
         <Text style={styles.helper}>
-          Tap any slot to pick the whole hand — up to {DEAL_SIZE} cards, tapping one twice for a
-          second copy.
+          {t('match.openingHand.help', { size: DEAL_SIZE })}
         </Text>
       </View>
 
       <View style={styles.block}>
-        <SectionLabel>Mulligan</SectionLabel>
+        <SectionLabel>{t('match.mulligan')}</SectionLabel>
         <View style={styles.grid}>
           {/*
             Two "which went back" slots, then two "what you drew" slots.
@@ -221,12 +222,12 @@ export function OpeningHand({ value, onPickRow }: OpeningHandProps) {
                 width={slotWidth}
                 card={card}
                 state={card ? 'mulliganed' : 'empty'}
-                placeholder="Mull"
+                placeholder={t('match.slot.mull')}
                 onPress={() => onPickRow('mulligan')}
                 accessibilityLabel={
                   card
-                    ? `Sent back: ${card.name}. Tap to change what went back.`
-                    : `Mulligan slot ${n + 1}, empty. Tap to choose which dealt cards went back.`
+                    ? t('match.slot.mull.a11y', { card: card.name })
+                    : t('match.slot.mullEmpty.a11y', { index: n + 1 })
                 }
               />
             );
@@ -237,26 +238,28 @@ export function OpeningHand({ value, onPickRow }: OpeningHandProps) {
               width={slotWidth}
               card={replacements[n] ?? null}
               state="replacement"
-              placeholder="Drew"
+              placeholder={t('match.slot.drew')}
               // Only meaningful once something has gone back. Opening the
               // picker anyway would invite recording a replacement for a
               // mulligan that never happened.
               onPress={() => (sentBack > 0 ? onPickRow('replacement') : undefined)}
               accessibilityLabel={
                 sentBack > 0
-                  ? `Replacement ${n + 1}: ${replacements[n]?.name ?? 'not recorded'}. Tap to choose what you drew.`
-                  : 'Replacement slot, unavailable until a card is sent back.'
+                  ? t('match.slot.drew.a11y', {
+                      index: n + 1,
+                      card: replacements[n]?.name ?? t('common.notRecorded'),
+                    })
+                  : t('match.slot.drewLocked.a11y')
               }
             />
           ))}
         </View>
         <Text style={styles.helper}>
-          First two — pick which of your opening hand went back, up to {MAX_RECYCLED} at a time.
-          Last two — the replacements you drew, once something has gone back.
+          {t('match.mulligan.help', { max: MAX_RECYCLED })}
         </Text>
         {sentBack > MAX_RECYCLED ? (
           <Text style={styles.warning}>
-            {sentBack} sent back — Riftbound recycles at most {MAX_RECYCLED}. Left as entered.
+            {t('match.mulligan.over', { count: sentBack, max: MAX_RECYCLED })}
           </Text>
         ) : null}
       </View>

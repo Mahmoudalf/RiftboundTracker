@@ -13,9 +13,10 @@ import {
   poolKindFilters,
   type PoolFilterState,
 } from '@/components/decks/CardPoolFilters';
-import { LegalityCard, LegalityStrip } from '@/components/decks/LegalityCard';
+import { LegalityCard } from '@/components/decks/LegalityCard';
 import { SaveVersionSheet } from '@/components/decks/SaveVersionSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import { Prompt } from '@/components/ui/Prompt';
 import { Screen } from '@/components/ui/Screen';
@@ -46,12 +47,15 @@ import {
 } from '@/features/decks/timing';
 import { reconcileWithStored, useDeckEditor } from '@/features/decks/useDeckEditor';
 import { TOAST_CONFIRM_MS, useToast } from '@/features/games/useToast';
+import { useT } from '@/i18n';
 import { baseName, cardKey } from '@/lib/card-identity';
 import { diffLists, type DeckDiff } from '@/lib/deck-diff';
 import {
   BATTLEFIELD_COUNT,
   checkLegality,
   COPY_LIMIT,
+  MAIN_DECK_SIZE,
+  RUNE_DECK_SIZE,
   defaultZoneFor,
   slotBlockReason,
   type DeckZone,
@@ -95,6 +99,7 @@ const BLOCK_LABELS: Record<NonNullable<ReturnType<typeof slotBlockReason>>, stri
 };
 
 export default function DeckEditorScreen() {
+  const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   /*
    * One list, not two.
@@ -122,6 +127,8 @@ export default function DeckEditorScreen() {
   const [pending, setPending] = useState<DeckDiff | null>(null);
   /** Latched on the first commit, so a double tap cannot save twice. */
   const committing = useRef(false);
+  /** So tapping anywhere in the name field — including the pencil — focuses it. */
+  const nameField = useRef<TextInput>(null);
   const showToast = useToast((s) => s.show);
 
   const navigation = useNavigation();
@@ -304,7 +311,33 @@ export default function DeckEditorScreen() {
     return reconcileWithStored(list, loadDeckList(versionId), loadedKeys);
   };
 
+  /**
+   * The name as it would be written, or null if it would not be.
+   *
+   * Blank clears nothing — the field is the only way back to a named deck, so an
+   * emptied box is someone mid-edit, not someone asking for an unnamed deck.
+   */
+  const pendingRename = () => {
+    const trimmed = deckName.trim();
+    if (!deck || !trimmed || trimmed === deck.name) return null;
+    return trimmed;
+  };
+
+  /** Write a pending rename, and report what was written. */
+  const applyRename = () => {
+    const trimmed = pendingRename();
+    if (deck && trimmed) renameDeck(deck.id, trimmed);
+    return trimmed;
+  };
+
+  /**
+   * Unsaved work is the card list **or** the name.
+   *
+   * Only the list used to count, so renaming and then swiping back lost the new
+   * name without a word — the guard was asking about half the screen.
+   */
   const hasUnsavedWork = () => {
+    if (pendingRename()) return true;
     if (!versionId) return false;
     return !diffLists(loadDeckList(versionId), buildSaveList()).isEmpty;
   };
@@ -396,9 +429,27 @@ export default function DeckEditorScreen() {
     const diff = diffLists(loadDeckList(versionId), buildSaveList());
 
     if (diff.isEmpty) {
-      // Nothing to lose, so the guard has no question to ask.
+      /*
+       * An unchanged list is not an unchanged screen.
+       *
+       * The rename used to live inside `commit`, which only the version sheet
+       * can reach — and the sheet only opens for a non-empty diff. So changing
+       * *only* the name took this branch and navigated away without writing it:
+       * the one edit that never forks was also the one edit that never saved.
+       * It is applied here because it belongs to the deck rather than to the
+       * version, so there is no diff for it to be part of.
+       */
+      // Same latch `commit` uses: this branch now writes, so a second tap
+      // before the replace flushes would rename twice and toast twice.
+      if (committing.current) return;
+      committing.current = true;
+
+      const renamed = applyRename();
       leaving.current = true;
       router.replace(`/deck/${id}`);
+      // Same reasoning as `save-message.ts`: a save that did something and said
+      // nothing reads as a save that failed.
+      if (renamed) showToast(t('editor.renamedTo', { name: renamed }), { durationMs: TOAST_CONFIRM_MS });
       return;
     }
     setPending(diff);
@@ -425,9 +476,9 @@ export default function DeckEditorScreen() {
     committing.current = true;
 
     // The name lives on the deck, not the version, so renaming is not an edit
-    // and never forks. Trimmed and only written when it actually changed.
-    const trimmed = deckName.trim();
-    if (deck && trimmed && trimmed !== deck.name) renameDeck(deck.id, trimmed);
+    // and never forks. Same call the empty-diff path makes, so the two ways out
+    // of this screen cannot disagree about whether a rename was saved.
+    applyRename();
 
     const result = saveDeckEdit(versionId, buildSaveList(), options);
     useDeckEditor.setState({ versionId: result.versionId });
@@ -528,21 +579,56 @@ export default function DeckEditorScreen() {
 
   if (notFound) {
     return (
-      <Screen title="Deck not found">
+      <Screen title={t('deck.notFound.title')}>
         <EmptyState
-          title="Deck not found"
-          body="It may have been deleted."
-          actions={[{ label: 'Back to decks', onPress: () => router.replace('/'), primary: true }]}
+          title={t('deck.notFound.title')}
+          body={t('deck.notFound.body')}
+          actions={[{ label: t('deck.goBack'), onPress: () => router.replace('/'), primary: true }]}
         />
       </Screen>
     );
   }
 
-  const zoneTabs: { key: Pool; label: string }[] = [
-    { key: 'main', label: 'Main' },
-    { key: 'rune', label: 'Runes' },
-    { key: 'battlefield', label: 'Battlefields' },
-    { key: 'sideboard', label: 'Sideboard' },
+  /**
+   * The four zones, each with what it currently holds and what it needs.
+   *
+   * **Main reads `legality.counts.main`, not `zoneCount('main')`.** The Chosen
+   * Champion occupies one of the forty main-deck slots (rule 103.2) and lives in
+   * its own zone, so the raw slot count is one short of the number the rule is
+   * about — a tab reading `39/40+` beside a deck the app calls legal. The other
+   * three zones have no such adjustment and the two agree.
+   *
+   * `target: null` is the sideboard: optional, answering to no count, so it
+   * shows what it holds and claims nothing about what it should.
+   */
+  const zoneTabs: {
+    key: Pool;
+    label: string;
+    count: number;
+    target: number | null;
+    minimum?: boolean;
+  }[] = [
+    // 103.2 is "at least 40" — a minimum, which is why this one prints `40+`.
+    {
+      key: 'main',
+      label: t('zone.mainShort'),
+      count: legality.counts.main,
+      target: MAIN_DECK_SIZE,
+      minimum: true,
+    },
+    { key: 'rune', label: t('zone.runes'), count: legality.counts.rune, target: RUNE_DECK_SIZE },
+    {
+      key: 'battlefield',
+      label: t('zone.battlefieldsShort'),
+      count: legality.counts.battlefield,
+      target: BATTLEFIELD_COUNT,
+    },
+    {
+      key: 'sideboard',
+      label: t('zone.sideboard'),
+      count: zoneCount('sideboard'),
+      target: null,
+    },
   ];
 
   /**
@@ -556,8 +642,10 @@ export default function DeckEditorScreen() {
    *
    * So they ride at the top of the candidate list instead of above it. Scroll
    * to the top and they are there; start browsing and the cards get the screen.
-   * The pinned `LegalityStrip` keeps the running counts, which is the one part
-   * you want *while* adding cards.
+   * The **zone tabs** keep the running counts, which is the one part you want
+   * *while* adding cards — and being the control as well as the readout, they
+   * cost no space of their own. A pinned `LegalityStrip` used to do that job and
+   * was the third statement of the same four numbers on this screen.
    *
    * Passed to **both** views — `FlashList`'s `ListHeaderComponent` and
    * `CardGrid`'s `header` — so switching list ⇄ gallery does not change what
@@ -567,7 +655,6 @@ export default function DeckEditorScreen() {
     <View style={styles.listContext}>
       <LegalityCard
         legality={legality}
-        sideboard={zoneCount('sideboard')}
         unresolved={missingFromCounts}
         footnote={
           // Stated before the first edit, not at save time. Learning that a
@@ -619,55 +706,100 @@ export default function DeckEditorScreen() {
 
   return (
     <Screen back={false}>
-      {/* Cancel · deck · Save. The design gives the editor its own header rather
-          than the app's display title: this is a task you are inside, and the
-          two ways out belong at the top of it. */}
+      {/*
+        Cancel · Save. The design gives the editor its own header rather than the
+        app's display title: this is a task you are inside, and the two ways out
+        belong at the top of it.
+
+        The **name used to sit between them** and no longer does. Centred in a
+        header row it had about half the width to work with, so any deck called
+        more than two words either truncated or squeezed the two controls, and it
+        sat at the very top of the screen — the least reachable point on a phone
+        for the one field here you actually type into.
+      */}
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Cancel editing"
+          accessibilityLabel={t('editor.cancel.a11y')}
           onPress={onLeave}
           style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}
         >
-          <Text style={styles.cancelLabel}>Cancel</Text>
+          <Text style={styles.cancelLabel}>{t('common.cancel')}</Text>
         </Pressable>
-
-        {/* The name is edited where it is shown. It was previously unreachable
-            from here at all — the one screen dedicated to changing the deck. */}
-        <TextInput
-          value={deckName}
-          onChangeText={setDeckName}
-          placeholder="Deck name"
-          placeholderTextColor={color.textFaint}
-          style={styles.headerTitle}
-          returnKeyType="done"
-          accessibilityLabel="Deck name"
-        />
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Save deck"
+          accessibilityLabel={t('editor.save.a11y')}
           onPress={onSave}
           style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}
         >
-          <Text style={styles.saveLabel}>Save</Text>
+          <Text style={styles.saveLabel}>{t('action.save')}</Text>
         </Pressable>
       </View>
 
       {/*
-        The running counts, pinned. The full card and the deck's identity moved
-        into the candidate list's own scroll — see `listContext` below.
-      */}
-      <LegalityStrip legality={legality} sideboard={zoneCount('sideboard')} />
+        The name, as a field of its own, directly above the zones.
 
+        Full width, so a long name reads instead of truncating, and low enough to
+        reach. The pencil is the affordance: a bare line of text at the top of an
+        editor reads as a title, and nobody taps a title — this is the one field
+        on the screen whose editability was invisible.
+      */}
+      <Pressable
+        accessibilityRole="none"
+        onPress={() => nameField.current?.focus()}
+        style={styles.nameField}
+      >
+        <TextInput
+          ref={nameField}
+          value={deckName}
+          onChangeText={setDeckName}
+          placeholder={t('editor.name')}
+          placeholderTextColor={color.textFaint}
+          style={styles.nameInput}
+          returnKeyType="done"
+          accessibilityLabel={t('editor.name')}
+        />
+        <Icon name="pencil" size={15} color={color.textMuted} />
+      </Pressable>
+
+      {/*
+        The counts live on the tabs, and nowhere else.
+
+        This screen used to state them three times: a pinned `LegalityStrip`
+        here, the tabs' bare per-zone numbers, and the `LegalityCard` at the top
+        of the candidate list. Three readouts of one fact, two of them costing
+        permanent vertical space on a screen whose chrome was already measured
+        at 61% of the display.
+
+        The tabs win because they are the only one of the three that is *also*
+        the control for the thing it describes — you are looking at the Runes tab
+        precisely when "12/12" is the number you want.
+      */}
       <View style={styles.zoneTabs}>
         {zoneTabs.map((tab) => {
           const on = zone === tab.key;
+          const met =
+            tab.target === null
+              ? null
+              : tab.minimum
+                ? tab.count >= tab.target
+                : tab.count === tab.target;
+          const over = tab.target !== null && !tab.minimum && tab.count > tab.target;
+
           return (
             <Pressable
               key={tab.key}
               accessibilityRole="tab"
               accessibilityState={{ selected: on }}
+              // The tab now carries a fraction, so the label has to say it too —
+              // a screen reader hearing "Runes, selected" would lose the number
+              // that is the whole reason to look at it.
+              accessibilityLabel={
+                tab.target === null
+                  ? `${tab.label} ${tab.count}`
+                  : `${tab.label} ${tab.count} of ${tab.target}${tab.minimum ? ' or more' : ''}`
+              }
               onPress={() => {
                 setZone(tab.key);
                 setFilters(EMPTY_POOL_FILTERS);
@@ -681,41 +813,32 @@ export default function DeckEditorScreen() {
               <Text style={[styles.zoneTabLabel, on && styles.zoneTabLabelOn]} numberOfLines={1}>
                 {tab.label}
               </Text>
-              <Text style={[styles.zoneTabCount, on && styles.zoneTabCountOn]}>
-                {zoneCount(tab.key)}
+              {/*
+                `40/40`, not `40/40+`.
+
+                Owner's call, and the tab is the one place it holds: a legal deck
+                always has a Chosen Champion filling one of the forty, so 40 is
+                what you are building towards and the `+` was pedantry about a
+                rule nobody is trying to exercise. The **colour** still follows
+                the real rule — `minimum` keeps a 41-card deck green rather than
+                red — so the notation is simpler without the readout lying.
+              */}
+              <Text
+                style={[
+                  styles.zoneTabCount,
+                  met === true && styles.zoneTabCountMet,
+                  met === false && !over && styles.zoneTabCountShort,
+                  over && styles.zoneTabCountOver,
+                  on && styles.zoneTabCountOn,
+                ]}
+              >
+                {tab.count}
+                {tab.target === null ? '' : `/${tab.target}`}
               </Text>
             </Pressable>
           );
         })}
       </View>
-
-      {/* Main and Side draw from the same ~900 cards and get the full control
-          set. Battlefields are 64 and Runes are 2 — a filter row over those
-          would cost more space than it saves. */}
-      {zone === 'main' || zone === 'sideboard' ? (
-        <CardPoolFilters
-          value={filters}
-          onChange={setFilters}
-          resultCount={candidates.length}
-          placeholder={
-            zone === 'sideboard'
-              ? 'Search cards for the sideboard'
-              : `Search ${legend?.domains.join(' / ') ?? ''} cards`
-          }
-          editable={!!legend}
-        />
-      ) : zone === 'battlefield' ? (
-        <TextInput
-          value={filters.search}
-          onChangeText={(search) => setFilters({ ...filters, search })}
-          placeholder="Search Battlefields"
-          placeholderTextColor={color.textFaint}
-          style={styles.search}
-          autoCorrect={false}
-          editable={!!legend}
-          accessibilityLabel="Search cards to add"
-        />
-      ) : null}
 
       <View style={styles.listHead}>
         {/*
@@ -730,7 +853,7 @@ export default function DeckEditorScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ selected: inDeckOnly }}
-          accessibilityLabel="Show only cards already in the deck"
+          accessibilityLabel={t('editor.inDeck.a11y')}
           onPress={() => setInDeckOnly((on) => !on)}
           style={({ pressed }) => [
             styles.filterPill,
@@ -739,7 +862,7 @@ export default function DeckEditorScreen() {
           ]}
         >
           <Text style={[styles.filterPillLabel, inDeckOnly && styles.filterPillLabelOn]}>
-            In deck
+            {t('editor.inDeck')}
           </Text>
         </Pressable>
 
@@ -749,7 +872,9 @@ export default function DeckEditorScreen() {
               key={v}
               accessibilityRole="button"
               accessibilityState={{ selected: view === v }}
-              accessibilityLabel={v === 'list' ? 'List view' : 'Gallery view'}
+              accessibilityLabel={
+                v === 'list' ? t('deck.preview.list.a11y') : t('deck.preview.gallery.a11y')
+              }
               onPress={() => setView(v)}
               style={[styles.viewOption, view === v && styles.viewOptionOn]}
             >
@@ -760,6 +885,50 @@ export default function DeckEditorScreen() {
           ))}
         </View>
       </View>
+
+      {/*
+        Search and filters, **below** the controls row rather than above it.
+
+        They used to sit directly under the zone tabs, which pushed the "In deck"
+        pill and the view toggle a full filter block away from the list they act
+        on — and stacked two mostly-empty rows on top of each other once the
+        result count came out. This order puts every control that changes *what
+        the list shows* adjacent to the list, and the search field ends up within
+        thumb reach instead of near the top of the screen.
+
+        Main and Side draw from the same ~900 cards and get the full control set.
+        Battlefields are 64 and Runes are 2 — a filter row over those would cost
+        more space than it saves.
+      */}
+      {zone === 'main' || zone === 'sideboard' ? (
+        <CardPoolFilters
+          value={filters}
+          onChange={setFilters}
+          placeholder={
+            zone === 'sideboard'
+              ? t('editor.searchSideboard')
+              : t('build.searchIdentity', { domains: legend?.domains.join(' / ') ?? '' })
+          }
+          editable={!!legend}
+        />
+      ) : zone === 'battlefield' ? (
+        <TextInput
+          value={filters.search}
+          onChangeText={(search) => setFilters({ ...filters, search })}
+          placeholder={t('editor.searchBattlefields')}
+          placeholderTextColor={color.textFaint}
+          style={styles.search}
+          autoCorrect={false}
+          editable={!!legend}
+          accessibilityLabel={t('editor.searchToAdd')}
+        />
+      ) : null}
+
+      {/* The rule that separates the controls from the list. It lived on
+          `listHead` while that row was the last thing above the list; the
+          filters are now, so it moved with the job rather than staying put and
+          drawing a line through the middle of the controls. */}
+      <View style={styles.listRule} />
 
       <View style={styles.body}>
         {!legend ? (
@@ -777,8 +946,8 @@ export default function DeckEditorScreen() {
           <View style={styles.emptyBody}>
             {listContext}
             <EmptyState
-              title="Pick a Legend first"
-              body="The Legend decides which domains the deck may hold, so there is nothing to offer until it is chosen."
+              title={t('editor.pickLegendFirst')}
+              body={t('editor.pickLegendFirst.body')}
             />
           </View>
         ) : view === 'list' ? (
@@ -812,7 +981,7 @@ export default function DeckEditorScreen() {
             keyboardDismissMode="on-drag"
             // In the same list rather than as a sibling branch, so filtering to
             // zero cannot unmount the list and drop the scroll position.
-            ListEmptyComponent={<Text style={styles.empty}>No cards match.</Text>}
+            ListEmptyComponent={<Text style={styles.empty}>{t('editor.noCardsMatch')}</Text>}
             renderItem={({ item }) => (
               <CandidateRow
                 card={item}
@@ -838,7 +1007,7 @@ export default function DeckEditorScreen() {
             availabilityOf={availabilityFor}
             onAdd={onAdd}
             onRemove={(card) => adjust(card, zoneForPool(zone, card), -1)}
-            emptyMessage="No cards match."
+            emptyMessage={t('editor.noCardsMatch')}
           />
         )}
       </View>
@@ -884,15 +1053,15 @@ export default function DeckEditorScreen() {
       */}
       <Prompt
         visible={asking === 'leave'}
-        title="Leave without saving?"
-        body="The draft is not stored anywhere. Under the version model an unsaved edit is not a lost keystroke, it is a deck that never existed."
+        title={t('editor.leave.title')}
+        body={t('editor.leave.body')}
         onDismiss={() => {
           blockedAction.current = null;
           setAsking(null);
         }}
         actions={[
           {
-            label: 'Save and leave',
+            label: t('editor.leave.save'),
             kind: 'primary',
             onPress: () => {
               setAsking(null);
@@ -900,7 +1069,7 @@ export default function DeckEditorScreen() {
             },
           },
           {
-            label: 'Discard and continue',
+            label: t('editor.leave.discard'),
             kind: 'secondary',
             onPress: () => {
               setAsking(null);
@@ -908,7 +1077,7 @@ export default function DeckEditorScreen() {
             },
           },
           {
-            label: 'Stay here',
+            label: t('editor.leave.stay'),
             kind: 'quiet',
             onPress: () => {
               // Drop the intercepted action too, or a later confirmed exit
@@ -933,7 +1102,7 @@ export default function DeckEditorScreen() {
         onDismiss={() => setAsking(null)}
         actions={[
           {
-            label: 'Overwrite',
+            label: t('action.overwrite'),
             kind: 'primary',
             destructive: true,
             onPress: () => {
@@ -941,7 +1110,7 @@ export default function DeckEditorScreen() {
               commit({ amendLocked: true });
             },
           },
-          { label: 'Keep it as it is', kind: 'quiet', onPress: () => setAsking(null) },
+          { label: t('action.keepAsIs'), kind: 'quiet', onPress: () => setAsking(null) },
         ]}
       />
     </Screen>
@@ -957,9 +1126,31 @@ const styles = StyleSheet.create({
     paddingBottom: space[3],
   },
   headerAction: { minHeight: 44, justifyContent: 'center' },
-  headerTitle: { ...text.title, fontSize: 15, color: color.text, flex: 1, textAlign: 'center' },
   cancelLabel: { ...text.smallMedium, fontSize: 13.5, color: color.textMuted },
   saveLabel: { ...text.smallMedium, fontSize: 13.5, color: color.accent },
+
+  /**
+   * The deck name, as a field.
+   *
+   * `SelectField`'s own geometry — 52 high, `radius.lg`, 6 % fill, 14 % border —
+   * so it reads as the same kind of control as the Legend and Champion fields
+   * further down rather than as a second header.
+   */
+  nameField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+    height: 52,
+    paddingHorizontal: space[4],
+    marginBottom: space[3],
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  // `flex: 1` so a long name uses the whole width and the pencil stays pinned
+  // right — the truncation this move was meant to fix.
+  nameInput: { ...text.body, color: color.text, flex: 1, padding: 0 },
 
   // No top padding: `listContext` owns the spacing now that this sits inside it.
   identity: { flexDirection: 'row', gap: space[2] },
@@ -979,7 +1170,17 @@ const styles = StyleSheet.create({
   identityValue: { ...text.smallMedium, fontSize: 12, color: color.text },
   identityEmpty: { ...text.smallMedium, fontSize: 12, color: color.textMuted },
 
-  zoneTabs: { flexDirection: 'row', gap: 7, paddingTop: space[3], paddingBottom: space[3] },
+  /**
+   * The whitespace sits **above** the controls, not below them.
+   *
+   * `paddingBottom` is the gap between the zone tabs and the block that filters
+   * the list — the In-deck pill, the view toggle, search, the three selects.
+   * Widened from 12, and the space came out of the other side: the rule and the
+   * list's own top padding gave theirs up so the controls hug the cards they act
+   * on. Two groups reading as two groups, rather than four evenly spaced rows
+   * with the list drifting away from what changes it.
+   */
+  zoneTabs: { flexDirection: 'row', gap: 7, paddingTop: space[3], paddingBottom: space[5] },
   zoneTab: {
     flex: 1,
     height: 44,
@@ -993,6 +1194,28 @@ const styles = StyleSheet.create({
   zoneTabLabel: { ...text.caption, fontSize: 11.5, color: color.textSecondary },
   zoneTabLabelOn: { color: color.onAccent },
   zoneTabCount: { ...text.numeric, fontSize: 10, color: color.textFaint },
+  /**
+   * Met, and over.
+   *
+   * The same rule `LegalityBar` encodes: a **minimum** can be met but never
+   * exceeded, so the main deck has no `over` state and a 41-card deck is green
+   * rather than red. The exact zones — runes and battlefields — do.
+   *
+   * `zoneTabCountOn` comes last in the style array so the selected tab's
+   * on-accent foreground wins: green on coral is unreadable, and the tab you are
+   * standing in already has the label to say which zone it is.
+   */
+  zoneTabCountMet: { color: color.win },
+  zoneTabCountOver: { color: color.danger },
+  /**
+   * Short of its target — amber, not the default faint grey.
+   *
+   * This matters more than it did before the card stopped repeating the counts.
+   * A count issue is now stated **only** here, so `38/40+` has to read as a
+   * problem on its own; left at `textFaint` it would look like ordinary
+   * metadata and the one place naming the shortfall would be whispering it.
+   */
+  zoneTabCountShort: { color: color.warning },
   zoneTabCountOn: { color: color.onAccent },
 
   listHead: {
@@ -1001,9 +1224,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space[2],
     paddingBottom: space[2],
-    borderBottomWidth: 1,
-    borderBottomColor: color.border,
   },
+  /** Was `listHead`'s bottom border, before the filters moved below it. */
+  // No bottom margin: the list's own `listContent` padding is the only gap
+  // wanted here, and 8 + 8 was reading as a band between the controls and the
+  // cards rather than as a seam.
+  listRule: { height: 1, backgroundColor: color.border },
   // Pushes the two controls to the right where the label used to end.
   listHeadSpacer: { flex: 1, minWidth: 0 },
   filterPill: {
@@ -1038,7 +1264,8 @@ const styles = StyleSheet.create({
   viewGlyphOn: { color: color.onAccent },
 
   body: { flex: 1 },
-  listContent: { paddingTop: space[2], paddingBottom: space[6] },
+  // 4, not 8 — just enough that the first row does not sit on the rule.
+  listContent: { paddingTop: space[1], paddingBottom: space[6] },
   // The deck-level context that rides at the top of the candidate list.
   listContext: { gap: space[3], paddingBottom: space[3] },
   emptyBody: { paddingTop: space[2] },

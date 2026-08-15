@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
 import type { SetCompletion } from '@/db/queries/collection';
+import { useT } from '@/i18n';
 import { color, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -21,6 +22,7 @@ import { text } from '@/theme/typography';
 const SHOWN = 3;
 
 export function SetProgress({ sets }: { sets: readonly SetCompletion[] }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
 
   const ranked = useMemo(
@@ -52,7 +54,11 @@ export function SetProgress({ sets }: { sets: readonly SetCompletion[] }) {
               style={styles.track}
               accessibilityRole="progressbar"
               accessibilityValue={{ min: 0, max: set.total, now: set.owned }}
-              accessibilityLabel={`${set.label}, ${set.owned} of ${set.total} cards`}
+              accessibilityLabel={t('collection.setProgress.a11y', {
+                label: set.label,
+                owned: set.owned,
+                total: set.total,
+              })}
             >
               {/* Zero renders as an empty track rather than a hairline — a
                   sliver of coral would claim progress that has not happened. */}
@@ -69,8 +75,15 @@ export function SetProgress({ sets }: { sets: readonly SetCompletion[] }) {
           onPress={() => setExpanded((e) => !e)}
           style={({ pressed }) => [styles.more, pressed && styles.pressed]}
         >
+          {/* The singular is its own key rather than an inline ternary: German
+              and French both inflect "set", and picking the form by English
+              grammar would be wrong in either even with the words translated. */}
           <Text style={styles.moreLabel}>
-            {expanded ? 'Show fewer sets' : `Show ${hidden} more ${hidden === 1 ? 'set' : 'sets'}`}
+            {expanded
+              ? t('collection.showFewerSets')
+              : hidden === 1
+                ? t('collection.showOneMoreSet')
+                : t('collection.showMoreSets', { count: hidden })}
           </Text>
         </Pressable>
       ) : null}

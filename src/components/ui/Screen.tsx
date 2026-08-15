@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
 import { Pressable } from '@/components/ui/Pressable';
+import { useT } from '@/i18n';
 import { color, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -62,6 +63,7 @@ export function Screen({
   back,
   compact = false,
 }: ScreenProps) {
+  const t = useT();
   const insets = useSafeAreaInsets();
 
   /*
@@ -80,7 +82,7 @@ export function Screen({
           {showBack ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Go back"
+              accessibilityLabel={t('ui.goBack')}
               onPress={() => router.back()}
               hitSlop={12}
               style={({ pressed }) => [styles.back, pressed && styles.backPressed]}

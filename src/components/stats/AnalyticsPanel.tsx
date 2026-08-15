@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import { cardNamesByIds } from '@/db/queries/cards';
 import type { MatchRow, GameRow } from '@/db/schema/games';
+import { useT } from '@/i18n';
 import {
   findings as computeFindings,
   nextStep,
@@ -174,6 +175,7 @@ export function AnalyticsPanel({
   versions,
   deckId = null,
 }: AnalyticsPanelProps) {
+  const t = useT();
   const [includeCasual, setIncludeCasual] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [opponent, setOpponent] = useState<string>(ALL_OPPONENTS);
@@ -241,10 +243,10 @@ export function AnalyticsPanel({
   if (allGames.length === 0) {
     return (
       <EmptyState
-        title="No games logged yet"
-        body="Win rate, findings, and breakdowns appear once you log your first game with this deck."
+        title={t('analytics.empty')}
+        body={t('analytics.empty.body')}
         actions={[
-          { label: 'Log a game', onPress: () => router.push('/game/new'), primary: true },
+          { label: t('ui.logGame'), onPress: () => router.push('/game/new'), primary: true },
         ]}
       />
     );
@@ -258,7 +260,7 @@ export function AnalyticsPanel({
    * of which answer "no games".
    */
   const opponentOptions: DropdownOption<string>[] = [
-    { value: ALL_OPPONENTS, label: 'Overall', meta: `${games.length} games` },
+    { value: ALL_OPPONENTS, label: t('analytics.overall'), meta: t('analytics.gamesCount', { count: games.length }) },
     ...matchups.map((segment) => ({
       value: segment.key,
       label: segment.sublabel ? `${segment.label} · ${segment.sublabel}` : segment.label,
@@ -294,7 +296,7 @@ export function AnalyticsPanel({
   const scopedHands = handCoverage(scopedMatches);
   const scopedScores = scoreStats(scopedMatches);
   const scopedCards = cardHandStats(scopedMatches).slice(0, 6);
-  const scopeLabel = opponentOptions.find((option) => option.value === scope)?.label ?? 'Overall';
+  const scopeLabel = opponentOptions.find((option) => option.value === scope)?.label ?? t('analytics.overall');
 
   const barGroups: BarGroup[] = [
     {
@@ -312,15 +314,15 @@ export function AnalyticsPanel({
       needs: 'No games in this scope.',
     },
     {
-      title: 'TURN ORDER',
+      title: t('analytics.turnOrder'),
       /*
        * Each side appears only if it happened. A deck that has always gone
        * first should not carry a "Went second · 0–0 · n=0" row: an empty row
        * reads as a result, and there is no result to read.
        */
       rows: [
-        { key: 'play', label: 'Went first', rate: split.onPlay },
-        { key: 'draw', label: 'Went second', rate: split.onDraw },
+        { key: 'play', label: t('analytics.wentFirst'), rate: split.onPlay },
+        { key: 'draw', label: t('analytics.wentSecond'), rate: split.onDraw },
       ].filter((row) => row.rate.total > 0),
       note: `From ${split.coverage.recorded} of ${split.coverage.total} games where it was recorded.`,
       needs: 'Nothing recorded yet. Each match on the log form asks who went first; answer it and this fills in.',
@@ -334,18 +336,18 @@ export function AnalyticsPanel({
       needs: 'No format recorded yet. Every game logged from here on records Bo1 or Bo3.',
     },
     {
-      title: 'GAME STYLE',
+      title: t('analytics.gameStyle'),
       rows: styleSegments(scopedGames).map((s) => ({ ...s, label: gameStyleLabel(s.label) })),
       needs: 'No games logged yet.',
     },
     {
-      title: 'OPENING HANDS',
+      title: t('analytics.openingHands'),
       rows: performanceByMulliganCount(scopedMatches),
       note: `From ${scopedHands.recorded} of ${scopedHands.total} matches where the deal was recorded.`,
       needs: 'No opening deals recorded yet. Open a logged game, choose Add match detail, and tap the cards you were dealt — once for a card you kept, twice for one you sent back.',
     },
     {
-      title: 'HOW CLOSE',
+      title: t('analytics.howClose'),
       rows: scopedScores.segments,
       note: `From ${scopedScores.coverage.recorded} of ${scopedScores.coverage.total} matches where the score was recorded. Close means decided by ${CLOSE_MARGIN} points or fewer.`,
       needs: 'No scores recorded yet. Riftbound scores to 8, and winning 8–7 is a different match from winning 8–0 — the result column cannot tell them apart. Add it from a logged game.',
@@ -356,7 +358,7 @@ export function AnalyticsPanel({
 
   if (scopedCards.length > 0) {
     statGroups.push({
-      title: 'CARDS YOU THROW BACK',
+      title: t('analytics.cardsThrownBack'),
       pairs: scopedCards.map((card) => ({
         key: card.cardId,
         label: nameOf(card.cardId) ?? 'No longer in the library',
@@ -367,11 +369,11 @@ export function AnalyticsPanel({
 
   if (scopedScores.concededInWins !== null || scopedScores.scoredInLosses !== null) {
     statGroups.push({
-      title: 'SCORE MARGIN',
+      title: t('analytics.scoreMargin'),
       pairs: [
         {
           key: 'wins',
-          label: 'They scored, in your wins',
+          label: t('analytics.theyScoredInWins'),
           value:
             scopedScores.concededInWins === null
               ? '—'
@@ -379,7 +381,7 @@ export function AnalyticsPanel({
         },
         {
           key: 'losses',
-          label: 'You scored, in your losses',
+          label: t('analytics.youScoredInLosses'),
           value:
             scopedScores.scoredInLosses === null
               ? '—'
@@ -408,9 +410,7 @@ export function AnalyticsPanel({
           ]}
         >
           {includeCasual ? <Icon name="check" size={12} color={color.accentBright} /> : null}
-          <Text style={[styles.chipLabel, includeCasual && styles.chipLabelOn]}>
-            Casual games
-          </Text>
+          <Text style={[styles.chipLabel, includeCasual && styles.chipLabelOn]}>{t('analytics.casualGames')}</Text>
         </Pressable>
       ) : null}
 
@@ -425,9 +425,7 @@ export function AnalyticsPanel({
           <Text style={[styles.anchorRate, provisional && styles.anchorRateQuiet]}>
             {overall.rate === null ? '—' : `${Math.round(overall.rate * 100)}%`}
           </Text>
-          <Text style={[styles.anchorUnit, provisional && styles.anchorUnitQuiet]}>
-            win rate
-          </Text>
+          <Text style={[styles.anchorUnit, provisional && styles.anchorUnitQuiet]}>{t('analytics.winRate')}</Text>
         </View>
         <Text style={[styles.anchorRecord, provisional && styles.anchorRecordQuiet]}>
           {recordLine}
@@ -455,7 +453,7 @@ export function AnalyticsPanel({
           pairs={[
             {
               key: 'current',
-              label: 'Current streak',
+              label: t('analytics.currentStreak'),
               value:
                 run.current === 0
                   ? 'None'
@@ -463,7 +461,7 @@ export function AnalyticsPanel({
             },
             {
               key: 'longest',
-              label: 'Longest run',
+              label: t('analytics.longestRun'),
               value: `W${run.longestWin} · L${run.longestLoss}`,
             },
           ]}
@@ -497,9 +495,7 @@ export function AnalyticsPanel({
           pressed && styles.pressed,
         ]}
       >
-        <Text style={[styles.drawerLabel, drawerOpen && styles.drawerLabelOpen]}>
-          More breakdowns
-        </Text>
+        <Text style={[styles.drawerLabel, drawerOpen && styles.drawerLabelOpen]}>{t('analytics.moreBreakdowns')}</Text>
         {/* Drawn, not typed: `⌄` is exactly the kind of character a font
             fallback renders as tofu, which M1 banned after it happened. */}
         <View style={drawerOpen ? styles.caretUp : styles.caretDown}>
@@ -516,7 +512,7 @@ export function AnalyticsPanel({
           <View>
             <GroupTitle>AGAINST</GroupTitle>
             <Dropdown
-              label="Opponent"
+              label={t('analytics.opponent')}
               value={scope}
               options={opponentOptions}
               open={opponentOpen}

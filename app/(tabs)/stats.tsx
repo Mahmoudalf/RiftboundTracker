@@ -15,6 +15,7 @@ import { deckRecord, listGames, type DeckRecord } from '@/db/queries/games';
 import { HISTORY_PAGE, gameHistory, type GameHistoryEntry } from '@/db/queries/history';
 import { matchesForGames } from '@/db/queries/matches';
 import type { MatchRow, GameRow } from '@/db/schema/games';
+import { useT, type Key } from '@/i18n';
 import type { VersionRef } from '@/lib/analytics/findings';
 import { eventStyleLabel, gameDate, recordLine } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
@@ -39,11 +40,11 @@ import { metaLine, text } from '@/theme/typography';
 
 type Tab = 'games' | 'analytics' | 'events';
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'games', label: 'Games' },
-  { key: 'analytics', label: 'Analytics' },
-  { key: 'events', label: 'Events' },
-];
+const TABS = [
+  { key: 'games', label: 'statsTab.games' },
+  { key: 'analytics', label: 'statsTab.analytics' },
+  { key: 'events', label: 'statsTab.events' },
+] as const satisfies readonly { key: Tab; label: Key }[];
 
 const ALL_DECKS = '__all__';
 
@@ -56,6 +57,7 @@ interface DeckOption {
 }
 
 export default function StatsScreen() {
+  const t = useT();
   const [tab, setTab] = useState<Tab>('games');
   const [deckId, setDeckId] = useState<string>(ALL_DECKS);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -159,16 +161,16 @@ export default function StatsScreen() {
   );
 
   // Nothing read yet — say nothing rather than guess.
-  if (!loaded) return <Screen title="Stats">{null}</Screen>;
+  if (!loaded) return <Screen title={t('stats.title')}>{null}</Screen>;
 
   if (decks.length === 0) {
     return (
-      <Screen title="Stats">
+      <Screen title={t('stats.title')}>
         <EmptyState
-          title="No decks yet"
-          body="Stats are built from games, and a game is always attached to a deck. Build one first."
+          title={t('stats.noDecks')}
+          body={t('stats.noDecks.body')}
           actions={[
-            { label: 'Build a deck', onPress: () => router.push('/deck/new'), primary: true },
+            { label: t('decks.build'), onPress: () => router.push('/deck/new'), primary: true },
           ]}
         />
       </Screen>
@@ -176,7 +178,7 @@ export default function StatsScreen() {
   }
 
   const deckOptions: DropdownOption<string>[] = [
-    { value: ALL_DECKS, label: 'All decks' },
+    { value: ALL_DECKS, label: t('stats.allDecks') },
     ...decks.map((deck) => ({
       value: deck.id,
       label: deck.name,
@@ -189,7 +191,7 @@ export default function StatsScreen() {
 
   return (
     <Screen
-      title="Stats"
+      title={t('stats.title')}
       meta={metaLine(
         record ? recordLine(record.wins, record.losses, record.draws) : null,
         record ? `${record.total} ${record.total === 1 ? 'game' : 'games'}` : null
@@ -197,7 +199,7 @@ export default function StatsScreen() {
     >
       <View style={styles.controls}>
         <Dropdown
-          label="Deck"
+          label={t('stats.deck')}
           value={deckId}
           options={deckOptions}
           open={pickerOpen}
@@ -206,16 +208,18 @@ export default function StatsScreen() {
         />
 
         <View style={styles.tabs}>
-          {TABS.map((t) => (
+          {/* `item`, not `t` — the map parameter was named `t` and now shadows
+              the translate function. */}
+          {TABS.map((item) => (
             <Pressable
-              key={t.key}
+              key={item.key}
               accessibilityRole="tab"
-              accessibilityState={{ selected: tab === t.key }}
-              onPress={() => setTab(t.key)}
-              style={[styles.tab, tab === t.key && styles.tabActive]}
+              accessibilityState={{ selected: tab === item.key }}
+              onPress={() => setTab(item.key)}
+              style={[styles.tab, tab === item.key && styles.tabActive]}
             >
-              <Text style={[styles.tabLabel, tab === t.key && styles.tabLabelActive]}>
-                {t.label}
+              <Text style={[styles.tabLabel, tab === item.key && styles.tabLabelActive]}>
+                {t(item.label)}
               </Text>
             </Pressable>
           ))}
@@ -225,8 +229,8 @@ export default function StatsScreen() {
       {tab === 'events' ? (
         events.length === 0 ? (
           <EmptyState
-            title="No events yet"
-            body="An event groups the rounds of one tournament or games night, so you can see how that day went rather than only how the deck does overall. Log a game, pick an organised game style, and name one."
+            title={t('stats.noEvents')}
+            body={t('stats.noEvents.body')}
           />
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
@@ -278,7 +282,7 @@ export default function StatsScreen() {
         </ScrollView>
       ) : history.length === 0 ? (
         <EmptyState
-          title="No games yet"
+          title={t('stats.noGames')}
           body={
             deckId === ALL_DECKS
               ? 'Tap the + in the tab bar after a game.'

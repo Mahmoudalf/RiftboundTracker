@@ -2,6 +2,7 @@ import { sqlite } from '@/db/client';
 import { rebuildSearchIndex } from '@/db/migrations';
 import { cardColumns, toBindValue } from '@/db/queries/hydrate';
 import type { NewCardRow } from '@/db/schema/cards';
+import { t } from '@/i18n';
 
 import { MAX_PAGE_SIZE, riftcodex, RiftcodexError } from './client';
 import { dropStaleDuplicates, toCardRow } from './mapper';
@@ -161,7 +162,7 @@ export async function syncCards(
   }
 
   try {
-    report({ phase: 'checking', progress: null, cardsWritten: 0, message: 'Checking for new cards' });
+    report({ phase: 'checking', progress: null, cardsWritten: 0, message: t('sync.checking') });
 
     const apiSets = await riftcodex.sets(signal);
     const expectedTotal = apiSets.reduce((sum, s) => sum + s.card_count, 0);
@@ -184,7 +185,7 @@ export async function syncCards(
       return { changed: false, cardsWritten: 0, skippedReason: 'unchanged' };
     }
 
-    report({ phase: 'downloading', progress: 0, cardsWritten: 0, message: 'Downloading cards' });
+    report({ phase: 'downloading', progress: 0, cardsWritten: 0, message: t('sync.downloading') });
 
     let page = 1;
     let pages = 1;
@@ -224,7 +225,7 @@ export async function syncCards(
       message: `Downloading cards (${written}/${total})`,
     });
 
-    report({ phase: 'writing', progress: 1, cardsWritten: written, message: 'Building search index' });
+    report({ phase: 'writing', progress: 1, cardsWritten: written, message: t('sync.indexing') });
     rebuildSearchIndex(sqlite);
 
     writeMeta({
@@ -237,7 +238,7 @@ export async function syncCards(
     return { changed: written > 0, cardsWritten: written };
   } catch (err) {
     const message =
-      err instanceof RiftcodexError ? err.message : err instanceof Error ? err.message : 'Sync failed';
+      err instanceof RiftcodexError ? err.message : err instanceof Error ? err.message : t('sync.failed');
 
     // Keep whatever mirror we already have. A stale gallery beats an empty one.
     writeMeta({ lastError: message });

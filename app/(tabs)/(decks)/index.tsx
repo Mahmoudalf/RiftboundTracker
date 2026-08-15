@@ -7,10 +7,12 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import { listDecks, type DeckSummary } from '@/db/queries/decks';
+import { useT } from '@/i18n';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
 export default function DecksScreen() {
+  const t = useT();
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [archived, setArchived] = useState<DeckSummary[]>([]);
   const [showArchived, setShowArchived] = useState(false);
@@ -36,13 +38,13 @@ export default function DecksScreen() {
 
   if (decks.length === 0 && archived.length === 0) {
     return (
-      <Screen title="Decks">
+      <Screen title={t('decks.title')}>
         <EmptyState
-          title="Track a deck through every change"
-          body="Matches stay attached to the exact list that played them, so editing a deck never rewrites its history."
+          title={t('decks.empty')}
+          body={t('decks.empty.body')}
           actions={[
-            { label: 'Build a deck', onPress: () => router.push('/deck/new'), primary: true },
-            { label: 'Import a deck code', onPress: () => router.push('/deck/import') },
+            { label: t('decks.build'), onPress: () => router.push('/deck/new'), primary: true },
+            { label: t('decks.import'), onPress: () => router.push('/deck/import') },
           ]}
         />
       </Screen>
@@ -51,25 +53,25 @@ export default function DecksScreen() {
 
   return (
     <Screen
-      title="Decks"
+      title={t('decks.title')}
       meta={`${visible.length} ${visible.length === 1 ? 'deck' : 'decks'}`}
       action={
         <View style={styles.actions}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Import a deck code"
+            accessibilityLabel={t('decks.import')}
             onPress={() => router.push('/deck/import')}
             style={({ pressed }) => [styles.importButton, pressed && styles.pressed]}
           >
-            <Text style={styles.importLabel}>Import</Text>
+            <Text style={styles.importLabel}>{t('action.import')}</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Build a deck"
+            accessibilityLabel={t('decks.build')}
             onPress={() => router.push('/deck/new')}
             style={({ pressed }) => [styles.newButton, pressed && styles.pressed]}
           >
-            <Text style={styles.newLabel}>New</Text>
+            <Text style={styles.newLabel}>{t('action.new')}</Text>
           </Pressable>
         </View>
       }

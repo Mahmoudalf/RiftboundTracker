@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
 import type { DeckSummary } from '@/db/queries/decks';
+import { useT } from '@/i18n';
 import { cardImage } from '@/lib/cdn';
 import { deckGradient } from '@/theme/domains';
 import { color, radius, space } from '@/theme/tokens';
@@ -37,6 +38,7 @@ interface DeckCardProps {
 }
 
 export function DeckCard({ summary, onPress }: DeckCardProps) {
+  const t = useT();
   const { deck, version, legendImageUrl } = summary;
   const [from, to] = deckGradient(deck.domains);
 
@@ -77,7 +79,7 @@ export function DeckCard({ summary, onPress }: DeckCardProps) {
           />
           <View style={styles.plateText}>
             <Text style={styles.initials}>{initials(deck.name)}</Text>
-            <Text style={styles.plateLabel}>Legend art</Text>
+            <Text style={styles.plateLabel}>{t('deckCard.legendArt')}</Text>
           </View>
         </View>
       )}

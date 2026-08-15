@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { ChoiceRow, OptionRow, SectionLabel, SelectField } from '@/components/ui/Field';
 import type { CardRow } from '@/db/schema/cards';
 import type { Result } from '@/db/schema/games';
+import { useT } from '@/i18n';
 import { baseName } from '@/lib/card-identity';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
@@ -79,6 +80,7 @@ export function MatchCard({
   result,
   onChangeResult,
 }: MatchCardProps) {
+  const t = useT();
   const [fieldOpen, setFieldOpen] = useState(false);
 
   return (
@@ -89,12 +91,12 @@ export function MatchCard({
       </View>
 
       <View style={styles.block}>
-        <SectionLabel>Who went first?</SectionLabel>
+        <SectionLabel>{t('match.whoWentFirst')}</SectionLabel>
         <ChoiceRow<boolean | null>
           options={[
-            { key: 'me', label: 'I did', value: true },
-            { key: 'them', label: 'They did', value: false },
-            { key: 'unsure', label: 'Not sure', value: null },
+            { key: 'me', label: t('match.iDid'), value: true },
+            { key: 'them', label: t('match.theyDid'), value: false },
+            { key: 'unsure', label: t('match.notSure'), value: null },
           ]}
           value={onPlay}
           onSelect={onChangeOnPlay}
@@ -104,7 +106,7 @@ export function MatchCard({
       {hand}
 
       <View style={styles.block}>
-        <SectionLabel>Your battlefield — from this deck</SectionLabel>
+        <SectionLabel>{t('match.ourField')}</SectionLabel>
         {ourFields.length === 0 ? (
           /*
            * Reported as "the user's Battlefield is missing from the match log".
@@ -120,14 +122,11 @@ export function MatchCard({
            * Sentence case, readable size, and it now says what to do — an empty
            * state is the one message a user genuinely has to be able to read.
            */
-          <Text style={styles.empty}>
-            This deck&apos;s current version has no Battlefields. Add them in the deck editor and
-            they will show up here.
-          </Text>
+          <Text style={styles.empty}>{t('match.noBattlefields')}</Text>
         ) : (
           <SelectField
             compact
-            placeholder="Choose from this deck"
+            placeholder={t('match.ourField.placeholder')}
             value={ourField ? baseName(ourField.name) : null}
             open={fieldOpen}
             onToggle={() => setFieldOpen((o) => !o)}
@@ -150,10 +149,10 @@ export function MatchCard({
       </View>
 
       <View style={styles.block}>
-        <SectionLabel>Their battlefield</SectionLabel>
+        <SectionLabel>{t('match.theirField')}</SectionLabel>
         <SelectField
           compact
-          placeholder="Search battlefields"
+          placeholder={t('match.theirField.placeholder')}
           value={theirField ? baseName(theirField.name) : null}
           open={false}
           onToggle={onPickTheirField}
@@ -163,12 +162,12 @@ export function MatchCard({
       {score}
 
       <View style={styles.block}>
-        <SectionLabel>Who won?</SectionLabel>
+        <SectionLabel>{t('match.whoWon')}</SectionLabel>
         <ChoiceRow<Result | null>
           options={[
-            { key: 'win', label: 'W · Win', value: 'win' },
-            { key: 'loss', label: 'L · Loss', value: 'loss' },
-            { key: 'draw', label: 'D · Draw', value: 'draw' },
+            { key: 'win', label: t('match.result.win'), value: 'win' },
+            { key: 'loss', label: t('match.result.loss'), value: 'loss' },
+            { key: 'draw', label: t('match.result.draw'), value: 'draw' },
           ]}
           value={result}
           // No option carries null — the row cannot clear an answer, only

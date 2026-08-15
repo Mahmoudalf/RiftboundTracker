@@ -10,6 +10,7 @@ import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import { queryCards } from '@/db/queries/cards';
 import { createDeck } from '@/db/queries/decks';
+import { useT, type Key } from '@/i18n';
 import {
   decodeDeckCode,
   DeckCodeError,
@@ -34,16 +35,17 @@ import { text } from '@/theme/typography';
  * saved anyway, exactly as the builder treats a half-finished deck.
  */
 
-const ZONE_ORDER: { zone: DeckZone; label: string; fixed?: boolean }[] = [
-  { zone: 'legend', label: 'Legend', fixed: true },
-  { zone: 'champion', label: 'Champion', fixed: true },
-  { zone: 'main', label: 'Main deck' },
-  { zone: 'rune', label: 'Runes' },
-  { zone: 'battlefield', label: 'Battlefields' },
-  { zone: 'sideboard', label: 'Sideboard' },
+const ZONE_ORDER: { zone: DeckZone; label: Key; fixed?: boolean }[] = [
+  { zone: 'legend', label: 'zone.legend', fixed: true },
+  { zone: 'champion', label: 'zone.champion', fixed: true },
+  { zone: 'main', label: 'zone.main' },
+  { zone: 'rune', label: 'zone.runes' },
+  { zone: 'battlefield', label: 'zone.battlefields' },
+  { zone: 'sideboard', label: 'zone.sideboard' },
 ];
 
 export default function ImportDeckScreen() {
+  const t = useT();
   const [pasted, setPasted] = useState('');
   const [preview, setPreview] = useState<DecodeResult | null>(null);
   const [name, setName] = useState('');
@@ -71,7 +73,7 @@ export default function ImportDeckScreen() {
     } catch (err) {
       setPreview(null);
       setError(
-        err instanceof DeckCodeError ? err.message : 'That code could not be read.'
+        err instanceof DeckCodeError ? err.message : t('import.unreadable')
       );
     }
   };
@@ -106,17 +108,17 @@ export default function ImportDeckScreen() {
 
   return (
     <Screen
-      title="Import a deck"
+      title={t('import.title')}
       meta={preview ? 'Check it over, then save' : 'Paste a deck code'}
       action={
         preview ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Save this deck"
+            accessibilityLabel={t('import.save')}
             onPress={save}
             style={({ pressed }) => [styles.save, pressed && styles.pressed]}
           >
-            <Text style={styles.saveLabel}>Save</Text>
+            <Text style={styles.saveLabel}>{t('action.save')}</Text>
           </Pressable>
         ) : undefined
       }
@@ -127,13 +129,13 @@ export default function ImportDeckScreen() {
             <TextInput
               value={pasted}
               onChangeText={setPasted}
-              placeholder="Paste a deck code — extra text around it is fine"
+              placeholder={t('import.codePlaceholder')}
               placeholderTextColor={color.textFaint}
               style={styles.input}
               multiline
               autoCapitalize="characters"
               autoCorrect={false}
-              accessibilityLabel="Deck code"
+              accessibilityLabel={t('import.code')}
             />
             <View style={styles.row}>
               <Pressable
@@ -141,7 +143,7 @@ export default function ImportDeckScreen() {
                 onPress={() => void paste()}
                 style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
               >
-                <Text style={styles.secondaryLabel}>Paste from clipboard</Text>
+                <Text style={styles.secondaryLabel}>{t('import.paste')}</Text>
               </Pressable>
             </View>
             <Pressable
@@ -154,7 +156,7 @@ export default function ImportDeckScreen() {
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={styles.primaryLabel}>Read code</Text>
+              <Text style={styles.primaryLabel}>{t('import.read')}</Text>
             </Pressable>
           </>
         )}
@@ -164,14 +166,14 @@ export default function ImportDeckScreen() {
         {preview ? (
           <>
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Deck name</Text>
+              <Text style={styles.sectionLabel}>{t('import.name')}</Text>
               <TextInput
                 value={name}
                 onChangeText={setName}
-                placeholder="Name this deck"
+                placeholder={t('import.namePlaceholder')}
                 placeholderTextColor={color.textFaint}
                 style={styles.nameInput}
-                accessibilityLabel="Deck name"
+                accessibilityLabel={t('import.name')}
               />
             </View>
 
@@ -187,10 +189,7 @@ export default function ImportDeckScreen() {
             ) : null}
 
             {!preview.hadChosenChampion ? (
-              <Text style={styles.note}>
-                This code does not name a Chosen Champion — older codes often do not. Pick one in
-                the editor after saving.
-              </Text>
+              <Text style={styles.note}>{t('import.noChampion')}</Text>
             ) : null}
 
             {ZONE_ORDER.map(({ zone, label, fixed }) => {
@@ -227,7 +226,7 @@ export default function ImportDeckScreen() {
               }}
               style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
             >
-              <Text style={styles.secondaryLabel}>Use a different code</Text>
+              <Text style={styles.secondaryLabel}>{t('import.different')}</Text>
             </Pressable>
           </>
         ) : null}

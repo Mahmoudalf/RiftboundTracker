@@ -3,6 +3,7 @@ import { StyleSheet, Text, TextInput } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
 import { Sheet } from '@/components/ui/Sheet';
+import { useT } from '@/i18n';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -31,6 +32,7 @@ interface BinderSheetProps {
 }
 
 export function BinderSheet({ visible, onClose, onSave }: BinderSheetProps) {
+  const t = useT();
   const [name, setName] = useState('');
 
   const save = () => {
@@ -43,8 +45,8 @@ export function BinderSheet({ visible, onClose, onSave }: BinderSheetProps) {
   return (
     <Sheet
       visible={visible}
-      title="New binder"
-      subtitle="Somewhere to file cards you own — a trade binder, a deck box, a shelf."
+      title={t('binder.new')}
+      subtitle={t('binder.new.subtitle')}
       onClose={onClose}
       actions={
         <>
@@ -53,7 +55,7 @@ export function BinderSheet({ visible, onClose, onSave }: BinderSheetProps) {
             onPress={onClose}
             style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
           >
-            <Text style={styles.secondaryLabel}>Cancel</Text>
+            <Text style={styles.secondaryLabel}>{t('common.cancel')}</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -65,17 +67,17 @@ export function BinderSheet({ visible, onClose, onSave }: BinderSheetProps) {
         </>
       }
     >
-      <Text style={styles.label}>Name</Text>
+      <Text style={styles.label}>{t('binder.name')}</Text>
       <TextInput
         value={name}
         onChangeText={setName}
-        placeholder="Trade binder"
+        placeholder={t('binder.namePlaceholder')}
         placeholderTextColor={color.textHint}
         style={styles.input}
         autoCorrect={false}
         returnKeyType="done"
         onSubmitEditing={save}
-        accessibilityLabel="Binder name"
+        accessibilityLabel={t('binder.name')}
       />
     </Sheet>
   );

@@ -18,6 +18,7 @@ import {
   type SetCompletion,
 } from '@/db/queries/collection';
 import { useCardSync } from '@/features/sync/useCardSync';
+import { useT } from '@/i18n';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -36,6 +37,7 @@ import { text } from '@/theme/typography';
  */
 
 export default function CollectionScreen() {
+  const t = useT();
   const { cardCount, isSyncing } = useCardSync();
 
   const [binders, setBinders] = useState<Binder[]>([]);
@@ -60,7 +62,7 @@ export default function CollectionScreen() {
   }, [owned]);
 
   return (
-    <Screen title="Collection" back={false}>
+    <Screen title={t('collection.title')} back={false}>
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         {/*
           A way in, not a field.
@@ -71,52 +73,69 @@ export default function CollectionScreen() {
         */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Search the card library"
+          accessibilityLabel={t('collection.searchLibrary')}
           onPress={() => router.push('/binder/gallery')}
           style={({ pressed }) => [styles.search, pressed && styles.pressed]}
         >
           <Text style={styles.searchGlyph}>⌕</Text>
           <Text style={styles.searchLabel} numberOfLines={1}>
             {cardCount > 0
-              ? `Search ${cardCount.toLocaleString()} cards — offline`
-              : 'Search the library'}
+              ? t('collection.searchCount', { count: cardCount.toLocaleString() })
+              : t('collection.searchPlain')}
           </Text>
         </Pressable>
 
-        {/* The headline pair: copies held, and how much of the library that
-            covers. Both are counted from what you marked owned — decks are a
-            different question, answered on the deck. */}
+        {/*
+          Copies held, how much of the library that covers, and where those
+          copies sit — one card, because they are one thought.
+
+          The per-set bars used to be their own `By set` section below this. They
+          are the breakdown *of this number*: the headline says you hold 214
+          copies and the bars say which sets they came out of. Split across two
+          blocks with a heading between them, the reader had to work out that
+          relationship; together, the card answers "how am I doing" from the top
+          down.
+
+          The line under the total is gone with it. It read *"Counted from what
+          you marked owned, not from your decks."* — a caveat about provenance,
+          on a screen called Collection, where there is nothing else the number
+          could have been counted from.
+        */}
         <View style={styles.summary}>
           <View style={styles.summaryHead}>
             <Text style={styles.total}>{copies.toLocaleString()}</Text>
             <Text style={styles.totalMeta}>
-              copies · {distinct.toLocaleString()} of {cardCount.toLocaleString()} cards
+              {t('collection.copies')} ·{' '}
+              {t('collection.distinctOf', {
+                distinct: distinct.toLocaleString(),
+                total: cardCount.toLocaleString(),
+              })}
             </Text>
           </View>
-          <Text style={styles.summaryNote}>
-            {isSyncing
-              ? 'Counted from what you marked owned. The library is still downloading, so the total will grow.'
-              : 'Counted from what you marked owned, not from your decks.'}
-          </Text>
-        </View>
 
-        {sets.length > 0 ? (
-          <View style={styles.section}>
-            <SectionLabel>By set</SectionLabel>
-            <SetProgress sets={sets} />
-          </View>
-        ) : null}
+          {/* The one caveat that survives, and only while it is true: a total
+              counted against a library still arriving is a moving target. */}
+          {isSyncing ? (
+            <Text style={styles.summaryNote}>{t('collection.stillDownloading')}</Text>
+          ) : null}
+
+          {sets.length > 0 ? (
+            <View style={styles.summarySets}>
+              <SetProgress sets={sets} />
+            </View>
+          ) : null}
+        </View>
 
         <View style={styles.section}>
           <View style={styles.bindersHead}>
-            <SectionLabel>Binders</SectionLabel>
+            <SectionLabel>{t('collection.binders')}</SectionLabel>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="New binder"
+              accessibilityLabel={t('binder.new')}
               onPress={() => setNaming(true)}
               style={({ pressed }) => [styles.newBinder, pressed && styles.pressed]}
             >
-              <Text style={styles.newBinderLabel}>New binder</Text>
+              <Text style={styles.newBinderLabel}>{t('collection.newBinder')}</Text>
             </Pressable>
           </View>
 
@@ -128,9 +147,9 @@ export default function CollectionScreen() {
               as the one that was always there.
             */}
             <BinderRow
-              name="Gallery"
+              name={t('collection.gallery')}
               isDefault
-              subtitle={`Every card in the library · ${copies.toLocaleString()} copies owned`}
+              subtitle={t('collection.galleryRow', { copies: copies.toLocaleString() })}
               onPress={() => router.push('/binder/gallery')}
             />
 
@@ -140,8 +159,11 @@ export default function CollectionScreen() {
                 name={binder.name}
                 subtitle={
                   binder.totalCards > 0
-                    ? `${binder.distinctCards.toLocaleString()} cards · ${binder.totalCards.toLocaleString()} copies`
-                    : 'Empty — nothing filed here yet'
+                    ? t('collection.binderRow', {
+                        distinct: binder.distinctCards.toLocaleString(),
+                        copies: binder.totalCards.toLocaleString(),
+                      })
+                    : t('collection.binderEmpty')
                 }
                 onPress={() => router.push(`/binder/${binder.id}`)}
               />
@@ -192,6 +214,19 @@ const styles = StyleSheet.create({
   total: { ...text.display, fontSize: 28, color: color.text },
   totalMeta: { ...text.numeric, fontSize: 13, color: color.textMuted, flexShrink: 1 },
   summaryNote: { ...text.caption, fontSize: 11, color: color.textFaint, marginTop: 6 },
+  /**
+   * The set bars, inside the card that owns the number they break down.
+   *
+   * A hairline above them rather than a heading: they are the same thought
+   * continued, and a `By set` label here would put back the seam this move was
+   * meant to close.
+   */
+  summarySets: {
+    marginTop: space[4],
+    paddingTop: space[4],
+    borderTopWidth: 1,
+    borderTopColor: color.border,
+  },
 
   section: { gap: space[3] },
   bindersHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

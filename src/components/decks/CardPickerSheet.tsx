@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DomainBadge } from '@/components/cards/DomainBadge';
 import { Pressable } from '@/components/ui/Pressable';
 import type { CardRow } from '@/db/schema/cards';
+import { useT } from '@/i18n';
 import { isLandscapeCard, uprightArt } from '@/lib/card-art';
 import { baseName } from '@/lib/card-identity';
 import { cardImage } from '@/lib/cdn';
@@ -72,6 +73,7 @@ export function CardPickerSheet({
   multi,
   onClose,
 }: CardPickerSheetProps) {
+  const t = useT();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
 
@@ -136,11 +138,11 @@ export function CardPickerSheet({
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={multi ? 'Done choosing' : 'Close'}
+            accessibilityLabel={multi ? t('action.done') : t('ui.close')}
             onPress={onClose}
             style={({ pressed }) => [styles.close, pressed && styles.pressed]}
           >
-            <Text style={styles.closeLabel}>Done</Text>
+            <Text style={styles.closeLabel}>{t('action.done')}</Text>
           </Pressable>
         </View>
 

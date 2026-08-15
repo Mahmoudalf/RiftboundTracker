@@ -8,6 +8,7 @@ import { SectionLabel } from '@/components/ui/Field';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import { loadDeckList } from '@/db/queries/decks';
+import { useT } from '@/i18n';
 import { isLandscapeCard, uprightArt } from '@/lib/card-art';
 import { baseName } from '@/lib/card-identity';
 import { cardImage } from '@/lib/cdn';
@@ -33,6 +34,7 @@ const COLUMNS = 4;
 const GAP = space[2];
 
 export default function GoldfishScreen() {
+  const t = useT();
   const { versionId } = useLocalSearchParams<{ versionId: string }>();
   const { width } = useWindowDimensions();
 
@@ -64,11 +66,11 @@ export default function GoldfishScreen() {
 
   if (mainCount === 0) {
     return (
-      <Screen title="Test hand">
+      <Screen title={t('goldfish.title')}>
         <EmptyState
-          title="Nothing to draw"
-          body="This version has no main deck yet, so there is no hand to open on. Add cards and come back."
-          actions={[{ label: 'Back', onPress: () => router.back(), primary: true }]}
+          title={t('goldfish.nothing')}
+          body={t('goldfish.nothing.body')}
+          actions={[{ label: t('common.back'), onPress: () => router.back(), primary: true }]}
         />
       </Screen>
     );
@@ -78,7 +80,7 @@ export default function GoldfishScreen() {
 
   return (
     <Screen
-      title="Test hand"
+      title={t('goldfish.title')}
       meta={metaLine(`seed ${seed}`, `${state.hand.length} in hand`, `${state.deck.length} left`)}
     >
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
@@ -135,27 +137,27 @@ export default function GoldfishScreen() {
           <View style={styles.actions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Draw one card"
+              accessibilityLabel={t('goldfish.draw.a11y')}
               disabled={state.deck.length === 0}
               onPress={() => setState(draw(state))}
               style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
             >
-              <Text style={styles.primaryLabel}>Draw a card</Text>
+              <Text style={styles.primaryLabel}>{t('goldfish.draw')}</Text>
             </Pressable>
           </View>
         )}
 
         {state.deck.length === 0 ? (
-          <Text style={styles.hint}>The deck is empty — every card is in hand.</Text>
+          <Text style={styles.hint}>{t('goldfish.empty')}</Text>
         ) : null}
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Shuffle up and deal a new hand"
+          accessibilityLabel={t('goldfish.reshuffle.a11y')}
           onPress={() => redraw(seed + 1)}
           style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
         >
-          <Text style={styles.secondaryLabel}>Shuffle up and deal again</Text>
+          <Text style={styles.secondaryLabel}>{t('goldfish.reshuffle')}</Text>
         </Pressable>
       </ScrollView>
     </Screen>

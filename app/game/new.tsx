@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -22,6 +22,7 @@ import { ScoreRow } from '@/components/games/ScoreRow';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ChoiceRow, OptionRow, SectionLabel, SelectField } from '@/components/ui/Field';
 import { Pressable } from '@/components/ui/Pressable';
+import { Prompt } from '@/components/ui/Prompt';
 import { Screen } from '@/components/ui/Screen';
 import { Sheet, SheetRow } from '@/components/ui/Sheet';
 import { listBattlefields, listChampionsForLegend, listLegends } from '@/db/queries/cards';
@@ -47,6 +48,7 @@ import {
 } from '@/db/schema/games';
 import { markLogAnother, markLogged, markSheetReady } from '@/features/games/timing';
 import { useToast } from '@/features/games/useToast';
+import { useT } from '@/i18n';
 import { baseName, cardKey } from '@/lib/card-identity';
 import { gameStyleLabel } from '@/lib/format';
 import { matchScoreLine, matchesToWin, gameProgress, visibleMatches } from '@/lib/game-progress';
@@ -197,6 +199,8 @@ const BLANK_MATCH: MatchDraft = {
 };
 
 export default function LogMatchScreen() {
+  const t = useT();
+  const navigation = useNavigation();
   const decks = useMemo(() => listDecks(), []);
   const [deckIndex, setDeckIndex] = useState(0);
 
@@ -235,6 +239,8 @@ export default function LogMatchScreen() {
   const [games, setGames] = useState<MatchDraft[]>([BLANK_MATCH]);
   const [reviewing, setReviewing] = useState(false);
   const [deckOpen, setDeckOpen] = useState(false);
+  /** Whether the leave guard is currently asking. */
+  const [leaveAsk, setLeaveAsk] = useState(false);
 
   const progress = gameProgress(games, bestOf);
   const shown = visibleMatches(games, bestOf);
@@ -353,6 +359,86 @@ export default function LogMatchScreen() {
     saving.current = false;
   };
 
+  /**
+   * Is there anything here worth asking about?
+   *
+   * Deliberately not "has anything changed". The form opens pre-filled — a
+   * deck, Casual, Bo1, the logging mode you last used — and none of that is
+   * work: it is the shape of the question, not an answer to it. Guarding on it
+   * would put a dialog in front of somebody who opened the sheet by accident,
+   * which is precisely the ten-second budget this flow is built around.
+   *
+   * So only the answers count: who you played, anything said about any game,
+   * the event, the note. Tap the log button and close it again and nothing
+   * happens.
+   */
+  const hasDraft = () => {
+    if (opponent || oppChampion) return true;
+    if (notes.trim() || eventName.trim()) return true;
+    return games.some(
+      (game) =>
+        game.result !== null ||
+        game.onPlay !== null ||
+        game.ourField !== null ||
+        game.theirField !== null ||
+        game.scoreFor !== null ||
+        game.scoreAgainst !== null ||
+        game.hand.dealt.some(Boolean) ||
+        game.hand.mulliganed.length > 0 ||
+        game.hand.replacements.some(Boolean)
+    );
+  };
+
+  /*
+   * Held in a ref, refreshed every render, so the listener below subscribes
+   * once and still sees the current draft. Naming the draft as a dependency
+   * would tear the listener down and rebuild it on every keystroke; capturing
+   * it once would ask the question against an empty form and always answer
+   * "nothing to lose". Same arrangement as the deck editor's.
+   */
+  const draft = useRef(hasDraft);
+  useEffect(() => {
+    draft.current = hasDraft;
+  });
+
+  /** Set before any navigation this screen asked for, so the guard allows it. */
+  const leaving = useRef(false);
+  /**
+   * The navigation the guard intercepted, replayed verbatim on confirm.
+   *
+   * Replaying `router.back()` instead would be wrong for any exit that was not
+   * a back — the log sheet is reachable from every tab, and the (+) button can
+   * be pressed again while it is open.
+   */
+  const blockedAction = useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
+
+  /**
+   * Leaving the log form with a half-entered game.
+   *
+   * The deck editor grew this guard first (B3); the log form was left without
+   * one because a dialog is exactly what its ten-second budget cannot afford.
+   * That reasoning held for the *simplified* path and never covered Advanced,
+   * where the draft holds opening hands, mulligans and scores for up to three
+   * matches — minutes of work, thrown away by one stray swipe with nothing
+   * asked.
+   *
+   * `hasDraft()` is what reconciles the two: the fast path never sees this,
+   * because tapping the log button and closing it again leaves no answers
+   * behind. The dialog only appears once there is something a person would be
+   * upset to lose.
+   */
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+      if (leaving.current) return;
+      if (!draft.current()) return;
+
+      event.preventDefault();
+      blockedAction.current = event.data.action;
+      setLeaveAsk(true);
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const save = (result: Result, andAnother: boolean) => {
     const versionId = selected?.deck.currentVersionId;
     if (!selected || !versionId || saving.current) return;
@@ -444,7 +530,7 @@ export default function LogMatchScreen() {
     showToast(
       `Logged · ${deck.name}${version} now ${record.wins}–${record.losses} (${rate}%)`,
       // Stays up the long default: a mis-tap on a result needs time to notice.
-      { action: { label: 'Undo', onPress: () => undoGame(id) } }
+      { action: { label: t('log.undo'), onPress: () => undoGame(id) } }
     );
     markLogged();
 
@@ -452,19 +538,31 @@ export default function LogMatchScreen() {
       reset();
       markLogAnother();
     } else {
+      // The game is on disk, so the guard must not challenge the navigation
+      // that follows — it would ask about a draft that has just been saved.
+      leaving.current = true;
       router.back();
     }
   };
 
+  /** Let the next removal through, then perform it. */
+  const leaveNow = () => {
+    leaving.current = true;
+    const action = blockedAction.current;
+    blockedAction.current = null;
+    if (action) navigation.dispatch(action);
+    else router.back();
+  };
+
   if (decks.length === 0) {
     return (
-      <Screen title="Log a game" back={false} compact>
+      <Screen title={t('log.title')} back={false} compact>
         <EmptyState
-          title="No decks yet"
-          body="A game is attached to the exact deck version that played it, so there needs to be a deck first."
+          title={t('log.empty.title')}
+          body={t('log.empty.body')}
           actions={[
-            { label: 'Build a deck', onPress: () => router.replace('/deck/new'), primary: true },
-            { label: 'Close', onPress: () => router.back() },
+            { label: t('log.empty.build'), onPress: () => router.replace('/deck/new'), primary: true },
+            { label: t('log.close'), onPress: () => router.back() },
           ]}
         />
       </Screen>
@@ -473,17 +571,17 @@ export default function LogMatchScreen() {
 
   return (
     <Screen
-      title="Log a game"
+      title={t('log.title')}
       back={false}
       compact
       action={
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Close"
+          accessibilityLabel={t('log.close')}
           onPress={() => router.back()}
           style={({ pressed }) => [styles.close, pressed && styles.pressed]}
         >
-          <Text style={styles.closeLabel}>Close</Text>
+          <Text style={styles.closeLabel}>{t('log.close')}</Text>
         </Pressable>
       }
     >
@@ -493,25 +591,25 @@ export default function LogMatchScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.block}>
-          <SectionLabel>Logging mode</SectionLabel>
+          <SectionLabel>{t('log.mode')}</SectionLabel>
           <ChoiceRow<LoggingMode>
             options={[
-              { key: 'simplified', label: 'Simplified', value: 'simplified' },
-              { key: 'advanced', label: 'Advanced', value: 'advanced' },
+              { key: 'simplified', label: t('log.mode.simplified'), value: 'simplified' },
+              { key: 'advanced', label: t('log.mode.advanced'), value: 'advanced' },
             ]}
             value={mode}
             onSelect={setMode}
           />
           <Text style={styles.helper}>
-            Advanced mode tracks opening hands, mulligans and per-match score alongside the result.
+            {t('log.mode.help')}
           </Text>
         </View>
 
         <View style={styles.block}>
-          <SectionLabel>The matchup</SectionLabel>
+          <SectionLabel>{t('game.section.matchup')}</SectionLabel>
           <MatchupCard
             side="you"
-            title={selected?.deck.name ?? 'No deck'}
+            title={selected?.deck.name ?? t('log.noDeckYet')}
             subtitle={metaLine(
               selected?.version ? `v${selected.version.versionNumber}` : null,
               // Match 1's, the one the matchup opened on.
@@ -522,20 +620,20 @@ export default function LogMatchScreen() {
           <MatchupDivider />
           <MatchupCard
             side="them"
-            title={opponent ? baseName(opponent.name) : 'Opponent not recorded'}
+            title={opponent ? baseName(opponent.name) : t('log.opponentNotRecorded')}
             subtitle={
               oppChampion
                 ? baseName(oppChampion.name)
                 : opponent
-                  ? 'Champion not recorded'
-                  : 'Skip it and the game still counts'
+                  ? t('game.championNotRecorded')
+                  : t('log.opponentSkip')
             }
             imageUrl={opponent?.imageUrl ?? null}
           />
         </View>
 
         <View style={styles.block}>
-          <SectionLabel>Game style</SectionLabel>
+          <SectionLabel>{t('game.section.gameStyle')}</SectionLabel>
           <ChoiceRow<GameStyle>
             options={LOGGED_GAME_STYLES.map((key) => ({
               key,
@@ -566,26 +664,25 @@ export default function LogMatchScreen() {
           */}
           {ORGANISED.includes(gameStyle) ? (
             <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Event (optional)</Text>
+              <Text style={styles.fieldLabel}>{t('log.event.optional')}</Text>
               <TextInput
                 value={eventName}
                 onChangeText={setEventName}
-                placeholder="Nexus Night #4"
+                placeholder={t('log.event.placeholder')}
                 placeholderTextColor={color.textMuted}
                 style={styles.input}
                 autoCapitalize="words"
-                accessibilityLabel="Event name"
+                accessibilityLabel={t('log.event.a11y')}
               />
               <Text style={styles.helper}>
-                Name this tournament — every round and game logged under it will be grouped
-                together.
+                {t('log.event.help')}
               </Text>
             </View>
           ) : null}
         </View>
 
         <View style={styles.block}>
-          <SectionLabel>Best of</SectionLabel>
+          <SectionLabel>{t('game.section.bestOf')}</SectionLabel>
           <ChoiceRow<number>
             options={BEST_OF_OPTIONS.map((n) => ({ key: String(n), label: `Bo${n}`, value: n }))}
             value={bestOf}
@@ -598,7 +695,7 @@ export default function LogMatchScreen() {
         </View>
 
         <View style={styles.block}>
-          <SectionLabel>Your deck</SectionLabel>
+          <SectionLabel>{t('log.yourDeck')}</SectionLabel>
           {/*
             One deck is a statement, several are a question.
 
@@ -609,7 +706,7 @@ export default function LogMatchScreen() {
           */}
           {decks.length > 1 ? (
             <SelectField
-              placeholder="Choose a deck"
+              placeholder={t('log.chooseDeck')}
               value={selected ? selected.deck.name : null}
               open={deckOpen}
               onToggle={() => setDeckOpen((o) => !o)}
@@ -651,9 +748,9 @@ export default function LogMatchScreen() {
         */}
         <View style={styles.fields}>
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Legend</Text>
+            <Text style={styles.fieldLabel}>{t('log.legend')}</Text>
             <SelectField
-              placeholder="Choose a Legend"
+              placeholder={t('log.chooseLegend')}
               value={opponent ? baseName(opponent.name) : null}
               open={false}
               onToggle={() => setPicker({ kind: 'legend' })}
@@ -661,9 +758,9 @@ export default function LogMatchScreen() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Chosen Champion</Text>
+            <Text style={styles.fieldLabel}>{t('log.chosenChampion')}</Text>
             <SelectField
-              placeholder={opponent ? 'Choose a Champion' : 'Pick a Legend first'}
+              placeholder={opponent ? t('log.chooseChampion') : t('log.legendFirst')}
               value={oppChampion ? baseName(oppChampion.name) : null}
               open={false}
               onToggle={() => setPicker({ kind: 'champion' })}
@@ -686,7 +783,7 @@ export default function LogMatchScreen() {
             return (
               <MatchCard
                 key={i}
-                title={bestOf > 1 ? `Match ${i + 1}` : 'The match'}
+                title={bestOf > 1 ? t('game.matchNumber', { number: i + 1 }) : t('match.card.theMatch')}
                 summary={metaLine(
                   game.result === 'win'
                     ? 'W'
@@ -695,7 +792,11 @@ export default function LogMatchScreen() {
                       : game.result === 'draw'
                         ? 'D'
                         : '—',
-                  game.onPlay === null ? 'first player not set' : game.onPlay ? 'I did' : 'They did'
+                  game.onPlay === null
+                    ? t('match.firstNotSet')
+                    : game.onPlay
+                      ? t('match.iDid')
+                      : t('match.theyDid')
                 )}
                 onPlay={game.onPlay}
                 onChangeOnPlay={(value) => setGame(i, { onPlay: value })}
@@ -745,15 +846,15 @@ export default function LogMatchScreen() {
           the button that leaves is one you would never see.
         */}
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Note</Text>
+          <Text style={styles.fieldLabel}>{t('log.row.note')}</Text>
           <TextInput
             value={notes}
             onChangeText={setNotes}
-            placeholder="Anything worth remembering"
+            placeholder={t('game.notePlaceholder')}
             placeholderTextColor={color.textMuted}
             style={styles.notes}
             multiline
-            accessibilityLabel="Game note"
+            accessibilityLabel={t('game.note.a11y')}
           />
         </View>
 
@@ -763,23 +864,23 @@ export default function LogMatchScreen() {
           <View style={styles.outcome}>
             <Text style={styles.outcomeValue}>
               {result === 'win'
-                ? 'Win'
+                ? t('game.result.win')
                 : result === 'loss'
-                  ? 'Loss'
+                  ? t('game.result.loss')
                   : result === 'draw'
-                    ? 'Draw'
-                    : 'Still playing'}
+                    ? t('game.result.draw')
+                    : t('log.stillPlaying')}
             </Text>
             <Text style={styles.outcomeMeta}>
               {result
-                ? metaLine(matchScoreLine(games, bestOf), 'derived from the matches')
-                : 'No games logged yet'}
+                ? metaLine(matchScoreLine(games, bestOf), t('log.derived'))
+                : t('log.noGamesYet')}
             </Text>
           </View>
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Continue to review"
+            accessibilityLabel={t('log.continue.a11y')}
             disabled={!result}
             onPress={() => setReviewing(true)}
             style={({ pressed }) => [
@@ -788,13 +889,13 @@ export default function LogMatchScreen() {
               pressed && styles.pressed,
             ]}
           >
-            <Text style={styles.continueLabel}>Continue</Text>
+            <Text style={styles.continueLabel}>{t('log.continue')}</Text>
           </Pressable>
 
           <Text style={styles.hint}>
             {result
-              ? 'Nothing is saved yet — the next screen reads the game back first.'
-              : `Answer each game above. ${matchesToWin(bestOf)} won takes the match.`}
+              ? t('log.notSavedYet')
+              : t('log.answerEach', { count: matchesToWin(bestOf) })}
           </Text>
         </View>
       </ScrollView>
@@ -808,8 +909,8 @@ export default function LogMatchScreen() {
       */}
       <Sheet
         visible={reviewing}
-        title="Review before saving"
-        subtitle={'Anything you skipped is stored as "not recorded", never guessed.'}
+        title={t('log.review.title')}
+        subtitle={t('log.review.subtitle')}
         onClose={() => setReviewing(false)}
         actions={
           <>
@@ -823,7 +924,7 @@ export default function LogMatchScreen() {
                 }}
                 style={({ pressed }) => [styles.sheetSecondary, pressed && styles.pressed]}
               >
-                <Text style={styles.sheetSecondaryLabel}>Log next round</Text>
+                <Text style={styles.sheetSecondaryLabel}>{t('log.review.nextRound')}</Text>
               </Pressable>
             ) : null}
             <Pressable
@@ -834,33 +935,37 @@ export default function LogMatchScreen() {
               }}
               style={({ pressed }) => [styles.sheetPrimary, pressed && styles.pressed]}
             >
-              <Text style={styles.sheetPrimaryLabel}>Finalize</Text>
+              <Text style={styles.sheetPrimaryLabel}>{t('log.review.finalize')}</Text>
             </Pressable>
           </>
         }
       >
         <View style={styles.sheetOutcome}>
-          <SectionLabel>Game outcome</SectionLabel>
+          <SectionLabel>{t('log.outcome')}</SectionLabel>
           <Text style={styles.sheetOutcomeValue}>
-            {result === 'win' ? 'Win' : result === 'loss' ? 'Loss' : 'Draw'}
+            {result === 'win'
+              ? t('game.result.win')
+              : result === 'loss'
+                ? t('game.result.loss')
+                : t('game.result.draw')}
           </Text>
           {/* Derived from the matches — never asked for twice. */}
           <Text style={styles.outcomeMeta}>
-            {metaLine(matchScoreLine(games, bestOf), 'derived from the matches')}
+            {metaLine(matchScoreLine(games, bestOf), t('log.derived'))}
           </Text>
         </View>
 
-        <SheetRow label="Deck" value={selected?.deck.name ?? 'None'} />
+        <SheetRow label={t('log.row.deck')} value={selected?.deck.name ?? t('common.notRecorded')} />
         <SheetRow
-          label="Opponent"
+          label={t('log.row.opponent')}
           value={
             opponent
               ? `${baseName(opponent.name)}${oppChampion ? ` · ${baseName(oppChampion.name)}` : ''}`
-              : 'Not recorded'
+              : t('common.notRecorded')
           }
         />
         <SheetRow
-          label="Format"
+          label={t('log.row.format')}
           value={metaLine(gameStyleLabel(gameStyle), `Bo${bestOf}`)}
           mono
         />
@@ -870,16 +975,20 @@ export default function LogMatchScreen() {
         {games.slice(0, progress.played).map((game, i) => (
           <SheetRow
             key={i}
-            label={bestOf > 1 ? `Match ${i + 1}` : 'The match'}
+            label={bestOf > 1 ? t('game.matchNumber', { number: i + 1 }) : t('match.card.theMatch')}
             value={metaLine(
-              game.result === 'win' ? 'Won' : game.result === 'loss' ? 'Lost' : 'Drew',
+              game.result === 'win'
+                ? t('match.readBack.won')
+                : game.result === 'loss'
+                  ? t('match.readBack.lost')
+                  : t('match.readBack.drew'),
               game.onPlay === null
-                ? 'went first not recorded'
+                ? t('match.readBack.firstNotRecorded')
                 : game.onPlay
-                  ? 'you went first'
-                  : 'they went first',
-              game.ourField ? baseName(game.ourField.name) : 'yours not recorded',
-              game.theirField ? baseName(game.theirField.name) : 'theirs not recorded'
+                  ? t('match.readBack.youFirst')
+                  : t('match.readBack.theyFirst'),
+              game.ourField ? baseName(game.ourField.name) : t('match.readBack.ourFieldMissing'),
+              game.theirField ? baseName(game.theirField.name) : t('match.readBack.theirFieldMissing')
             )}
           />
         ))}
@@ -900,48 +1009,50 @@ export default function LogMatchScreen() {
               const hand =
                 dealt === 0
                   ? null
-                  : `Replaced ${match.hand.mulliganed.length} of ${dealt}`;
+                  : t('log.replacedOf', { sent: match.hand.mulliganed.length, dealt });
               if (!score && !hand) return null;
               return (
                 <SheetRow
                   key={`adv-${i}`}
-                  label={bestOf > 1 ? `Match ${i + 1} detail` : 'Detail'}
-                  value={metaLine(score, hand) || 'Not recorded'}
+                  label={
+                    bestOf > 1 ? t('log.row.matchDetail', { number: i + 1 }) : t('log.row.detail')
+                  }
+                  value={metaLine(score, hand) || t('common.notRecorded')}
                   mono={!hand}
                 />
               );
             })
           : null}
         {ORGANISED.includes(gameStyle) ? (
-          <SheetRow label="Event" value={eventName.trim() || 'Not recorded'} />
+          <SheetRow label={t('log.row.event')} value={eventName.trim() || t('common.notRecorded')} />
         ) : null}
-        {notes.trim() ? <SheetRow label="Note" value={notes.trim()} /> : null}
+        {notes.trim() ? <SheetRow label={t('log.row.note')} value={notes.trim()} /> : null}
       </Sheet>
 
       <CardPickerSheet
         visible={picker !== null}
         title={
           picker?.kind === 'legend'
-            ? 'Their Legend'
+            ? t('log.legend')
             : picker?.kind === 'champion'
-              ? 'Their Chosen Champion'
+              ? t('game.section.oppChampion')
               : picker?.kind === 'dealt'
-                ? 'Your opening hand'
+                ? t('match.pick.hand')
                 : picker?.kind === 'replacement'
-                  ? 'What you drew back'
+                  ? t('match.pick.drewBack')
                   : picker?.kind === 'mulligan'
-                    ? 'Which cards went back?'
-                    : 'Battlefield they played'
+                    ? t('match.pick.whichBack')
+                    : t('match.pickField')
         }
         subtitle={
           picker?.kind === 'champion' && opponent
-            ? `Champions that partner ${baseName(opponent.name)}`
+            ? t('match.pick.partners', { legend: baseName(opponent.name) })
             : picker?.kind === 'mulligan'
-              ? 'Only the cards you were dealt.'
+              ? t('match.pick.onlyDealt')
               : picker?.kind === 'dealt' || picker?.kind === 'replacement'
-                ? `From ${selected?.deck.name ?? 'this deck'}`
+                ? t('match.pick.fromDeck', { deck: selected?.deck.name ?? t('match.pick.thisDeck') })
                 : picker?.kind === 'theirField' && bestOf > 1
-                  ? `Match ${picker.match + 1}`
+                  ? t('game.matchNumber', { number: picker.match + 1 })
                   : undefined
         }
         cards={
@@ -972,12 +1083,12 @@ export default function LogMatchScreen() {
         }
         emptyMessage={
           picker?.kind === 'champion'
-            ? 'No Champion Unit in the library partners that Legend.'
+            ? t('match.pick.noChampion')
             : picker?.kind === 'mulligan'
-              ? 'Fill in the opening hand first — a card can only go back if it was dealt.'
+              ? t('match.pick.mulliganFirst')
               : picker?.kind === 'dealt' || picker?.kind === 'replacement'
-                ? 'This deck version has no main-deck cards the library can resolve.'
-                : 'The card library has not finished downloading.'
+                ? t('match.pick.noMainDeck')
+                : t('match.pick.libraryDownloading')
         }
         onSelect={(card) => {
           if (picker?.kind === 'legend') {
@@ -1007,6 +1118,64 @@ export default function LogMatchScreen() {
             : undefined
         }
         onClose={() => setPicker(null)}
+      />
+
+      {/*
+        Three answers where the editor has three, but not the same three.
+
+        The editor can offer "Save and leave" because a decklist is always
+        saveable — an illegal deck is still a deck. A game is not: the result is
+        derived from the matches, so a match nobody has answered has no result to
+        record. "Review and save" therefore appears only once the games settle
+        one, and the prompt falls back to two options before that rather than
+        offering a button that cannot work.
+      */}
+      <Prompt
+        visible={leaveAsk}
+        title={t('log.leave.title')}
+        body={
+          result
+            ? t('log.leave.bodyComplete')
+            : t('log.leave.bodyPartial')
+        }
+        onDismiss={() => {
+          blockedAction.current = null;
+          setLeaveAsk(false);
+        }}
+        actions={[
+          ...(result
+            ? [
+                {
+                  label: t('log.leave.review'),
+                  kind: 'primary' as const,
+                  onPress: () => {
+                    setLeaveAsk(false);
+                    // Drop the intercepted navigation: the user has chosen to
+                    // stay and finish, so replaying it later would close the
+                    // sheet out from under the review they asked for.
+                    blockedAction.current = null;
+                    setReviewing(true);
+                  },
+                },
+              ]
+            : []),
+          {
+            label: t('log.leave.discard'),
+            kind: 'secondary' as const,
+            onPress: () => {
+              setLeaveAsk(false);
+              leaveNow();
+            },
+          },
+          {
+            label: t('log.leave.stay'),
+            kind: 'quiet' as const,
+            onPress: () => {
+              blockedAction.current = null;
+              setLeaveAsk(false);
+            },
+          },
+        ]}
       />
     </Screen>
   );
