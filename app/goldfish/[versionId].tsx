@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-n
 
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SectionLabel } from '@/components/ui/Field';
+import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import { loadDeckList } from '@/db/queries/decks';
@@ -203,7 +204,7 @@ function HandCard({
       />
       {selected ? (
         <View style={styles.mark}>
-          <Text style={styles.markGlyph}>↓</Text>
+          <Icon name="arrow-down" size={12} color={color.onAccent} />
         </View>
       ) : null}
     </Pressable>
@@ -231,7 +232,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  markGlyph: { ...text.caption, fontSize: 11, color: color.onAccent },
 
   actions: { gap: space[2] },
   primary: {

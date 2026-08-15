@@ -318,7 +318,9 @@ export default function BinderScreen() {
           narrowed by something off screen.
         */}
         <View style={styles.search}>
-          <Text style={styles.searchGlyph}>⌕</Text>
+          {/* Was `⌕` (U+2315), which no bundled font contains — the OS drew it
+              from whatever it had. The icon set has always had a search glyph. */}
+          <Icon name="search" size={15} color={color.textFaint} />
           <TextInput
             value={filters.search}
             onChangeText={filters.setSearch}
@@ -699,7 +701,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
-  searchGlyph: { ...text.small, color: color.textFaint },
   searchInput: { ...text.small, color: color.text, flex: 1, padding: 0 },
   /** The filter toggle, inside the search field's own box. */
   filterToggle: {

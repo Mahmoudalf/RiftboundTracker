@@ -6,6 +6,7 @@ import { BinderRow } from '@/components/collection/BinderRow';
 import { BinderSheet } from '@/components/collection/BinderSheet';
 import { SetProgress } from '@/components/collection/SetProgress';
 import { SectionLabel } from '@/components/ui/Field';
+import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import {
@@ -77,7 +78,7 @@ export default function CollectionScreen() {
           onPress={() => router.push('/binder/gallery')}
           style={({ pressed }) => [styles.search, pressed && styles.pressed]}
         >
-          <Text style={styles.searchGlyph}>⌕</Text>
+          <Icon name="search" size={15} color={color.textFaint} />
           <Text style={styles.searchLabel} numberOfLines={1}>
             {cardCount > 0
               ? t('collection.searchCount', { count: cardCount.toLocaleString() })
@@ -202,7 +203,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
-  searchGlyph: { ...text.small, color: color.textFaint },
   searchLabel: { ...text.small, color: color.textFaint, flex: 1 },
 
   summary: {

@@ -1,18 +1,23 @@
 import { create } from 'zustand';
 
+import { setStoredLocale, storedLocale } from '../db/queries/settings';
+
 import { LOCALES, type Locale, type RuntimeLocale } from './types';
 
 /**
  * Which language the app is speaking.
  *
- * Device locale by default, overridable in Profile — the override matters more
+ * Device locale by default, overridable in Settings — the override matters more
  * than it looks: a player whose phone is in English but who thinks about the
  * game in German is an ordinary case, and a picker is the only way to serve it.
  *
- * The value is **not persisted yet**. Persisting a preference means a store
- * write on first launch and a read before first paint, and neither is worth
- * building before the strings themselves exist. Filed rather than forgotten —
- * see the roadmap's M7B list.
+ * **Persisted since the Settings screen shipped**, in the `settings` table.
+ *
+ * Not read at module scope, though, and that is the whole design of this file.
+ * The store initialises from the *device* locale, which needs nothing but the
+ * OS; the stored override is loaded by `loadStoredLocale()` once the database
+ * has migrated. So a language choice survives a restart without the database
+ * becoming something the app must have before it can render its first frame.
  */
 
 /**
@@ -67,7 +72,57 @@ interface LocaleState {
   setLocale: (locale: RuntimeLocale) => void;
 }
 
+/** Every value the picker can produce, for validating what came out of storage. */
+function isRuntimeLocale(value: string): value is RuntimeLocale {
+  return value === 'pseudo' || (LOCALES as readonly string[]).includes(value);
+}
+
 export const useLocale = create<LocaleState>((set) => ({
   locale: deviceLocale(),
-  setLocale: (locale) => set({ locale }),
+  setLocale: (locale) => {
+    set({ locale });
+    /*
+     * Written through, and failure is swallowed on purpose.
+     *
+     * The user's language has already changed by the line above; a database
+     * that will not take the write should cost them the preference next
+     * launch, not the language change they just made.
+     *
+     * Imported statically, unlike `expo-localization` above. The settings query
+     * reaches its handle through `connection.ts`, which already defers
+     * `expo-sqlite` behind its own lazy require — so this pulls in no native
+     * module and `lib/`'s Node tests stay loadable.
+     */
+    try {
+      setStoredLocale(locale);
+    } catch {
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.warn('[i18n] could not persist the language choice');
+      }
+    }
+  },
 }));
+
+/**
+ * Apply the stored language override, if there is one.
+ *
+ * Called once from the root layout after migrations have run. Silent when there
+ * is nothing stored, which is every first launch — the device locale already
+ * chosen at store creation is the right answer in that case.
+ *
+ * An unrecognised stored value is ignored rather than repaired. That is what a
+ * downgrade looks like: a build that no longer speaks the language someone
+ * picked should fall back, not crash and not rewrite their preference.
+ */
+export function loadStoredLocale(): void {
+  try {
+    const stored = storedLocale();
+    if (stored !== null && isRuntimeLocale(stored)) {
+      useLocale.setState({ locale: stored });
+    }
+  } catch {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.warn('[i18n] could not read the stored language — using the device locale');
+    }
+  }
+}

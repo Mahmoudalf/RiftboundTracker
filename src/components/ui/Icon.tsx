@@ -19,7 +19,11 @@ export type IconName =
   | 'close'
   | 'chevron-right'
   | 'check'
-  | 'pencil';
+  | 'pencil'
+  | 'list'
+  | 'gallery'
+  | 'import'
+  | 'arrow-down';
 
 interface IconProps {
   name: IconName;
@@ -45,21 +49,104 @@ export function Icon({ name, size = 24, color = '#E8EAF0', active = false }: Ico
     <Svg width={size} height={size} viewBox="0 0 24 24">
       {name === 'decks' && (
         <>
-          {/* Three stacked cards, offset — a deck seen edge-on. */}
-          <Path d="M7.5 6.2 14.2 4l3 8.6-6.7 2.2z" {...common} fill={fill} fillOpacity={fillOpacity} />
-          <Path d="M5 9.5 11 20l7-2.4" {...common} />
-          <Path d="M3.4 13.2 8 20.6" {...common} />
+          {/*
+            Three cards in an offset stack, each a complete shape.
+
+            The previous drawing described the same idea but only closed the
+            top card; the other two were open polylines — two edges each, with
+            no corners. At 23 dp that read as one card with a pair of stray
+            diagonals under it rather than as a stack. Here the front card is
+            whole and the two behind show a top and a right edge with a real
+            corner between them, which is what makes them read as cards.
+          */}
+          <Path d="M7.8 2.7H17.8a1.5 1.5 0 0 1 1.5 1.5V16.2" {...common} />
+          <Path d="M5.4 5.1H15.4a1.5 1.5 0 0 1 1.5 1.5V18.6" {...common} />
+          <Rect
+            x="3"
+            y="7.5"
+            width="11.5"
+            height="13.5"
+            rx="1.5"
+            {...common}
+            fill={fill}
+            fillOpacity={fillOpacity}
+          />
         </>
       )}
 
       {name === 'cards' && (
         <>
-          {/* Gallery grid, card aspect ratio rather than squares. */}
-          <Rect x="3.5" y="3.5" width="7" height="8.5" rx="1.2" {...common} fill={fill} fillOpacity={fillOpacity} />
-          <Rect x="13.5" y="3.5" width="7" height="8.5" rx="1.2" {...common} fill={fill} fillOpacity={fillOpacity} />
-          <Rect x="3.5" y="14.5" width="7" height="6" rx="1.2" {...common} />
-          <Rect x="13.5" y="14.5" width="7" height="6" rx="1.2" {...common} />
+          {/*
+            A ring binder — the collection's own organising object.
+
+            It was a 2×2 grid, which had two problems. The cells were different
+            heights top and bottom, so it read as a broken grid rather than a
+            deliberate one, and only the top two took the active fill, leaving
+            the icon half-lit whenever the tab was selected. It was also about
+            to collide with `gallery`, which is legitimately a 2×2 grid.
+          */}
+          {/*
+            A binder, drawn as a silhouette rather than as internal detail.
+
+            Three drawings failed here before this one, and each failed the same
+            way: at 23 dp an icon is read by its **outline**, not its contents.
+            A rectangle with a spine and ring marks read as a sidebar; two cards
+            in a storage box merged into a blob; a 2×2 grid of card-proportioned
+            rects was indistinguishable from `gallery` — a 1.3 aspect ratio is
+            simply not perceptible at this size.
+            The folder tab changes the shape itself, which survives the scale,
+            and it is what the Collection tab actually holds: binders.
+          */}
+          <Path
+            d="M3.5 19V6a1.5 1.5 0 0 1 1.5-1.5h4.3l2.2 2.6H19a1.5 1.5 0 0 1 1.5 1.5V19a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19z"
+            {...common}
+            fill={fill}
+            fillOpacity={fillOpacity}
+          />
+          {/* One card edge inside it, so the folder is holding something. */}
+          <Path d="M9 20.5v-6.2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.2" {...common} />
         </>
+      )}
+
+      {name === 'list' && (
+        <>
+          {/*
+            Rows with a leading mark, not a hamburger.
+
+            Three bare lines would be `filter` at a different length — this set
+            already spends that shape. The lead mark is the row's thumbnail,
+            which is exactly what the list view puts there.
+          */}
+          <Path
+            d="M4 7.5h2.5M9 7.5h11M4 12h2.5M9 12h11M4 16.5h2.5M9 16.5h11"
+            {...common}
+          />
+        </>
+      )}
+
+      {name === 'gallery' && (
+        <>
+          {/* Square tiles, deliberately — `cards` is the same arrangement in
+              card proportion, and squareness is what tells the two apart. They
+              never appear together, but they should still mean different
+              things: this is a layout, that is a collection of cards. */}
+          <Rect x="4" y="4" width="7" height="7" rx="1.2" {...common} fill={fill} fillOpacity={fillOpacity} />
+          <Rect x="13" y="4" width="7" height="7" rx="1.2" {...common} fill={fill} fillOpacity={fillOpacity} />
+          <Rect x="4" y="13" width="7" height="7" rx="1.2" {...common} fill={fill} fillOpacity={fillOpacity} />
+          <Rect x="13" y="13" width="7" height="7" rx="1.2" {...common} fill={fill} fillOpacity={fillOpacity} />
+        </>
+      )}
+
+      {name === 'import' && (
+        <>
+          {/* Into a tray, so it cannot be mistaken for a plain download. */}
+          <Path d="M12 3.5V13.5M8.5 10l3.5 3.5 3.5-3.5" {...common} />
+          <Path d="M4.5 16v3a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-3" {...common} />
+        </>
+      )}
+
+      {name === 'arrow-down' && (
+        <Path d="M12 4.5v14M6.5 13l5.5 5.5 5.5-5.5" {...common} />
       )}
 
       {name === 'stats' && (

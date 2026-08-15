@@ -304,9 +304,21 @@ export const de: Translation = {
   'stats.noDecks.body':
     'Statistiken entstehen aus Partien, und eine Partie hängt immer an einem Deck. Erstelle zuerst eines.',
   'stats.noGames': 'Noch keine Partien',
+  'stats.noGames.all': 'Tippe nach einer Partie auf das + in der Leiste.',
+  'stats.noGames.deck':
+    'Für dieses Deck ist noch nichts erfasst. Tippe auf das + in der Leiste oder wähle oben ein anderes Deck.',
+  'stats.gameCount.one': '{count} Partie',
+  'stats.gameCount.other': '{count} Partien',
+  'stats.noRecord': 'Keine Partien',
   'stats.noEvents': 'Noch keine Events',
   'stats.noEvents.body':
     'Ein Event fasst die Runden eines Turniers oder Spieleabends zusammen — so siehst du, wie der Tag lief, statt nur wie das Deck insgesamt abschneidet. Erfasse eine Partie, wähle eine organisierte Spielart und gib ihr einen Namen.',
+  'stats.event.a11y': '{name}, {rounds} Runden',
+  'stats.event.placed': 'Platz {place}',
+
+  'history.window': 'Zeigt die {shown} neuesten von {total}.',
+  'history.more': '{count} weitere zeigen',
+  'history.all': 'Alle {total} Partien werden gezeigt.',
 
   'filters.clearAll': 'Alle zurücksetzen',
   'filters.close': 'Filter schließen',
@@ -395,7 +407,7 @@ export const de: Translation = {
   'analytics.longestRun': "Längste Serie",
   'analytics.gamesCount': "{count} Partien",
   'analytics.winRate': 'Siegquote',
-  'analytics.moreBreakdowns': 'Mehr Aufschlüsselungen',
+  'analytics.moreBreakdowns': 'Analyse',
   'analytics.opponent': 'Gegner',
   'analytics.empty': 'Noch keine Partien erfasst',
   'analytics.empty.body':
@@ -405,8 +417,6 @@ export const de: Translation = {
   "zone.battlefieldsShort": "Felder",
   "deck.cardCount": "{count} Karten",
   "deck.coverageCount": "{owned}/{required} Karten",
-  "deck.preview.list": "Liste",
-  "deck.preview.gallery": "Galerie",
   "deck.preview.list.a11y": "Listenansicht",
   "deck.preview.gallery.a11y": "Galerieansicht",
   "deck.legal": "Legal",
@@ -432,7 +442,8 @@ export const de: Translation = {
   'tab.decks': 'Decks',
   'tab.collection': 'Sammlung',
   'tab.stats': 'Statistik',
-  'tab.you': 'Du',
+  // "Einstellungen" wäre korrekter, passt aber nicht in eine Tab-Zelle.
+  'tab.settings': 'Optionen',
   'tab.logGame.hint': 'Öffnet die Partieerfassung',
 
   'deckTab.overview': 'Übersicht',
@@ -542,6 +553,49 @@ export const de: Translation = {
   'ui.notes': 'Notizen',
   'ui.logGame': 'Partie erfassen',
 
+  'onboarding.step': 'Schritt {step} von {total}',
+  'onboarding.welcome': 'Willkommen bei Riftbound Tracker',
+  'onboarding.welcome.body':
+    'Verfolge deine Decks, erfasse deine Partien und sieh, was wirklich funktioniert — alles auf deinem Gerät.',
+  'onboarding.wip': 'In Entwicklung',
+  'onboarding.wip.body':
+    'Ein unfertiges Projekt, offen entwickelt — zwischen Updates kann sich einiges ändern oder kaputtgehen. Deine Decks und Partien liegen nur auf diesem Gerät.',
+  'onboarding.start': 'Los geht’s',
+
+  'onboarding.setup': 'Richte dein Profil ein',
+  'onboarding.setup.body': 'Alles davon kannst du später in den Optionen ändern.',
+  'onboarding.name': 'Anzeigename',
+  'onboarding.name.placeholder': 'z. B. Master Yi Main',
+  'onboarding.name.help': 'Wird nur auf diesem Gerät gespeichert. Es wird nichts übertragen.',
+  'onboarding.name.next': 'Weiter',
+  'onboarding.language': 'Sprache',
+  'onboarding.language.default': 'Standard',
+  'onboarding.firstDeck': 'Erstes Deck',
+  'onboarding.import': 'Deck importieren',
+  'onboarding.import.body': 'Füge einen vorhandenen Deck-Code ein',
+  'onboarding.new': 'Neues Deck erstellen',
+  'onboarding.new.body': 'Leer beginnen und Karte für Karte aufbauen',
+  'onboarding.skip': 'Ich schaue mich erst um',
+
+  'profile.name': 'Dein Name',
+  'profile.namePlaceholder': 'Nicht gesetzt',
+  'profile.name.a11y': 'Dein Anzeigename',
+  'profile.nameHelp':
+    'Wird vorerst nur auf diesem Gerät verwendet. Sobald die Cloud-Synchronisierung kommt, ist es der Name deines Kontos.',
+
+  'profile.report': 'Rückmeldung',
+  'profile.report.body':
+    'Fehler gefunden oder einen Wunsch? Es geht nur mit, was du hier schreibst — Angaben zu deinem Gerät werden nicht erfasst.',
+  'profile.report.kind': 'Worum geht es?',
+  'profile.report.kind.bug': 'Fehler',
+  'profile.report.kind.feature': 'Wunsch',
+  'profile.report.placeholder': 'Was passiert ist oder was du dir wünschst',
+  'profile.report.a11y': 'Deine Rückmeldung',
+  'profile.report.copy': 'Kopieren',
+  'profile.report.copied': 'Kopiert — füge sie dort ein, wo du sie hinschickst',
+  'profile.report.noBackend':
+    'Aus der App heraus lässt sich das noch nirgendwohin senden. Kopieren ist vorerst alles.',
+
   'profile.library': 'Kartenbibliothek',
   'profile.library.stored':
     '{count} Karten auf diesem Gerät gespeichert. Stöbern, Suchen und Deckbau funktionieren ohne Verbindung.',
@@ -624,7 +678,8 @@ export const de: Translation = {
   'match.hand.drewBack': 'Nachgezogen',
   'match.hand.cardGone': 'Nicht mehr in der Bibliothek',
 
-  'profile.title': 'Du',
+  // Wie im Tab — "Einstellungen" passt dort nicht, und beide sollen gleich heißen.
+  'profile.title': 'Optionen',
   'profile.localOnly': 'Nur lokal',
   'profile.nothingLeaves': 'Nichts verlässt dieses Gerät',
   'profile.language': 'Sprache',

@@ -235,8 +235,9 @@ export const en = {
     'Nothing to measure yet. Log a game and the record, the interval, and the per-version breakdown all appear here.',
   'deck.cardCount': '{count} cards',
   'deck.coverageCount': '{owned}/{required} cards',
-  'deck.preview.list': 'List',
-  'deck.preview.gallery': 'Gallery',
+  /* `deck.preview.list` / `.gallery` were the words the deck overview used to
+     print in its toggle. The control is icons everywhere now, so only the
+     screen-reader labels below still have a reader. */
   'deck.preview.list.a11y': 'List view',
   'deck.preview.gallery.a11y': 'Gallery view',
   'deck.legal': 'Legal',
@@ -357,9 +358,26 @@ export const en = {
   'stats.noDecks.body':
     'Stats are built from games, and a game is always attached to a deck. Build one first.',
   'stats.noGames': 'No games yet',
+  'stats.noGames.all': 'Tap the + in the tab bar after a game.',
+  'stats.noGames.deck':
+    'Nothing logged for this deck yet. Tap the + in the tab bar, or pick another deck above.',
+  // Separate keys rather than one string with a conditional "s" — the plural is
+  // not a suffix in either of the other two languages.
+  'stats.gameCount.one': '{count} game',
+  'stats.gameCount.other': '{count} games',
+  /** A deck in the picker that has never been played. */
+  'stats.noRecord': 'No games',
   'stats.noEvents': 'No events yet',
   'stats.noEvents.body':
     'An event groups the rounds of one tournament or games night, so you can see how that day went rather than only how the deck does overall. Log a game, pick an organised game style, and name one.',
+  'stats.event.a11y': '{name}, {rounds} rounds',
+  'stats.event.placed': 'Placed {place}',
+
+  // The history window, stated rather than silent — a list that hides rows
+  // without saying so is worse than a slow one.
+  'history.window': 'Showing the {shown} most recent of {total}.',
+  'history.more': 'Show {count} more',
+  'history.all': 'All {total} shown.',
 
   // ── Card gallery filters ──────────────────────────────────────────────────
   'filters.clearAll': 'Clear all',
@@ -538,7 +556,14 @@ export const en = {
   'tab.decks': 'Decks',
   'tab.collection': 'Collection',
   'tab.stats': 'Stats',
-  'tab.you': 'You',
+  /*
+   * The tab bar draws this in 9.5px uppercase JetBrains Mono, monospace, in a
+   * cell of roughly 76pt on a small phone — about eight characters. German
+   * "Einstellungen" is thirteen and wraps to two lines, taking the bar's height
+   * with it, so the shorter-but-still-correct "Optionen" is used there and on
+   * the screen itself, rather than having the tab and its title disagree.
+   */
+  'tab.settings': 'Settings',
   'tab.logGame.hint': 'Opens the match log sheet',
 
   'deckTab.overview': 'Overview',
@@ -623,7 +648,56 @@ export const en = {
   'ui.notes': 'Notes',
   'ui.logGame': 'Log a game',
 
-  // ── Profile cards ─────────────────────────────────────────────────────────
+  // ── Onboarding ────────────────────────────────────────────────────────────
+  'onboarding.step': 'Step {step} of {total}',
+  'onboarding.welcome': 'Welcome to Riftbound Tracker',
+  'onboarding.welcome.body':
+    'Track your decks, log your games, and see what is actually working — all on your device.',
+  // The disclaimer. Stated on the first screen a user ever sees, because a
+  // half-built app that says so is a different thing from one that does not.
+  'onboarding.wip': 'In development',
+  'onboarding.wip.body':
+    'An unfinished project, built in the open — expect things to change or break between updates. Your decks and games live only on this device.',
+  'onboarding.start': 'Get started',
+
+  'onboarding.setup': 'Set up your profile',
+  'onboarding.setup.body': 'You can change any of this later in Settings.',
+  'onboarding.name': 'Screen name',
+  'onboarding.name.placeholder': 'e.g. Master Yi Main',
+  'onboarding.name.help': 'Only stored on this device. Nothing is sent anywhere.',
+  'onboarding.name.next': 'Continue',
+  'onboarding.language': 'Language',
+  'onboarding.language.default': 'Default',
+  'onboarding.firstDeck': 'First deck',
+  'onboarding.import': 'Import a deck',
+  'onboarding.import.body': 'Paste a deck code you already have',
+  'onboarding.new': 'Create a new deck',
+  'onboarding.new.body': 'Start empty and build it up card by card',
+  'onboarding.skip': 'I’ll look around first',
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+  'profile.name': 'Your name',
+  'profile.namePlaceholder': 'Not set',
+  'profile.name.a11y': 'Your display name',
+  'profile.nameHelp':
+    'Only used on this device for now. When cloud sync arrives it will be the name on your account.',
+
+  'profile.report': 'Feedback',
+  // States what is *not* collected, because that is the surprising part. The
+  // app attaches nothing — no device, no version, no counts.
+  'profile.report.body':
+    'Found a bug, or want something added? Only what you write here is included — nothing about your device is collected.',
+  'profile.report.kind': 'What is this?',
+  'profile.report.kind.bug': 'Bug',
+  'profile.report.kind.feature': 'Feature wish',
+  'profile.report.placeholder': 'What happened, or what you would like to see',
+  'profile.report.a11y': 'Your feedback',
+  'profile.report.copy': 'Copy',
+  'profile.report.copied': 'Copied — paste it wherever you send it',
+  // Honest about the state of things rather than pretending at a Send button.
+  'profile.report.noBackend':
+    'There is nowhere to send this from inside the app yet. Copying is the whole of it for now.',
+
   'profile.library': 'Card library',
   'profile.library.stored':
     '{count} cards stored on this device. Browsing, searching, and deckbuilding all work without a connection.',
@@ -705,7 +779,7 @@ export const en = {
   'match.hand.cardGone': 'No longer in the library',
 
   // ── Profile ───────────────────────────────────────────────────────────────
-  'profile.title': 'You',
+  'profile.title': 'Settings',
   'profile.localOnly': 'Local only',
   'profile.nothingLeaves': 'Nothing leaves this device',
   'profile.language': 'Language',

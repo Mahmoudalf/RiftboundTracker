@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
@@ -48,7 +49,7 @@ export function BinderRow({ name, subtitle, isDefault = false, onPress }: Binder
         </Text>
       </View>
 
-      <Text style={styles.chevron}>›</Text>
+      <Icon name="chevron-right" size={16} color={color.textFaint} />
     </Pressable>
   );
 }
@@ -83,5 +84,4 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   subtitle: { ...text.caption, fontSize: 11, color: color.textMuted },
-  chevron: { ...text.body, color: color.textFaint },
 });

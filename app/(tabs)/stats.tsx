@@ -59,7 +59,15 @@ interface DeckOption {
 export default function StatsScreen() {
   const t = useT();
   const [tab, setTab] = useState<Tab>('games');
-  const [deckId, setDeckId] = useState<string>(ALL_DECKS);
+  /*
+   * `null` means "nothing chosen yet", which is NOT the same as `ALL_DECKS`.
+   *
+   * They used to be the same value, and it made "All decks" unselectable: the
+   * default-to-most-recent rule below read `ALL_DECKS` as "no choice made" and
+   * substituted the first deck, so picking it set state, re-ran this effect,
+   * and was overwritten before anything rendered. The option looked inert.
+   */
+  const [deckId, setDeckId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [decks, setDecks] = useState<DeckOption[]>([]);
   const [history, setHistory] = useState<GameHistoryEntry[]>([]);
@@ -105,9 +113,11 @@ export default function StatsScreen() {
 
       // Default to the deck played most recently — `listDecks` is ordered by
       // `updated_at` and logging a match touches it, so the head of the list is
-      // the one you are most likely asking about.
+      // the one you are most likely asking about. Only on the first read, or
+      // when the chosen deck has since been deleted; an explicit choice of
+      // "All decks" is a choice and survives.
       const active =
-        deckId !== ALL_DECKS && options.some((o) => o.id === deckId)
+        deckId !== null && (deckId === ALL_DECKS || options.some((o) => o.id === deckId))
           ? deckId
           : (options[0]?.id ?? ALL_DECKS);
 
@@ -177,14 +187,18 @@ export default function StatsScreen() {
     );
   }
 
+  /* The effect always writes a concrete id before `loaded` flips, so past the
+     guard above this is never null — say so once here rather than at each use. */
+  const selected = deckId ?? ALL_DECKS;
+
   const deckOptions: DropdownOption<string>[] = [
     { value: ALL_DECKS, label: t('stats.allDecks') },
     ...decks.map((deck) => ({
       value: deck.id,
       label: deck.name,
       meta: metaLine(
-        recordLine(deck.record.wins, deck.record.losses, deck.record.draws) ?? 'No games',
-        deck.archived ? 'Archived' : null
+        recordLine(deck.record.wins, deck.record.losses, deck.record.draws) ?? t('stats.noRecord'),
+        deck.archived ? t('deck.archived') : null
       ),
     })),
   ];
@@ -194,19 +208,23 @@ export default function StatsScreen() {
       title={t('stats.title')}
       meta={metaLine(
         record ? recordLine(record.wins, record.losses, record.draws) : null,
-        record ? `${record.total} ${record.total === 1 ? 'game' : 'games'}` : null
+        record
+          ? t(record.total === 1 ? 'stats.gameCount.one' : 'stats.gameCount.other', {
+              count: record.total,
+            })
+          : null
       )}
     >
+      {/*
+        Tabs first, deck picker underneath — they used to share one row, with
+        the picker sized to its content and the tabs pushed to whatever was
+        left. A deck name is user-supplied and unbounded, so "whatever was
+        left" could be nothing: German "Auswertung" clipped as soon as a name
+        grew. Stacked, neither control can crowd the other, and each tab is an
+        equal share of the full width so the longest label in any language
+        still has room.
+      */}
       <View style={styles.controls}>
-        <Dropdown
-          label={t('stats.deck')}
-          value={deckId}
-          options={deckOptions}
-          open={pickerOpen}
-          onOpenChange={setPickerOpen}
-          onSelect={setDeckId}
-        />
-
         <View style={styles.tabs}>
           {/* `item`, not `t` — the map parameter was named `t` and now shadows
               the translate function. */}
@@ -218,12 +236,24 @@ export default function StatsScreen() {
               onPress={() => setTab(item.key)}
               style={[styles.tab, tab === item.key && styles.tabActive]}
             >
-              <Text style={[styles.tabLabel, tab === item.key && styles.tabLabelActive]}>
+              <Text
+                numberOfLines={1}
+                style={[styles.tabLabel, tab === item.key && styles.tabLabelActive]}
+              >
                 {t(item.label)}
               </Text>
             </Pressable>
           ))}
         </View>
+
+        <Dropdown
+          label={t('stats.deck')}
+          value={selected}
+          options={deckOptions}
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          onSelect={setDeckId}
+        />
       </View>
 
       {tab === 'events' ? (
@@ -238,7 +268,10 @@ export default function StatsScreen() {
               <Pressable
                 key={event.id}
                 accessibilityRole="button"
-                accessibilityLabel={`${event.name}, ${event.total} rounds`}
+                accessibilityLabel={t('stats.event.a11y', {
+                  name: event.name,
+                  rounds: event.total,
+                })}
                 onPress={() => router.push(`/event/${event.id}`)}
                 style={({ pressed }) => [styles.eventRow, pressed && styles.pressed]}
               >
@@ -253,7 +286,9 @@ export default function StatsScreen() {
                       // the log form has no tier until someone sets one.
                       event.eventType ? eventStyleLabel(event.eventType) : null,
                       gameDate(event.startedAt),
-                      event.finalPlacement ? `Placed ${event.finalPlacement}` : null
+                      event.finalPlacement
+                        ? t('stats.event.placed', { place: event.finalPlacement })
+                        : null
                     )}
                   </Text>
                 </View>
@@ -277,17 +312,13 @@ export default function StatsScreen() {
             games={allGames}
             matches={allMatches}
             versions={versions}
-            deckId={deckId === ALL_DECKS ? null : deckId}
+            deckId={selected === ALL_DECKS ? null : selected}
           />
         </ScrollView>
       ) : history.length === 0 ? (
         <EmptyState
           title={t('stats.noGames')}
-          body={
-            deckId === ALL_DECKS
-              ? 'Tap the + in the tab bar after a game.'
-              : 'Nothing logged for this deck yet. Tap the + in the tab bar, or pick another deck above.'
-          }
+          body={t(selected === ALL_DECKS ? 'stats.noGames.all' : 'stats.noGames.deck')}
         />
       ) : (
         <FlashList
@@ -308,18 +339,20 @@ export default function StatsScreen() {
             historyTotal > history.length ? (
               <View style={styles.footer}>
                 <Text style={styles.footerText}>
-                  Showing the {history.length} most recent of {historyTotal}.
+                  {t('history.window', { shown: history.length, total: historyTotal })}
                 </Text>
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => setWindow((n) => n + HISTORY_PAGE)}
                   style={({ pressed }) => [styles.loadMore, pressed && styles.pressed]}
                 >
-                  <Text style={styles.loadMoreLabel}>Show {HISTORY_PAGE} more</Text>
+                  <Text style={styles.loadMoreLabel}>
+                    {t('history.more', { count: HISTORY_PAGE })}
+                  </Text>
                 </Pressable>
               </View>
             ) : historyTotal > HISTORY_PAGE ? (
-              <Text style={styles.footerText}>All {historyTotal} shown.</Text>
+              <Text style={styles.footerText}>{t('history.all', { total: historyTotal })}</Text>
             ) : null
           }
         />
@@ -329,16 +362,19 @@ export default function StatsScreen() {
 }
 
 const styles = StyleSheet.create({
-  controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[2],
-    paddingBottom: space[3],
-  },
-  tabs: { flexDirection: 'row', gap: space[1], marginLeft: 'auto' },
+  controls: { gap: space[2], paddingBottom: space[3] },
+  tabs: { flexDirection: 'row', gap: space[1] },
+  /*
+   * `flex: 1` so the three share the width evenly rather than each sizing to
+   * its own label. Equal thirds are the widest any one tab can be guaranteed,
+   * which is what a translated label needs — and it reads as a segmented
+   * control, which is what these are.
+   */
   tab: {
-    paddingHorizontal: space[3],
+    flex: 1,
+    paddingHorizontal: space[2],
     minHeight: 34,
+    alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.full,
   },

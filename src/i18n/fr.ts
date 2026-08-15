@@ -297,9 +297,21 @@ export const fr: Translation = {
   'stats.noDecks.body':
     "Les statistiques viennent des parties, et une partie est toujours rattachée à un deck. Créez-en un d'abord.",
   'stats.noGames': 'Aucune partie',
+  'stats.noGames.all': 'Touchez le + dans la barre après une partie.',
+  'stats.noGames.deck':
+    'Rien d’enregistré pour ce deck. Touchez le + dans la barre, ou choisissez un autre deck ci-dessus.',
+  'stats.gameCount.one': '{count} partie',
+  'stats.gameCount.other': '{count} parties',
+  'stats.noRecord': 'Aucune partie',
   'stats.noEvents': 'Aucun événement',
   'stats.noEvents.body':
     "Un événement regroupe les rondes d'un tournoi ou d'une soirée de jeu — vous voyez comment s'est passée la journée, pas seulement le bilan global du deck. Enregistrez une partie, choisissez un type organisé et nommez-le.",
+  'stats.event.a11y': '{name}, {rounds} rondes',
+  'stats.event.placed': 'Place {place}',
+
+  'history.window': 'Affiche les {shown} plus récentes sur {total}.',
+  'history.more': 'Afficher {count} de plus',
+  'history.all': 'Les {total} parties sont affichées.',
 
   'filters.clearAll': 'Tout effacer',
   'filters.close': 'Fermer les filtres',
@@ -398,8 +410,6 @@ export const fr: Translation = {
   "zone.battlefieldsShort": "Champs",
   "deck.cardCount": "{count} cartes",
   "deck.coverageCount": "{owned}/{required} cartes",
-  "deck.preview.list": "Liste",
-  "deck.preview.gallery": "Galerie",
   "deck.preview.list.a11y": "Vue liste",
   "deck.preview.gallery.a11y": "Vue galerie",
   "deck.legal": "Légal",
@@ -425,7 +435,7 @@ export const fr: Translation = {
   'tab.decks': 'Decks',
   'tab.collection': 'Collection',
   'tab.stats': 'Stats',
-  'tab.you': 'Vous',
+  'tab.settings': 'Réglages',
   'tab.logGame.hint': "Ouvre la feuille d'enregistrement",
 
   'deckTab.overview': 'Aperçu',
@@ -535,6 +545,49 @@ export const fr: Translation = {
   'ui.notes': 'Notes',
   'ui.logGame': 'Enregistrer une partie',
 
+  'onboarding.step': 'Étape {step} sur {total}',
+  'onboarding.welcome': 'Bienvenue dans Riftbound Tracker',
+  'onboarding.welcome.body':
+    'Suivez vos decks, enregistrez vos parties et voyez ce qui marche vraiment — le tout sur votre appareil.',
+  'onboarding.wip': 'En développement',
+  'onboarding.wip.body':
+    'Un projet inachevé, développé au grand jour — les choses peuvent changer ou casser d’une mise à jour à l’autre. Vos decks et vos parties ne vivent que sur cet appareil.',
+  'onboarding.start': 'Commencer',
+
+  'onboarding.setup': 'Configurez votre profil',
+  'onboarding.setup.body': 'Vous pourrez tout modifier plus tard dans les Réglages.',
+  'onboarding.name': 'Nom affiché',
+  'onboarding.name.placeholder': 'p. ex. Master Yi Main',
+  'onboarding.name.help': 'Stocké uniquement sur cet appareil. Rien n’est envoyé.',
+  'onboarding.name.next': 'Continuer',
+  'onboarding.language': 'Langue',
+  'onboarding.language.default': 'Par défaut',
+  'onboarding.firstDeck': 'Premier deck',
+  'onboarding.import': 'Importer un deck',
+  'onboarding.import.body': 'Collez un code de deck que vous avez déjà',
+  'onboarding.new': 'Créer un deck',
+  'onboarding.new.body': 'Partez de zéro et construisez carte par carte',
+  'onboarding.skip': 'Je vais d’abord regarder',
+
+  'profile.name': 'Votre nom',
+  'profile.namePlaceholder': 'Non défini',
+  'profile.name.a11y': 'Votre nom affiché',
+  'profile.nameHelp':
+    'Utilisé uniquement sur cet appareil pour l’instant. À l’arrivée de la synchronisation, ce sera le nom de votre compte.',
+
+  'profile.report': 'Retour',
+  'profile.report.body':
+    'Un bug, ou une envie ? Seul ce que vous écrivez ici est inclus — aucune information sur votre appareil n’est collectée.',
+  'profile.report.kind': 'De quoi s’agit-il ?',
+  'profile.report.kind.bug': 'Bug',
+  'profile.report.kind.feature': 'Souhait',
+  'profile.report.placeholder': 'Ce qui s’est passé, ou ce que vous aimeriez voir',
+  'profile.report.a11y': 'Votre retour',
+  'profile.report.copy': 'Copier',
+  'profile.report.copied': 'Copié — collez-le où vous l’envoyez',
+  'profile.report.noBackend':
+    'Rien ne permet encore d’envoyer ceci depuis l’application. Copier, c’est tout pour l’instant.',
+
   'profile.library': 'Bibliothèque de cartes',
   'profile.library.stored':
     '{count} cartes stockées sur cet appareil. Navigation, recherche et construction de deck fonctionnent sans connexion.',
@@ -616,7 +669,7 @@ export const fr: Translation = {
   'match.hand.drewBack': 'Repiochées',
   'match.hand.cardGone': 'Absente de la bibliothèque',
 
-  'profile.title': 'Vous',
+  'profile.title': 'Réglages',
   'profile.localOnly': 'Local uniquement',
   'profile.nothingLeaves': 'Rien ne quitte cet appareil',
   'profile.language': 'Langue',

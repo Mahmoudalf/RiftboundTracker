@@ -20,6 +20,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import { Prompt } from '@/components/ui/Prompt';
 import { Screen } from '@/components/ui/Screen';
+import { ViewToggle, type DeckView } from '@/components/ui/ViewToggle';
 import {
   listBattlefields,
   listChampionsForLegend,
@@ -110,7 +111,7 @@ export default function DeckEditorScreen() {
    * what is in the deck sorted to the top, everything addable underneath.
    */
   const [zone, setZone] = useState<Pool>('main');
-  const [view, setView] = useState<'list' | 'gallery'>('list');
+  const [view, setView] = useState<DeckView>('list');
   /*
    * Show only what the deck already holds.
    *
@@ -866,24 +867,7 @@ export default function DeckEditorScreen() {
           </Text>
         </Pressable>
 
-        <View style={styles.viewToggle}>
-          {(['list', 'gallery'] as const).map((v) => (
-            <Pressable
-              key={v}
-              accessibilityRole="button"
-              accessibilityState={{ selected: view === v }}
-              accessibilityLabel={
-                v === 'list' ? t('deck.preview.list.a11y') : t('deck.preview.gallery.a11y')
-              }
-              onPress={() => setView(v)}
-              style={[styles.viewOption, view === v && styles.viewOptionOn]}
-            >
-              <Text style={[styles.viewGlyph, view === v && styles.viewGlyphOn]}>
-                {v === 'list' ? '☰' : '▦'}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <ViewToggle value={view} onChange={setView} large />
       </View>
 
       {/*
@@ -1245,23 +1229,8 @@ const styles = StyleSheet.create({
   filterPillLabel: { ...text.caption, fontSize: 11, color: color.textSecondary },
   filterPillLabelOn: { color: color.onAccent },
 
-  viewToggle: {
-    flexDirection: 'row',
-    gap: 3,
-    padding: 3,
-    borderRadius: 9,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  viewOption: {
-    height: 36,
-    paddingHorizontal: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 7,
-  },
-  viewOptionOn: { backgroundColor: color.accent },
-  viewGlyph: { ...text.small, color: color.textMuted },
-  viewGlyphOn: { color: color.onAccent },
+  /* The view toggle's styles now live in `ViewToggle` — its `large` variant is
+     this row's 36 dp height. */
 
   body: { flex: 1 },
   // 4, not 8 — just enough that the first row does not sit on the rule.

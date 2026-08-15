@@ -805,6 +805,31 @@ export const MIGRATIONS: readonly Migration[] = [
       DROP TABLE sets;
     `,
   },
+  {
+    version: 23,
+    up: /* sql */ `
+      -- Preferences, as key/value rather than a column per setting.
+      --
+      -- The alternative -- a single-row \`preferences\` table shaped like
+      -- \`sync_meta\` -- costs a migration every time a checkbox is added, on a
+      -- table whose whole content is optional by definition. Key/value costs one
+      -- migration ever, and an unknown key read by an older build is a miss
+      -- rather than an error.
+      --
+      -- The trade is that the schema stops describing what is in here, so the
+      -- keys are declared and documented in \`queries/settings.ts\` and reached
+      -- only through the typed accessors there. Nothing else may call
+      -- \`setSetting\` with a bare string.
+      --
+      -- Deliberately NOT the place for anything the app needs before first
+      -- paint. Both current values -- display name and language -- are read
+      -- after migrations run, and the app is correct without either.
+      CREATE TABLE settings (
+        key   TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

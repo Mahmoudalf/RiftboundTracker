@@ -17,7 +17,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="(decks)" options={{ title: t('tab.decks') }} />
       <Tabs.Screen name="(collection)" options={{ title: t('tab.collection') }} />
       <Tabs.Screen name="stats" options={{ title: t('tab.stats') }} />
-      <Tabs.Screen name="profile" options={{ title: t('tab.you') }} />
+      <Tabs.Screen name="profile" options={{ title: t('tab.settings') }} />
     </Tabs>
   );
 }

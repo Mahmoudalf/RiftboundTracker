@@ -6,7 +6,7 @@ import type { Catalogue, Key, Locale, Placeholders, RuntimeLocale, Translation }
 import { useLocale } from './useLocale';
 
 export { LOCALES, type Key, type Locale, type RuntimeLocale } from './types';
-export { useLocale, deviceLocale } from './useLocale';
+export { useLocale, deviceLocale, loadStoredLocale } from './useLocale';
 export { pseudo } from './pseudo';
 export { en } from './en';
 export { de } from './de';

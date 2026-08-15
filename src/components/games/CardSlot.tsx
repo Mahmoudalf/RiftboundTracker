@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import type { CardRow } from '@/db/schema/cards';
 import { isLandscapeCard, uprightArt } from '@/lib/card-art';
@@ -164,7 +165,13 @@ export function CardSlot({
             {mulliganed ? <View style={styles.wash} /> : null}
           </>
         ) : readOnly ? null : (
-          <Text style={styles.glyph}>{state === 'replacement' ? '⌕' : '+'}</Text>
+          // `⌕` and `+` were both text; only `+` existed in the font. Drawn
+          // now, so an empty slot and a replacement slot are the same weight.
+          <Icon
+            name={state === 'replacement' ? 'search' : 'plus'}
+            size={18}
+            color={color.textMuted}
+          />
         )}
 
         {/*

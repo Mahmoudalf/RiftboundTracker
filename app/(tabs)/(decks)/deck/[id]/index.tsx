@@ -28,6 +28,7 @@ import { DetailsSheet } from '@/components/ui/DetailsSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
+import { ViewToggle, type DeckView } from '@/components/ui/ViewToggle';
 import { getCard, queryCards } from '@/db/queries/cards';
 import { deckCoverage, type DeckCoverage } from '@/db/queries/coverage';
 import {
@@ -88,7 +89,8 @@ import { metaLine, text } from '@/theme/typography';
 type Tab = 'overview' | 'versions' | 'matches' | 'stats';
 
 /** The decklist's two shapes on the Overview tab. */
-type Preview = 'list' | 'gallery';
+/** Aliased rather than redeclared, so the control and this screen cannot drift. */
+type Preview = DeckView;
 
 /**
  * Versions drawn before the tail is folded behind a tap.
@@ -700,27 +702,9 @@ export default function DeckDetailScreen() {
             */}
             <View style={styles.previewHeader}>
               <Text style={styles.sectionLabel}>{t('deck.preview')}</Text>
-              <View style={styles.segmented}>
-                {(['list', 'gallery'] as const).map((mode) => (
-                  <Pressable
-                    key={mode}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: preview === mode }}
-                    onPress={() => setPreview(mode)}
-                    style={({ pressed }) => [
-                      styles.segment,
-                      preview === mode && styles.segmentOn,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Text
-                      style={[styles.segmentLabel, preview === mode && styles.segmentLabelOn]}
-                    >
-                      {mode === 'list' ? t('deck.preview.list') : t('deck.preview.gallery')}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              {/* Was the same choice spelled out in words, in a bordered pill —
+                  the third of three different drawings of one control. */}
+              <ViewToggle value={preview} onChange={setPreview} />
             </View>
 
             {(preview === 'gallery'
@@ -1122,17 +1106,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space[3],
   },
-  segmented: {
-    flexDirection: 'row',
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: color.border,
-  },
-  segment: { height: 32, paddingHorizontal: space[4], justifyContent: 'center' },
-  segmentOn: { backgroundColor: color.accent },
-  segmentLabel: { ...text.smallMedium, fontSize: 11, color: color.textMuted },
-  segmentLabelOn: { color: color.onAccent },
+  /* The `segmented` pill and its four companions drew the list/gallery choice
+     as words in a bordered capsule — the third of three shapes for one control.
+     `ViewToggle` owns it now, in the inset-track form the other two used. */
 
   gallery: {
     flexDirection: 'row',

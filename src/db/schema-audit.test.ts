@@ -7,6 +7,7 @@ import { cards, syncMeta } from '@/db/schema/cards';
 import { binders, binderCards } from '@/db/schema/collection';
 import { deckVersionCards, deckVersions, decks } from '@/db/schema/decks';
 import { events, games, matches } from '@/db/schema/games';
+import { settings } from '@/db/schema/settings';
 import { applyMigrationsUpTo, createTestDatabase } from '@/db/testing';
 
 /**
@@ -32,6 +33,7 @@ const TABLES: [string, SQLiteTable][] = [
   ['events', events],
   ['games', games],
   ['matches', matches],
+  ['settings', settings],
 ];
 
 function liveColumns(table: string): Map<string, { notnull: number; dflt: unknown }> {

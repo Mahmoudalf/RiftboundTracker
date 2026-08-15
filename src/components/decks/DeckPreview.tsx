@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { DeckSlotRow } from '@/components/decks/DeckSlotRow';
-import { Pressable } from '@/components/ui/Pressable';
+import { ViewToggle, type DeckView } from '@/components/ui/ViewToggle';
 import { useT, type Key } from '@/i18n';
 import { isLandscapeCard, uprightArt } from '@/lib/card-art';
 import { baseName } from '@/lib/card-identity';
@@ -31,30 +31,13 @@ const ZONES = [
 
 export function DeckPreview({ slots }: { slots: readonly DeckSlot[] }) {
   const t = useT();
-  const [view, setView] = useState<'list' | 'gallery'>('list');
+  const [view, setView] = useState<DeckView>('list');
 
   return (
     <View style={styles.root}>
       <View style={styles.head}>
         <Text style={styles.headLabel}>{t('deckPreview.yourDeck')}</Text>
-        <View style={styles.toggle}>
-          {(['list', 'gallery'] as const).map((v) => (
-            <Pressable
-              key={v}
-              accessibilityRole="button"
-              accessibilityState={{ selected: view === v }}
-              accessibilityLabel={
-                v === 'list' ? t('deck.preview.list.a11y') : t('deck.preview.gallery.a11y')
-              }
-              onPress={() => setView(v)}
-              style={[styles.option, view === v && styles.optionOn]}
-            >
-              <Text style={[styles.glyph, view === v && styles.glyphOn]}>
-                {v === 'list' ? '☰' : '▦'}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <ViewToggle value={view} onChange={setView} />
       </View>
 
       {ZONES.map(({ zone, label }) => {
@@ -113,23 +96,8 @@ const styles = StyleSheet.create({
   root: { gap: space[4] },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headLabel: { ...text.microMeta, color: color.textFaint },
-  toggle: {
-    flexDirection: 'row',
-    gap: 3,
-    padding: 3,
-    borderRadius: 9,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  option: {
-    height: 32,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 7,
-  },
-  optionOn: { backgroundColor: color.accent },
-  glyph: { ...text.small, color: color.textMuted },
-  glyphOn: { color: color.onAccent },
+  /* The toggle's own styles moved into `ViewToggle`, which now owns this
+     control everywhere it appears. */
 
   zone: { gap: space[1] },
   zoneHead: {

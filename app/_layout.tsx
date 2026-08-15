@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -10,11 +10,35 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '../global.css';
 
 import { Toast } from '@/components/ui/Toast';
-import { useLocale } from '@/i18n';
+import { onboardingDone } from '@/db/queries/settings';
+import { loadStoredLocale, useLocale } from '@/i18n';
 import { color } from '@/theme/tokens';
 import { fonts } from '@/theme/typography';
 
 void SplashScreen.preventAutoHideAsync();
+
+/*
+ * The stored language, applied at module load rather than in an effect.
+ *
+ * `Stack` below is keyed on the locale, so applying it after the first render
+ * would remount the whole navigator — the user would watch the app open in one
+ * language and switch to another. Here it lands before anything reads a string.
+ *
+ * Safe this early because the call opens the database itself: `conn()` requires
+ * `client.ts`, which migrates synchronously on load. A first launch with
+ * nothing stored is a no-op, and any failure leaves the device locale standing.
+ */
+loadStoredLocale();
+
+/*
+ * Read here for the same reason, and once.
+ *
+ * Reading it at module load rather than in the component means the answer
+ * cannot change under the effect below: `completeOnboarding()` writes the flag
+ * *before* navigating away, so a re-render that re-read it would find the flow
+ * already finished and race its own redirect.
+ */
+const NEEDS_ONBOARDING = !onboardingDone();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,7 +74,18 @@ export default function RootLayout() {
   useEffect(() => {
     // Hide the splash on error too — a missing font should degrade to the
     // system face, never leave the user staring at a splash screen.
-    if (fontsLoaded || fontError) void SplashScreen.hideAsync();
+    if (!fontsLoaded && !fontError) return;
+
+    /*
+     * Redirect *under* the splash, then hide it.
+     *
+     * The navigator's initial route is the tab group, so a first launch would
+     * otherwise paint the empty Decks tab for a frame before onboarding
+     * replaced it. Ordering the two here means the first thing anyone ever
+     * sees is the welcome screen rather than a flash of the app behind it.
+     */
+    if (NEEDS_ONBOARDING) router.replace('/onboarding');
+    void SplashScreen.hideAsync();
   }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) return null;
@@ -69,6 +104,12 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="(tabs)" />
+            {/* No back gesture and no animation in: it is not somewhere you
+                navigated to, it is where the app starts. */}
+            <Stack.Screen
+              name="onboarding"
+              options={{ animation: 'none', gestureEnabled: false }}
+            />
             <Stack.Screen
               name="game/new"
               options={{ presentation: 'modal', animation: 'slide_from_bottom' }}

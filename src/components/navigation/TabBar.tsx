@@ -45,7 +45,7 @@ const TABS: { name: string; label: Key; icon: IconName }[] = [
   // navigator knows it by the group's name, not by the screen inside it.
   { name: '(collection)', label: 'tab.collection', icon: 'cards' },
   { name: 'stats', label: 'tab.stats', icon: 'stats' },
-  { name: 'profile', label: 'tab.you', icon: 'profile' },
+  { name: 'profile', label: 'tab.settings', icon: 'profile' },
 ];
 
 export function TabBar({ state, navigation }: TabBarProps) {
@@ -118,7 +118,11 @@ export function TabBar({ state, navigation }: TabBarProps) {
           color={focused ? color.accent : color.textFaint}
           active={focused}
         />
+        {/* One line, always. A label too wide for its cell used to wrap, and
+            since the bar has no fixed height it grew the whole bar rather than
+            just that tab. Truncating is the smaller failure. */}
         <Text
+          numberOfLines={1}
           style={[
             styles.label,
             { color: focused ? color.accent : color.textFaint },
