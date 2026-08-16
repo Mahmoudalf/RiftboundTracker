@@ -74,6 +74,67 @@ describe('the draft', () => {
   });
 });
 
+describe('replaying from Settings', () => {
+  it('carries the stored name in, already committed', () => {
+    /*
+     * The trap this guards: `finish()` writes the draft's name back to the
+     * database. A replay that started blank would therefore **erase** a name
+     * the player set months ago — a settings screen deleting a setting because
+     * you looked at it. Seeding also means the rest of the flow is open
+     * immediately, since the gate is "a committed name".
+     */
+    useOnboardingDraft.getState().beginReplay('Linus');
+
+    const s = useOnboardingDraft.getState();
+    expect(s.name).toBe('Linus');
+    expect(s.nameCommitted).toBe(true);
+    expect(setupRevealed(s)).toBe(true);
+    expect(s.replaying).toBe(true);
+  });
+
+  it('starts at step one even if the last run was abandoned midway', () => {
+    const d = useOnboardingDraft.getState();
+    d.setStep(2);
+    d.setName('Stale');
+    d.commitName();
+
+    useOnboardingDraft.getState().beginReplay('Linus');
+
+    // Without the reset the flow would resume mid-form on a screen the user
+    // opened expecting the beginning.
+    expect(useOnboardingDraft.getState().step).toBe(1);
+    expect(useOnboardingDraft.getState().name).toBe('Linus');
+  });
+
+  it('handles a player who never set a name', () => {
+    useOnboardingDraft.getState().beginReplay(null);
+
+    const s = useOnboardingDraft.getState();
+    expect(s.name).toBe('');
+    expect(s.nameCommitted).toBe(false);
+    // Nothing to write back, so nothing to erase — and the gate stays shut
+    // exactly as it would on a first run.
+    expect(setupRevealed(s)).toBe(false);
+  });
+
+  it('survives a language change like every other part of the draft', () => {
+    useOnboardingDraft.getState().beginReplay('Linus');
+    useLocale.getState().setLocale('de');
+
+    // `replaying` decides where the flow hands back to, and it is read at the
+    // very end — after any number of remounts.
+    expect(useOnboardingDraft.getState().replaying).toBe(true);
+    expect(useOnboardingDraft.getState().name).toBe('Linus');
+  });
+
+  it('is cleared by reset, so the next first-run is not treated as a replay', () => {
+    useOnboardingDraft.getState().beginReplay('Linus');
+    useOnboardingDraft.getState().reset();
+
+    expect(useOnboardingDraft.getState().replaying).toBe(false);
+  });
+});
+
 describe('what opens the rest of the setup', () => {
   it('opens on the name alone, with no language chosen', () => {
     /*

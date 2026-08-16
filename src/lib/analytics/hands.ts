@@ -159,7 +159,7 @@ export function performanceByMulliganCount(games: readonly MatchRow[]): Segment[
       key: `mull-${count}`,
       label:
         count === 0
-          ? 'Kept the opening hand'
+          ? t('hands.keptOpening')
           : `${count} card${count === 1 ? '' : 's'} back`,
       rate: rateOf(rows),
     }));
@@ -227,7 +227,7 @@ export function scoreStats(games: readonly MatchRow[]): ScoreStat {
   if (close.length > 0) {
     segments.push({
       key: 'close',
-      label: `Decided by ${CLOSE_MARGIN} or fewer`,
+      label: t('hands.decidedBy', { margin: CLOSE_MARGIN }),
       rate: rateOf(close),
     });
   }

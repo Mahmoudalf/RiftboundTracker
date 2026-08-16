@@ -592,6 +592,42 @@ export const fr: Translation = {
   'sync.failed': 'Échec de la synchronisation',
 
   'legality.noLegend': 'Choisissez une légende — elle fixe les domaines du deck',
+  'legality.zone.main': 'Deck',
+  'legality.zone.runes': 'Runes',
+  'legality.zone.battlefields': 'Champs de bataille',
+  'legality.short.one': '{zone} {actual}/{required} — 1 carte manquante',
+  'legality.short.other': '{zone} {actual}/{required} — {count} cartes manquantes',
+  'legality.over': '{zone} {actual}/{required} — {count} en trop',
+  'legality.championNotUnit': '{name} n’est pas une unité Champion',
+  'legality.championName': '{name} ne correspond pas à {legend}',
+  'legality.championDomain': '{name} est hors de {domains}',
+  'legality.battlefieldDuplicate': '{count} exemplaires de {name} — les champs de bataille doivent être différents',
+  'legality.copyLimit': '{count} exemplaires de {name} — la limite est {limit}',
+  'legality.signatureLimit': '{count} cartes Signature — la limite est {limit}',
+  'legality.foreignSignature.one': '{name} est la carte Signature d’un autre Champion',
+  'legality.foreignSignature.other': '{count} cartes Signature appartiennent à un autre Champion',
+  'legality.offIdentity.one': '{name} est hors de {domains}',
+  'legality.offIdentity.other': '{count} cartes sont hors de {domains}',
+
+  'deckCode.unknownCard': 'Une carte inconnue',
+  'deckCode.nothingToShare': 'Ce deck ne contient encore rien qu’un code puisse transporter.',
+  'deckCode.pasteFirst': 'Collez d’abord un code de deck.',
+  'deckCode.noneFound': 'Aucun code de deck trouvé dans ce texte.',
+  'deckCode.notValidLooking': 'Cela ne ressemble pas à un code de deck valide.',
+  'deckCode.importedName': 'Deck importé',
+  'deckCode.enterOne': 'Saisissez un code de deck.',
+  'deckCode.notValid': 'Ce code de deck n’est pas valide.',
+
+  'sync.downloadingCount': 'Téléchargement des cartes ({done}/{total})',
+  'sync.offline': 'La bibliothèque de cartes est injoignable. Vos cartes enregistrées sont intactes.',
+
+  'hands.keptOpening': 'Main de départ gardée',
+  'hands.decidedBy': 'Décidé à {margin} ou moins',
+  'analytics.bestOf': 'Best of {count}',
+  'diff.newArt': 'Nouvelle illustration pour {name}',
+
+  'finish.foil': 'Foil',
+  'finish.standard': 'Standard',
   'legality.noChampion': 'Choisissez une unité champion',
 
   'hands.decidedByMore': 'Écart plus net',
@@ -635,10 +671,24 @@ export const fr: Translation = {
   'onboarding.step': 'Étape {step} sur {total}',
   'onboarding.welcome': 'Bienvenue dans Riftbound Tracker',
   'onboarding.welcome.body':
-    'Suivez vos decks, enregistrez vos parties et voyez ce qui marche vraiment — le tout sur votre appareil.',
+    'Suivez vos decks, enregistrez vos parties et voyez quels changements ont vraiment aidé — le tout sur votre appareil.',
   'onboarding.wip': 'En développement',
   'onboarding.wip.body':
     'Un projet inachevé, développé au grand jour — les choses peuvent changer ou casser d’une mise à jour à l’autre. Vos decks et vos parties ne vivent que sur cet appareil.',
+  'onboarding.library.downloading':
+    'Téléchargement de la bibliothèque — {count} cartes pour l’instant.',
+  'onboarding.library.starting': 'Téléchargement de la bibliothèque de cartes.',
+  'onboarding.library.updating':
+    '{count} cartes prêtes. Recherche de nouveautés en arrière-plan.',
+  'onboarding.library.ready':
+    '{count} cartes sur cet appareil. Navigation et construction fonctionnent hors ligne.',
+  'onboarding.library.failed':
+    '{count} cartes sur cet appareil. Impossible de chercher des nouveautés — tout fonctionne toujours hors ligne.',
+  'onboarding.library.failedEmpty':
+    'La bibliothèque n’a pas pu être téléchargée. Vous pourrez construire des decks à son arrivée ; réessayez depuis les Réglages.',
+  'profile.replay': 'Revoir la présentation',
+  'profile.replay.body':
+    'Repasse par les écrans de premier lancement. Votre nom et votre langue restent tels quels, sauf si vous les changez.',
   'onboarding.start': 'Commencer',
 
   'onboarding.setup': 'Configurez votre profil',
@@ -793,9 +843,20 @@ export const fr: Translation = {
   'game.unknownLegend': 'Inconnue',
   'game.unknownOpponent': 'Adversaire inconnu',
   'event.openA11y': 'Ouvrir {name}',
+  'editor.lockedBanner.one.long':
+    'v{number} · 1 partie enregistrée — enregistrer créera la v{next}. La v{number} reste exactement telle qu’elle a été jouée, pour que son résultat garde un sens. Vos modifications deviennent la v{next}.',
+  'editor.lockedBanner.other.long':
+    'v{number} · {count} parties enregistrées — enregistrer créera la v{next}. La v{number} reste exactement telle qu’elle a été jouée, pour que ses résultats gardent un sens. Vos modifications deviennent la v{next}.',
+  'editor.lockedBanner.locked.long':
+    'v{number} · verrouillée — enregistrer créera la v{next}. La v{number} reste exactement telle qu’elle est, et vos modifications deviennent la v{next}.',
   'editor.lockedBanner.one': 'v{number} · 1 partie enregistrée — enregistrer créera la v{next}',
   'editor.lockedBanner.other': 'v{number} · {count} parties enregistrées — enregistrer créera la v{next}',
   'editor.lockedBanner.locked': 'v{number} · verrouillée — enregistrer créera la v{next}',
+  'save.noChanges': 'Aucune modification à enregistrer',
+  'save.forked': 'Enregistré en v{version} · votre version précédente reste intacte',
+  'save.forkedFirst.one': 'Enregistré en v{version} · la v{parent} garde sa partie',
+  'save.forkedFirst.other': 'Enregistré en v{version} · la v{parent} garde ses {count} parties',
+  'save.amended': 'v{version} écrasée · ses parties comptent désormais pour cette liste',
 
   'version.keepEditing': 'Continuer à modifier',
   'version.nameThis': 'Nommer cette version',

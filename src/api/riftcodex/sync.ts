@@ -211,7 +211,7 @@ export async function syncCards(
         phase: 'downloading',
         progress: pages > 0 ? page / pages : null,
         cardsWritten: 0,
-        message: `Downloading cards (${collected.length}/${res.total})`,
+        message: t('sync.downloadingCount', { done: collected.length, total: res.total }),
       });
 
       page++;
@@ -222,7 +222,7 @@ export async function syncCards(
       phase: 'downloading',
       progress: 1,
       cardsWritten: written,
-      message: `Downloading cards (${written}/${total})`,
+      message: t('sync.downloadingCount', { done: written, total }),
     });
 
     report({ phase: 'writing', progress: 1, cardsWritten: written, message: t('sync.indexing') });
@@ -237,12 +237,25 @@ export async function syncCards(
     report({ phase: 'done', progress: 1, cardsWritten: written });
     return { changed: written > 0, cardsWritten: written };
   } catch (err) {
-    const message =
-      err instanceof RiftcodexError ? err.message : err instanceof Error ? err.message : t('sync.failed');
+    /*
+     * Two messages, and separating them fixes a real leak.
+     *
+     * The screen used to render `err.message` raw, so a schema drift showed a
+     * German user Zod's own English output — "Unexpected response shape for
+     * /cards: items.0.name Expected string, received null" — in a settings
+     * panel. Nothing there is actionable by a player, and none of it is
+     * translated, because those strings are diagnostics.
+     *
+     * So the user gets a sentence, and the exception text still goes to
+     * `sync_meta.last_error` where it can be read when something needs
+     * diagnosing.
+     */
+    const detail =
+      err instanceof RiftcodexError || err instanceof Error ? err.message : 'unknown error';
 
     // Keep whatever mirror we already have. A stale gallery beats an empty one.
-    writeMeta({ lastError: message });
-    report({ phase: 'failed', progress: null, cardsWritten: 0, message });
-    return { changed: false, cardsWritten: 0, error: message };
+    writeMeta({ lastError: detail });
+    report({ phase: 'failed', progress: null, cardsWritten: 0, message: t('sync.offline') });
+    return { changed: false, cardsWritten: 0, error: detail };
   }
 }

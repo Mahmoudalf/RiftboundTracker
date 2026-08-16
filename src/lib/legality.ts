@@ -204,22 +204,50 @@ export function deckCounts(list: DeckList): DeckCounts {
 /** Zones that hold actual deck cards, as opposed to the Legend. */
 const DECK_CARD_ZONES: DeckZone[] = ['champion', 'main', 'rune', 'battlefield'];
 
-const plural = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many);
+/**
+ * The three countable zones, as catalogue keys.
+ *
+ * A narrow union rather than `Key`: none of the three takes a placeholder, and
+ * `t()` only lets you omit the parameter argument when the key's type proves
+ * there is nothing to fill in.
+ *
+ * `plural()` lived here and went with the sentences it built — the count
+ * messages are whole keys now, one per case, because German puts the shortfall
+ * before the noun and no fragment order reads correctly in both languages.
+ */
+type ZoneKey =
+  | 'legality.zone.main'
+  | 'legality.zone.runes'
+  | 'legality.zone.battlefields';
 
 /**
  * A zone whose size must be exact — the Rune Deck and the Battlefields.
  */
 function exactCountIssue(
   code: LegalityCode,
-  label: string,
+  zone: ZoneKey,
   actual: number,
   required: number
 ): LegalityIssue | null {
   if (actual === required) return null;
   const diff = Math.abs(actual - required);
-  const detail =
-    actual < required ? `${diff} more ${plural(diff, 'card')}` : `${diff} too many`;
-  return { code, message: `${label} ${actual}/${required} — ${detail}`, cardIds: [] };
+  /*
+   * Whole sentences, not a label plus a fraction plus a tail.
+   *
+   * The three pieces were concatenated in English order. German puts the
+   * shortfall before the noun — "2 Karten fehlen" — so no arrangement of the
+   * fragments reads correctly in both languages; each case is its own key.
+   */
+  const message =
+    actual < required
+      ? t(diff === 1 ? 'legality.short.one' : 'legality.short.other', {
+          zone: t(zone),
+          actual,
+          required,
+          count: diff,
+        })
+      : t('legality.over', { zone: t(zone), actual, required, count: diff });
+  return { code, message, cardIds: [] };
 }
 
 /**
@@ -228,7 +256,7 @@ function exactCountIssue(
  */
 function minimumCountIssue(
   code: LegalityCode,
-  label: string,
+  zone: ZoneKey,
   actual: number,
   minimum: number
 ): LegalityIssue | null {
@@ -236,7 +264,12 @@ function minimumCountIssue(
   const diff = minimum - actual;
   return {
     code,
-    message: `${label} ${actual}/${minimum} — ${diff} more ${plural(diff, 'card')}`,
+    message: t(diff === 1 ? 'legality.short.one' : 'legality.short.other', {
+      zone: t(zone),
+      actual,
+      required: minimum,
+      count: diff,
+    }),
     cardIds: [],
   };
 }
@@ -264,7 +297,7 @@ export function checkLegality(list: DeckList): LegalityResult {
   } else if (!isChampionUnit(champion)) {
     issues.push({
       code: 'champion-not-unit',
-      message: `${baseName(champion.name)} is not a Champion Unit`,
+      message: t('legality.championNotUnit', { name: baseName(champion.name) }),
       cardIds: [champion.id],
     });
   } else if (legend) {
@@ -272,28 +305,44 @@ export function checkLegality(list: DeckList): LegalityResult {
     if (!nameMatches) {
       issues.push({
         code: 'champion-name',
-        message: `${baseName(champion.name)} does not match ${baseName(legend.name)}`,
+        message: t('legality.championName', {
+          name: baseName(champion.name),
+          legend: baseName(legend.name),
+        }),
         cardIds: [champion.id],
       });
     }
     if (!inIdentity) {
       issues.push({
         code: 'champion-domain',
-        message: `${baseName(champion.name)} is outside ${legend.domains.join('/')}`,
+        message: t('legality.championDomain', {
+          name: baseName(champion.name),
+          domains: legend.domains.join('/'),
+        }),
         cardIds: [champion.id],
       });
     }
   }
 
-  const mainIssue = minimumCountIssue('main-count', 'Main deck', counts.main, MAIN_DECK_SIZE);
+  const mainIssue = minimumCountIssue(
+    'main-count',
+    'legality.zone.main',
+    counts.main,
+    MAIN_DECK_SIZE
+  );
   if (mainIssue) issues.push(mainIssue);
 
-  const runeIssue = exactCountIssue('rune-count', 'Runes', counts.rune, RUNE_DECK_SIZE);
+  const runeIssue = exactCountIssue(
+    'rune-count',
+    'legality.zone.runes',
+    counts.rune,
+    RUNE_DECK_SIZE
+  );
   if (runeIssue) issues.push(runeIssue);
 
   const bfIssue = exactCountIssue(
     'battlefield-count',
-    'Battlefields',
+    'legality.zone.battlefields',
     counts.battlefield,
     BATTLEFIELD_COUNT
   );
@@ -322,7 +371,10 @@ export function checkLegality(list: DeckList): LegalityResult {
       if (entry.quantity > 1) {
         issues.push({
           code: 'battlefield-duplicate',
-          message: `${entry.quantity} copies of ${entry.name} — Battlefields must be different`,
+          message: t('legality.battlefieldDuplicate', {
+            count: entry.quantity,
+            name: entry.name,
+          }),
           cardIds: entry.ids,
         });
       }
@@ -347,7 +399,11 @@ export function checkLegality(list: DeckList): LegalityResult {
     if (entry.quantity > COPY_LIMIT) {
       issues.push({
         code: 'copy-limit',
-        message: `${entry.quantity} copies of ${entry.name} — the limit is ${COPY_LIMIT}`,
+        message: t('legality.copyLimit', {
+          count: entry.quantity,
+          name: entry.name,
+          limit: COPY_LIMIT,
+        }),
         cardIds: entry.ids,
       });
     }
@@ -356,7 +412,10 @@ export function checkLegality(list: DeckList): LegalityResult {
   if (counts.signature > SIGNATURE_LIMIT) {
     issues.push({
       code: 'signature-limit',
-      message: `${counts.signature} Signature cards — the limit is ${SIGNATURE_LIMIT}`,
+      message: t('legality.signatureLimit', {
+        count: counts.signature,
+        limit: SIGNATURE_LIMIT,
+      }),
       cardIds: list.slots
         .filter((s) => s.zone !== 'legend' && isSignatureCard(s.card))
         .map((s) => s.card.id),
@@ -376,8 +435,10 @@ export function checkLegality(list: DeckList): LegalityResult {
         code: 'signature-tag',
         message:
           foreignSignatures.length === 1
-            ? `${baseName(foreignSignatures[0]!.card.name)} is another Champion’s Signature card`
-            : `${foreignSignatures.length} Signature cards belong to another Champion`,
+            ? t('legality.foreignSignature.one', {
+                name: baseName(foreignSignatures[0]!.card.name),
+              })
+            : t('legality.foreignSignature.other', { count: foreignSignatures.length }),
         cardIds: foreignSignatures.map((s) => s.card.id),
       });
     }
@@ -394,8 +455,14 @@ export function checkLegality(list: DeckList): LegalityResult {
         code: 'domain-identity',
         message:
           names.length === 1
-            ? `${names[0]} is outside ${legend.domains.join('/')}`
-            : `${names.length} cards are outside ${legend.domains.join('/')}`,
+            ? t('legality.offIdentity.one', {
+                name: names[0] ?? '',
+                domains: legend.domains.join('/'),
+              })
+            : t('legality.offIdentity.other', {
+                count: names.length,
+                domains: legend.domains.join('/'),
+              }),
         cardIds: offIdentity.map((s) => s.card.id),
       });
     }

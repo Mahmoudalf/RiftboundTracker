@@ -1,4 +1,5 @@
 import type { CardRow } from '@/db/schema/cards';
+import { t } from '@/i18n';
 
 import { baseName, cardKey, variantLabel } from './card-identity';
 import type { DeckList, DeckSlot, DeckZone } from './legality';
@@ -331,7 +332,7 @@ export function suggestLabelFromDiff(diff: DeckDiff): string | null {
   if (candidates.length === 0) {
     const reprint = diff.reprinted[0];
     if (!reprint) return null;
-    return `New art for ${baseName(reprint.to.name)}`;
+    return t('diff.newArt', { name: baseName(reprint.to.name) });
   }
 
   candidates.sort(

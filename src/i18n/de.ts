@@ -600,6 +600,43 @@ export const de: Translation = {
   'sync.failed': 'Aktualisierung fehlgeschlagen',
 
   'legality.noLegend': 'Wähle eine Legende — sie legt die Domänen des Decks fest',
+  'legality.zone.main': 'Deck',
+  'legality.zone.runes': 'Runen',
+  'legality.zone.battlefields': 'Schlachtfelder',
+  'legality.short.one': '{zone} {actual}/{required} — 1 Karte fehlt',
+  'legality.short.other': '{zone} {actual}/{required} — {count} Karten fehlen',
+  'legality.over': '{zone} {actual}/{required} — {count} zu viel',
+  'legality.championNotUnit': '{name} ist keine Champion-Einheit',
+  'legality.championName': '{name} passt nicht zu {legend}',
+  'legality.championDomain': '{name} liegt außerhalb von {domains}',
+  'legality.battlefieldDuplicate': '{count} Exemplare von {name} — Schlachtfelder müssen verschieden sein',
+  'legality.copyLimit': '{count} Exemplare von {name} — erlaubt sind {limit}',
+  'legality.signatureLimit': '{count} Signature-Karten — erlaubt sind {limit}',
+  'legality.foreignSignature.one': '{name} ist die Signature-Karte eines anderen Champions',
+  'legality.foreignSignature.other': '{count} Signature-Karten gehören zu einem anderen Champion',
+  'legality.offIdentity.one': '{name} liegt außerhalb von {domains}',
+  'legality.offIdentity.other': '{count} Karten liegen außerhalb von {domains}',
+
+  'deckCode.unknownCard': 'Eine unbekannte Karte',
+  'deckCode.nothingToShare': 'In diesem Deck ist noch nichts, was ein Code mitnehmen könnte.',
+  'deckCode.pasteFirst': 'Füge zuerst einen Deck-Code ein.',
+  'deckCode.noneFound': 'In diesem Text wurde kein Deck-Code gefunden.',
+  'deckCode.notValidLooking': 'Das sieht nicht nach einem gültigen Deck-Code aus.',
+  'deckCode.importedName': 'Importiertes Deck',
+  'deckCode.enterOne': 'Gib einen Deck-Code ein.',
+  'deckCode.notValid': 'Das ist kein gültiger Deck-Code.',
+
+  'sync.downloadingCount': 'Karten werden geladen ({done}/{total})',
+  'sync.offline': 'Die Kartenbibliothek war nicht erreichbar. Deine gespeicherten Karten bleiben unberührt.',
+
+  'hands.keptOpening': 'Eröffnungshand behalten',
+  'hands.decidedBy': 'Mit {margin} oder weniger entschieden',
+  'analytics.bestOf': 'Best of {count}',
+  'diff.newArt': 'Neues Artwork für {name}',
+
+  // "Foil" ist auch im deutschen Sammler-Sprachgebrauch das übliche Wort.
+  'finish.foil': 'Foil',
+  'finish.standard': 'Standard',
   'legality.noChampion': 'Wähle eine Champion-Einheit',
 
   'hands.decidedByMore': 'Deutlicher entschieden',
@@ -643,10 +680,23 @@ export const de: Translation = {
   'onboarding.step': 'Schritt {step} von {total}',
   'onboarding.welcome': 'Willkommen bei Riftbound Tracker',
   'onboarding.welcome.body':
-    'Verfolge deine Decks, erfasse deine Partien und sieh, was wirklich funktioniert — alles auf deinem Gerät.',
+    'Verfolge deine Decks, erfasse deine Partien und sieh, welche Änderungen wirklich geholfen haben — alles auf deinem Gerät.',
   'onboarding.wip': 'In Entwicklung',
   'onboarding.wip.body':
     'Ein unfertiges Projekt, offen entwickelt — zwischen Updates kann sich einiges ändern oder kaputtgehen. Deine Decks und Partien liegen nur auf diesem Gerät.',
+  'onboarding.library.downloading': 'Kartenbibliothek wird geladen — bisher {count} Karten.',
+  'onboarding.library.starting': 'Kartenbibliothek wird geladen.',
+  'onboarding.library.updating':
+    '{count} Karten bereit. Im Hintergrund wird nach neuen gesucht.',
+  'onboarding.library.ready':
+    '{count} Karten auf diesem Gerät. Stöbern und Deckbau funktionieren offline.',
+  'onboarding.library.failed':
+    '{count} Karten auf diesem Gerät. Nach neuen konnte nicht gesucht werden — offline funktioniert weiterhin alles.',
+  'onboarding.library.failedEmpty':
+    'Die Kartenbibliothek konnte nicht geladen werden. Sobald sie da ist, kannst du Decks bauen; versuch es in den Optionen erneut.',
+  'profile.replay': 'Begrüßung erneut anzeigen',
+  'profile.replay.body':
+    'Führt noch einmal durch die Startbildschirme. Name und Sprache bleiben, wie sie sind, solange du sie nicht änderst.',
   'onboarding.start': 'Los geht’s',
 
   'onboarding.setup': 'Richte dein Profil ein',
@@ -801,9 +851,20 @@ export const de: Translation = {
   'game.unknownLegend': 'Unbekannt',
   'game.unknownOpponent': 'Unbekannter Gegner',
   'event.openA11y': '{name} öffnen',
+  'editor.lockedBanner.one.long':
+    'v{number} · 1 Partie erfasst — beim Speichern entsteht v{next}. v{number} bleibt genau so, wie sie gespielt wurde, damit ihr Ergebnis etwas bedeutet. Deine Änderungen werden v{next}.',
+  'editor.lockedBanner.other.long':
+    'v{number} · {count} Partien erfasst — beim Speichern entsteht v{next}. v{number} bleibt genau so, wie sie gespielt wurde, damit ihre Ergebnisse etwas bedeuten. Deine Änderungen werden v{next}.',
+  'editor.lockedBanner.locked.long':
+    'v{number} · gesperrt — beim Speichern entsteht v{next}. v{number} bleibt genau so, wie sie ist, und deine Änderungen werden v{next}.',
   'editor.lockedBanner.one': 'v{number} · 1 Partie erfasst — beim Speichern entsteht v{next}',
   'editor.lockedBanner.other': 'v{number} · {count} Partien erfasst — beim Speichern entsteht v{next}',
   'editor.lockedBanner.locked': 'v{number} · gesperrt — beim Speichern entsteht v{next}',
+  'save.noChanges': 'Keine Änderungen zu speichern',
+  'save.forked': 'Als v{version} gespeichert · deine frühere Version bleibt unberührt',
+  'save.forkedFirst.one': 'Als v{version} gespeichert · v{parent} behält ihre 1 Partie',
+  'save.forkedFirst.other': 'Als v{version} gespeichert · v{parent} behält ihre {count} Partien',
+  'save.amended': 'v{version} überschrieben · ihre Partien zählen jetzt für diese Liste',
 
   'version.keepEditing': 'Weiter bearbeiten',
   'version.nameThis': 'Diese Version benennen',

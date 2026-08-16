@@ -14,6 +14,7 @@ import type { CardRow } from '../schema/cards';
 import type { DeckRow, DeckVersionRow } from '../schema/decks';
 
 import { hydrateCard, hydrateDeck, hydrateDeckVersion } from './hydrate';
+import { markForkSeen, seenFork } from './settings';
 
 /**
  * Deck reads and writes.
@@ -480,6 +481,21 @@ export interface SaveResult {
   versionId: string;
   versionNumber: number;
   diff: DeckDiff;
+  /**
+   * This was the first fork this player has ever caused. `forked` only.
+   *
+   * Read **before** the flag is written, or it would be false on the one
+   * occasion it is meant to be true. It exists so the toast can narrate the
+   * version-lock rule once, at the moment it executes on their own data.
+   */
+  firstFork: boolean;
+  /**
+   * Games that stayed behind on the version just forked from. `forked` only.
+   *
+   * The count is what makes the rule concrete — "your earlier version is
+   * untouched" is a policy; "v1 keeps its 3 games" is a fact about their deck.
+   */
+  parentGames: number;
 }
 
 export interface SaveOptions {
@@ -542,6 +558,8 @@ export function saveDeckEdit(
       versionId,
       versionNumber: version.versionNumber,
       diff,
+      firstFork: false,
+      parentGames: 0,
     };
   }
 
@@ -581,18 +599,42 @@ export function saveDeckEdit(
       versionId,
       versionNumber: version.versionNumber,
       diff,
+      firstFork: false,
+      parentGames: 0,
     };
   }
+
+  /*
+   * Both read **before** the fork, and before the flag below is written.
+   *
+   * `firstFork` after `markForkSeen()` would be false on the single occasion it
+   * is meant to be true, and `parentGames` after `forkVersion` would be counting
+   * against a deck that has just gained a version.
+   */
+  const firstFork = !seenFork();
+  const parentGames = versionGameCounts(version.deckId).get(versionId) ?? 0;
 
   const forked = forkVersion(version.deckId, versionId, list, {
     label: options.label ?? suggestLabelFromDiff(diff) ?? undefined,
   });
+
+  /*
+   * The one place the rule can be observed actually happening.
+   *
+   * The editor's banner explains the fork rule at length until this is set, and
+   * it is set **here** rather than when that banner renders: reading a warning
+   * and backing out is not the same as watching it come true, and only the
+   * second means the explanation has done its job. See `seenFork()`.
+   */
+  markForkSeen();
 
   return {
     outcome: 'forked',
     versionId: forked.versionId,
     versionNumber: forked.versionNumber,
     diff,
+    firstFork,
+    parentGames,
   };
 }
 

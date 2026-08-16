@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -10,6 +10,7 @@ import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import { DISPLAY_NAME_MAX, displayName, setDisplayName } from '@/db/queries/settings';
 import { TOAST_CONFIRM_MS, useToast } from '@/features/games/useToast';
+import { useOnboardingDraft } from '@/features/onboarding/useOnboardingDraft';
 import { useCardSync } from '@/features/sync/useCardSync';
 import { LOCALES, useLocale, useT, type Key, type RuntimeLocale } from '@/i18n';
 import { localeNumber } from '@/lib/format';
@@ -60,6 +61,7 @@ export default function SettingsScreen() {
   const locale = useLocale((s) => s.locale);
   const setLocale = useLocale((s) => s.setLocale);
   const showToast = useToast((s) => s.show);
+  const beginReplay = useOnboardingDraft((s) => s.beginReplay);
 
   const [name, setName] = useState<string | null>(null);
   const [report, setReport] = useState('');
@@ -267,6 +269,31 @@ export default function SettingsScreen() {
           </Pressable>
 
           <Text style={styles.footerMeta}>{t('profile.report.noBackend')}</Text>
+        </View>
+
+        {/*
+          The welcome flow, reopenable.
+
+          It seeds the draft with the name already stored and marks it
+          committed. That is not a convenience: `finish()` writes the draft's
+          name back, so replaying from a blank draft would **erase** a name the
+          player set months ago — a settings screen that quietly deletes a
+          setting when you look at it. The language needs no such care; the
+          picker reads the live store and only writes when tapped.
+        */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{t('profile.replay')}</Text>
+          <Text style={styles.cardBody}>{t('profile.replay.body')}</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              beginReplay(displayName());
+              router.push('/onboarding');
+            }}
+            style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+          >
+            <Text style={styles.buttonLabel}>{t('profile.replay')}</Text>
+          </Pressable>
         </View>
 
         <View style={styles.card}>

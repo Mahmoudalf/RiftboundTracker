@@ -7,12 +7,15 @@ import { saveMessage } from './save-message';
 
 const OUTCOMES: SaveOutcome[] = ['no-op', 'forked', 'amended-locked'];
 
-function result(outcome: SaveOutcome): SaveResult {
+function result(outcome: SaveOutcome, over: Partial<SaveResult> = {}): SaveResult {
   return {
     outcome,
     versionId: 'v',
     versionNumber: 2,
     diff: diffLists({ slots: [] }, { slots: [] }),
+    firstFork: false,
+    parentGames: 0,
+    ...over,
   };
 }
 
@@ -40,5 +43,41 @@ describe('saveMessage', () => {
 
   it('distinguishes a fork from an amend', () => {
     expect(saveMessage(result('forked'))).not.toBe(saveMessage(result('amended-locked')));
+  });
+});
+
+describe('the first fork', () => {
+  /*
+   * The version-lock rule finishing on somebody's own data for the first time.
+   * "Your earlier version is untouched" is a policy; naming the games that
+   * stayed behind is a fact about their deck, and only the second is worth the
+   * one chance this message gets.
+   */
+  it('names the version left behind and its games', () => {
+    const message = saveMessage(result('forked', { firstFork: true, parentGames: 3 }));
+    expect(message).toContain('v1');
+    expect(message).toContain('3');
+  });
+
+  it('uses the singular for one game', () => {
+    const message = saveMessage(result('forked', { firstFork: true, parentGames: 1 }));
+    expect(message).toContain('1 game');
+    expect(message).not.toContain('1 games');
+  });
+
+  it('falls back to the standard line for every fork after the first', () => {
+    const first = saveMessage(result('forked', { firstFork: true, parentGames: 3 }));
+    const later = saveMessage(result('forked', { firstFork: false, parentGames: 3 }));
+
+    expect(later).not.toBe(first);
+    expect(later).toContain('untouched');
+  });
+
+  it('falls back when the forked version had no games', () => {
+    // A version can be locked without ever having been played — the dev lock, or
+    // a pre-M4 row. Claiming it "keeps its 0 games" would be a lie about the one
+    // thing this message exists to make concrete.
+    const message = saveMessage(result('forked', { firstFork: true, parentGames: 0 }));
+    expect(message).toContain('untouched');
   });
 });

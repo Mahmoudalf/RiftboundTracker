@@ -40,6 +40,7 @@ import {
   type SaveOptions,
 } from '@/db/queries/decks';
 import type { CardRow } from '@/db/schema/cards';
+import { bannerKey } from '@/features/decks/locked-banner';
 import { saveMessage } from '@/features/decks/save-message';
 import {
   markEditorLoaded,
@@ -666,15 +667,30 @@ export default function DeckEditorScreen() {
         legality={legality}
         unresolved={missingFromCounts}
         footnote={
-          // Stated before the first edit, not at save time. Learning that a
-          // change forks a version while confirming the change is too late.
+          /*
+           * Stated before the first edit, not at save time. Learning that a
+           * change forks a version while confirming the change is too late.
+           *
+           * **The long form runs until the player has actually seen a fork.**
+           * This is the app's one real rule, and a terse status line is easy to
+           * skim on the very screen it exists to prepare you for — so the first
+           * time it can be true, it says the whole thing. Once a fork has
+           * happened the rule has taught itself and the line goes back to being
+           * status, which is what it will be for every edit after.
+           *
+           * Whole sentences per case, never the short form with a tail glued
+           * on: German puts the new version number at the end of its clause, so
+           * a joined fragment would land mid-sentence there.
+           */
           editing?.version.lockedAt
             ? t(
-                editing.matchCount === 0
-                  ? 'editor.lockedBanner.locked'
-                  : editing.matchCount === 1
-                    ? 'editor.lockedBanner.one'
-                    : 'editor.lockedBanner.other',
+                bannerKey(
+                  editing.matchCount === 0
+                    ? 'editor.lockedBanner.locked'
+                    : editing.matchCount === 1
+                      ? 'editor.lockedBanner.one'
+                      : 'editor.lockedBanner.other'
+                ),
                 {
                   number: editing.version.versionNumber,
                   count: editing.matchCount,

@@ -1,4 +1,5 @@
 import type { SaveResult } from '@/db/queries/decks';
+import { t } from '@/i18n';
 
 /**
  * What to tell the user a save just did.
@@ -13,16 +14,37 @@ import type { SaveResult } from '@/db/queries/decks';
  * surprising, why. "No new version" is only surprising if you do not know the
  * rule, and the rule is worth learning once from a line of text rather than
  * inferring from an absence.
+ *
+ * **This file was English until 2026-08-16.** It lives in `src/features/`, which
+ * the untranslated-prose gate does not scan, so three user-facing strings sat
+ * through a migration that reported zero. The blind spot is recorded in the
+ * roadmap; the strings are fixed here.
  */
 export function saveMessage(result: SaveResult): string {
-  const v = `v${result.versionNumber}`;
-
   switch (result.outcome) {
     case 'no-op':
-      return 'No changes to save';
+      return t('save.noChanges');
+
     case 'forked':
-      return `Saved as ${v} · your earlier version is untouched`;
+      /*
+       * The first fork names the games that stayed behind.
+       *
+       * This is the moment the version-lock rule finishes executing on somebody
+       * else's data for the first time, and a count is what makes it concrete:
+       * "your earlier version is untouched" is a policy, "v1 keeps its 3 games"
+       * is a fact about their deck. Every fork after says the shorter thing,
+       * because by then the rule has been watched happening.
+       */
+      if (result.firstFork && result.parentGames > 0) {
+        return t(result.parentGames === 1 ? 'save.forkedFirst.one' : 'save.forkedFirst.other', {
+          version: result.versionNumber,
+          parent: result.versionNumber - 1,
+          count: result.parentGames,
+        });
+      }
+      return t('save.forked', { version: result.versionNumber });
+
     case 'amended-locked':
-      return `${v} overwritten · its matches now count for this list`;
+      return t('save.amended', { version: result.versionNumber });
   }
 }

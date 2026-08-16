@@ -1,4 +1,5 @@
 import type { Result, GameRow } from '@/db/schema/games';
+import { t } from '@/i18n';
 import { baseName } from '@/lib/card-identity';
 
 import { wilson, type Interval } from './wilson';
@@ -230,7 +231,9 @@ export function styleSegments(matches: readonly GameRow[]): Segment[] {
 
 export function bestOfSegments(matches: readonly GameRow[]): Segment[] {
   return segment(matches, (match) =>
-    match.bestOf === null ? null : { key: `bo${match.bestOf}`, label: `Best of ${match.bestOf}` }
+    match.bestOf === null
+      ? null
+      : { key: `bo${match.bestOf}`, label: t('analytics.bestOf', { count: match.bestOf }) }
   );
 }
 

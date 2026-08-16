@@ -8,7 +8,9 @@ import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import { DISPLAY_NAME_MAX, completeOnboarding, setDisplayName } from '@/db/queries/settings';
 import { setupRevealed, useOnboardingDraft } from '@/features/onboarding/useOnboardingDraft';
+import { useCardSync } from '@/features/sync/useCardSync';
 import { LOCALES, useLocale, useT, type Locale } from '@/i18n';
+import { localeNumber } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -85,7 +87,18 @@ export default function OnboardingScreen() {
   const setName = useOnboardingDraft((s) => s.setName);
   const nameCommitted = useOnboardingDraft((s) => s.nameCommitted);
   const commitName = useOnboardingDraft((s) => s.commitName);
+  const replaying = useOnboardingDraft((s) => s.replaying);
   const resetDraft = useOnboardingDraft((s) => s.reset);
+
+  /*
+   * The card library, reported rather than hidden behind a spinner.
+   *
+   * `useCardSync` is a module-scope store, so it needs no draft state of its
+   * own — it already survives the locale remount that the step counter does
+   * not. Mounting the hook here is also what *starts* the bootstrap on a first
+   * launch, which is the moment this screen exists for.
+   */
+  const { cardCount, isSyncing, progress } = useCardSync();
 
   const nameField = useRef<TextInput>(null);
 
@@ -99,15 +112,53 @@ export default function OnboardingScreen() {
    */
   const showSetup = setupRevealed({ name, nameCommitted });
 
+  /*
+   * What to say about the library, and whether to draw a bar.
+   *
+   * Four states, and the distinction that matters is **empty versus seeded**,
+   * not syncing versus idle. With cards on the device every message is
+   * reassurance; with none, a failure is the one case here worth calling a
+   * problem — and even then it does not block the flow.
+   */
+  const failed = progress?.phase === 'failed';
+  const libraryLine =
+    cardCount === 0
+      ? failed
+        ? t('onboarding.library.failedEmpty')
+        : progress?.cardsWritten
+          ? t('onboarding.library.downloading', { count: localeNumber(progress.cardsWritten) })
+          : t('onboarding.library.starting')
+      : failed
+        ? t('onboarding.library.failed', { count: localeNumber(cardCount) })
+        : isSyncing
+          ? t('onboarding.library.updating', { count: localeNumber(cardCount) })
+          : t('onboarding.library.ready', { count: localeNumber(cardCount) });
+
+  /*
+   * A bar only while there is nothing to browse yet and a real fraction to draw.
+   *
+   * Once the seed has landed the download is genuinely background work, and a
+   * progress bar over background work is an invitation to wait for it.
+   */
+  const libraryBar =
+    cardCount === 0 && isSyncing && progress?.progress !== null && progress?.progress !== undefined
+      ? Math.round(progress.progress * 100)
+      : null;
+
   /** Every exit runs through here, so the flow can never be seen twice. */
   const finish = (choice: DeckChoice | null) => {
     setDisplayName(name);
     completeOnboarding();
+    const wasReplay = replaying;
     resetDraft();
     // `replace`, not `push` — onboarding must not be reachable with a back
     // gesture from the app it just handed over to.
     if (choice === 'import') router.replace('/deck/import');
     else if (choice === 'new') router.replace('/deck/new');
+    // A replay was opened *from* somewhere, so it hands back there. Sending
+    // someone who tapped a settings row to the Decks tab would read as the app
+    // losing their place.
+    else if (wasReplay) router.back();
     else router.replace('/');
   };
 
@@ -171,6 +222,25 @@ export default function OnboardingScreen() {
             >
               <Text style={styles.ctaLabel}>{t('onboarding.start')}</Text>
             </Pressable>
+
+            {/*
+              The card library, stated under the button rather than in front of it.
+
+              A first launch downloads ~1,451 cards, and the honest thing to say
+              about that is that it is happening and nothing is waiting on it —
+              the bundled seed means the gallery and the deckbuilder already
+              work. A modal spinner would make a background task look like a
+              gate, which is the failure this line exists to avoid; it sits
+              below the CTA precisely so it cannot read as a reason to wait.
+            */}
+            <View style={styles.library}>
+              {libraryBar !== null ? (
+                <View style={styles.libraryTrack}>
+                  <View style={[styles.libraryFill, { width: `${libraryBar}%` }]} />
+                </View>
+              ) : null}
+              <Text style={styles.libraryText}>{libraryLine}</Text>
+            </View>
           </View>
         </View>
       ) : (
@@ -375,6 +445,19 @@ const styles = StyleSheet.create({
   },
   noticeTitle: { ...text.microMeta, color: color.accent },
   noticeBody: { ...text.caption, lineHeight: 19, color: color.textSecondary },
+
+  library: { gap: space[2], paddingTop: space[4], alignItems: 'center' },
+  libraryTrack: {
+    alignSelf: 'stretch',
+    height: 3,
+    borderRadius: radius.bar,
+    backgroundColor: color.border,
+    overflow: 'hidden',
+  },
+  libraryFill: { height: 3, borderRadius: radius.bar, backgroundColor: color.accent },
+  // `caption`, not `microMeta`: this is a sentence, and the 9.5px uppercase
+  // face is for labels. Muted, because it is a status and not an instruction.
+  libraryText: { ...text.caption, lineHeight: 17, color: color.textFaint, textAlign: 'center' },
 
   cta: {
     height: 52,

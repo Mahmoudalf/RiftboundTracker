@@ -737,6 +737,59 @@ export const en = {
 
   // Legality issues that are not built from counts.
   'legality.noLegend': 'Pick a Legend — it sets the deck’s domains',
+  // ── Legality, from lib/legality.ts ───────────────────────────────────────
+  // Whole sentences per case. The count messages used to be assembled from a
+  // label, a fraction and a tail; German puts the shortfall before the noun, so
+  // the pieces cannot be joined in one order and read correctly in the other.
+  'legality.zone.main': 'Main deck',
+  'legality.zone.runes': 'Runes',
+  'legality.zone.battlefields': 'Battlefields',
+  'legality.short.one': '{zone} {actual}/{required} — 1 more card',
+  'legality.short.other': '{zone} {actual}/{required} — {count} more cards',
+  'legality.over': '{zone} {actual}/{required} — {count} too many',
+  'legality.championNotUnit': '{name} is not a Champion Unit',
+  'legality.championName': '{name} does not match {legend}',
+  'legality.championDomain': '{name} is outside {domains}',
+  'legality.battlefieldDuplicate': '{count} copies of {name} — Battlefields must be different',
+  'legality.copyLimit': '{count} copies of {name} — the limit is {limit}',
+  'legality.signatureLimit': '{count} Signature cards — the limit is {limit}',
+  'legality.foreignSignature.one': '{name} is another Champion’s Signature card',
+  'legality.foreignSignature.other': '{count} Signature cards belong to another Champion',
+  'legality.offIdentity.one': '{name} is outside {domains}',
+  'legality.offIdentity.other': '{count} cards are outside {domains}',
+
+  // ── Deck codes, from lib/deck-code.ts ────────────────────────────────────
+  'deckCode.unknownCard': 'An unknown card',
+  'deckCode.nothingToShare': 'There is nothing in this deck a code can carry yet.',
+  'deckCode.pasteFirst': 'Paste a deck code first.',
+  'deckCode.noneFound': 'No deck code found in that text.',
+  'deckCode.notValidLooking': 'That does not look like a valid deck code.',
+  'deckCode.importedName': 'Imported deck',
+  'deckCode.enterOne': 'Enter a deck code.',
+  'deckCode.notValid': 'That is not a valid deck code.',
+
+  // ── Card library sync ────────────────────────────────────────────────────
+  'sync.downloadingCount': 'Downloading cards ({done}/{total})',
+  // Replaces the raw exception text that used to reach the Settings screen —
+  // including Zod's own English output. The detail is still written to
+  // `sync_meta.last_error` for diagnosis.
+  'sync.offline': 'Could not reach the card library. Your saved cards are unaffected.',
+
+  // ── Analytics phrasing ───────────────────────────────────────────────────
+  'hands.keptOpening': 'Kept the opening hand',
+  'hands.decidedBy': 'Decided by {margin} or fewer',
+  'analytics.bestOf': 'Best of {count}',
+  'diff.newArt': 'New art for {name}',
+
+  // ── Printing treatments ──────────────────────────────────────────────────
+  // App vocabulary, not card data: none of these words is printed on a card,
+  // and the collection filter already says "Alternative Artworks ausblenden" in
+  // German — so leaving the badge English would contradict the filter above it.
+  // `Alternate Art` and `Overnumbered` are NOT here: they are parsed out of
+  // the card's own name and matched against it, so they are card data. See the
+  // note in scan.ts's CARD_VOCABULARY.
+  'finish.foil': 'Foil',
+  'finish.standard': 'Standard',
   'legality.noChampion': 'Pick a Champion Unit',
 
   'hands.decidedByMore': 'Decided by more',
@@ -752,12 +805,25 @@ export const en = {
   'onboarding.step': 'Step {step} of {total}',
   'onboarding.welcome': 'Welcome to Riftbound Tracker',
   'onboarding.welcome.body':
-    'Track your decks, log your games, and see what is actually working — all on your device.',
+    'Track your decks, log your games, and see which changes actually helped — all on your device.',
   // The disclaimer. Stated on the first screen a user ever sees, because a
   // half-built app that says so is a different thing from one that does not.
   'onboarding.wip': 'In development',
   'onboarding.wip.body':
     'An unfinished project, built in the open — expect things to change or break between updates. Your decks and games live only on this device.',
+  // The library's state on first launch. The point of every one of these is the
+  // same: it is arriving, and nothing is waiting on it.
+  'onboarding.library.downloading': 'Fetching the card library — {count} cards so far.',
+  'onboarding.library.starting': 'Fetching the card library.',
+  'onboarding.library.updating': '{count} cards ready. Checking for new ones in the background.',
+  'onboarding.library.ready': '{count} cards on this device. Browsing and deckbuilding work offline.',
+  'onboarding.library.failed':
+    '{count} cards on this device. Could not check for new ones — everything still works offline.',
+  'onboarding.library.failedEmpty':
+    'The card library could not be fetched. You can build decks once it arrives; try again from Settings.',
+  'profile.replay': 'Show the welcome again',
+  'profile.replay.body':
+    'Walks back through the first-run screens. Your name and language stay as they are unless you change them.',
   'onboarding.start': 'Get started',
 
   'onboarding.setup': 'Set up your profile',
@@ -935,9 +1001,22 @@ export const en = {
   'game.unknownLegend': 'Unknown',
   'game.unknownOpponent': 'Unknown opponent',
   'event.openA11y': 'Open {name}',
+  'editor.lockedBanner.one.long':
+    'v{number} · 1 game tracked — saving will create v{next}. v{number} stays exactly as it was played, so its result still means something. Your changes become v{next}.',
+  'editor.lockedBanner.other.long':
+    'v{number} · {count} games tracked — saving will create v{next}. v{number} stays exactly as it was played, so its results still mean something. Your changes become v{next}.',
+  'editor.lockedBanner.locked.long':
+    'v{number} · locked — saving will create v{next}. v{number} stays exactly as it is, and your changes become v{next}.',
   'editor.lockedBanner.one': 'v{number} · 1 match tracked — saving will create v{next}',
   'editor.lockedBanner.other': 'v{number} · {count} matches tracked — saving will create v{next}',
   'editor.lockedBanner.locked': 'v{number} · locked — saving will create v{next}',
+  'save.noChanges': 'No changes to save',
+  'save.forked': 'Saved as v{version} · your earlier version is untouched',
+  // The first fork names the games left behind — a fact about their deck rather
+  // than a statement of policy. One key per plural, as everywhere else.
+  'save.forkedFirst.one': 'Saved as v{version} · v{parent} keeps its 1 game',
+  'save.forkedFirst.other': 'Saved as v{version} · v{parent} keeps its {count} games',
+  'save.amended': 'v{version} overwritten · its games now count for this list',
   'version.keepEditing': 'Keep editing',
   'version.nameThis': 'Name this version',
   'version.label': 'Version label',

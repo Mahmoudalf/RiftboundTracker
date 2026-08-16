@@ -5,6 +5,7 @@ import {
 } from '@piltoverarchive/riftbound-deck-codes';
 
 import type { CardRow } from '@/db/schema/cards';
+import { t } from '@/i18n';
 
 import { cardKey } from './card-identity';
 import { defaultZoneFor, type DeckList, type DeckSlot, type DeckZone } from './legality';
@@ -235,7 +236,7 @@ export function encodeDeckList(
   for (const missing of unresolved) {
     omitted.push({
       card: null,
-      name: missing.name ?? 'An unknown card',
+      name: missing.name ?? t('deckCode.unknownCard'),
       quantity: missing.quantity,
       reason: 'not-in-library',
     });
@@ -245,7 +246,7 @@ export function encodeDeckList(
   const side = [...sideboard.entries()].map(([cardCode, count]) => ({ cardCode, count }));
 
   if (mainDeck.length === 0 && side.length === 0) {
-    throw new DeckCodeError('There is nothing in this deck a code can carry yet.');
+    throw new DeckCodeError(t('deckCode.nothingToShare'));
   }
 
   return {
@@ -297,14 +298,14 @@ const BASE32_RUN = /[A-Z2-7]{24,}/g;
  */
 export function extractDeckCode(pasted: string): string {
   const text = pasted.trim();
-  if (!text) throw new DeckCodeError('Paste a deck code first.');
+  if (!text) throw new DeckCodeError(t('deckCode.pasteFirst'));
 
   const candidates = [...text.matchAll(BASE32_RUN)]
     .map((m) => m[0])
     .sort((a, b) => b.length - a.length);
 
   if (candidates.length === 0) {
-    throw new DeckCodeError('No deck code found in that text.');
+    throw new DeckCodeError(t('deckCode.noneFound'));
   }
 
   for (const candidate of candidates) {
@@ -315,7 +316,7 @@ export function extractDeckCode(pasted: string): string {
       // Try the next candidate.
     }
   }
-  throw new DeckCodeError('That does not look like a valid deck code.');
+  throw new DeckCodeError(t('deckCode.notValidLooking'));
 }
 
 /**
@@ -355,7 +356,7 @@ export function suggestDeckName(pasted: string, legend: CardRow | null): string 
     if (short) return short.trim();
   }
 
-  return 'Imported deck';
+  return t('deckCode.importedName');
 }
 
 /**
@@ -382,14 +383,14 @@ function preferredPrinting(rows: readonly CardRow[]): CardRow {
  */
 export function decodeDeckCode(code: string, catalogue: readonly CardRow[]): DecodeResult {
   const trimmed = code.trim();
-  if (!trimmed) throw new DeckCodeError('Enter a deck code.');
+  if (!trimmed) throw new DeckCodeError(t('deckCode.enterOne'));
 
   let decoded;
   try {
     // Never omit this option — see the module comment.
     decoded = getDeckFromCode(trimmed, { signedSuffix: '*' });
   } catch {
-    throw new DeckCodeError('That is not a valid deck code.');
+    throw new DeckCodeError(t('deckCode.notValid'));
   }
 
   const { cardsByCode } = buildIndex(catalogue);

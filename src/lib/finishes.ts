@@ -1,4 +1,5 @@
 import type { CardRow } from '@/db/schema/cards';
+import { t } from '@/i18n';
 
 /**
  * Which finishes a card was printed in.
@@ -62,5 +63,5 @@ export function displayFinish(card: Parameters<typeof isFoilOnly>[0], wanted: Fi
 }
 
 export function finishLabel(finish: Finish): string {
-  return finish === 'foil' ? 'Foil' : 'Standard';
+  return t(finish === 'foil' ? 'finish.foil' : 'finish.standard');
 }

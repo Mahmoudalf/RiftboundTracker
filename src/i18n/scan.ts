@@ -59,6 +59,15 @@ const CARD_VOCABULARY = new Set([
   'Basic', 'Signature', 'Token',
   'Body', 'Calm', 'Chaos', 'Colorless', 'Fury', 'Mind', 'Order',
   'Common', 'Epic', 'Promo', 'Rare', 'Showcase', 'Uncommon',
+  /*
+   * Printing treatments, which are **parsed out of the card's own name** —
+   * `variantLabel('Vi - Piltover Enforcer (Alternate Art)')` returns
+   * `'Alternate Art'`, and `PICKABLE_VARIANTS` matches against exactly that.
+   * These are not labels the app writes; they are substrings of what Riftcodex
+   * serves, so translating them would break the picker's filter outright.
+   */
+  'Alternate Art', 'Overnumbered', 'Metal', 'Ultimate', 'Launch Exclusive',
+  'GG EZ', 'Starter',
 ]);
 
 /** Riftcodex set codes. Card data, printed on the card. */
@@ -282,7 +291,17 @@ function jsxText(source: string): { line: number; text: string }[] {
 export function scanSource(source: string): Finding[] {
   const ignored = new Set<number>();
   source.split('\n').forEach((row, index) => {
-    if (row.includes('i18n-ignore')) ignored.add(index + 1);
+    if (!row.includes('i18n-ignore')) return;
+    ignored.add(index + 1);
+    /*
+     * A comment-only pragma also covers the line beneath it.
+     *
+     * Same shape as `eslint-disable-next-line`, and needed for the same reason:
+     * a multi-line template literal has nowhere on its own first line to put a
+     * trailing comment. Only when the pragma line is *nothing but* a comment,
+     * so a trailing `// i18n-ignore` cannot silently swallow the next string.
+     */
+    if (/^\s*(\/\/|\/\*)/.test(row)) ignored.add(index + 2);
   });
 
   const body = withoutStyles(strip(source));

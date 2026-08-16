@@ -23,6 +23,7 @@ const KEY = {
   displayName: 'display_name',
   locale: 'locale',
   onboarded: 'onboarded',
+  seenFork: 'seen_fork',
 } as const;
 
 type SettingKey = (typeof KEY)[keyof typeof KEY];
@@ -118,4 +119,33 @@ export function onboardingDone(): boolean {
  */
 export function completeOnboarding(): void {
   setSetting(KEY.onboarded, 'true');
+}
+
+/* ---------------------------------------------------- the version-lock rule */
+
+/**
+ * Whether this player has ever had a version fork out from under them.
+ *
+ * The editor's locked-version banner carries an extra sentence until this is
+ * true, then collapses to its one-line form for good.
+ *
+ * **Not a dismissal flag, and the difference is the whole point.** It records
+ * that the rule has *happened to their data*, not that a control was tapped —
+ * so somebody who reads the banner, thinks about it and backs out still gets
+ * the long form next time, which is exactly who still needs it. A dismissal
+ * flag would be cleared by the one gesture that proves nothing was read.
+ */
+export function seenFork(): boolean {
+  return getSetting(KEY.seenFork) === 'true';
+}
+
+/**
+ * Called from `saveDeckEdit` at the moment a fork is created.
+ *
+ * It lives beside the fork rather than at the call site so a second caller
+ * cannot forget it — and because "the fork completing" is the event, not "the
+ * editor finishing a save".
+ */
+export function markForkSeen(): void {
+  setSetting(KEY.seenFork, 'true');
 }

@@ -28,14 +28,34 @@ interface OnboardingDraft {
   name: string;
   /** The name field has been left with something in it — opens the rest. */
   nameCommitted: boolean;
+  /**
+   * Opened from Settings rather than met on first launch.
+   *
+   * It changes exactly one thing — where the flow hands back to — and it lives
+   * here rather than in the screen for the same reason everything else does:
+   * choosing a language remounts the navigator, and a `useState` flag would be
+   * gone by the time the user reached the end.
+   */
+  replaying: boolean;
 
   setStep: (step: number) => void;
   setName: (name: string) => void;
   commitName: () => void;
+  /**
+   * Start a replay from Settings.
+   *
+   * Seeded with the name the player already has, and marked committed, for two
+   * reasons. The obvious one is that retyping a name you set months ago to get
+   * past a screen you opened deliberately is busywork. The one that matters is
+   * that `finish()` writes the draft's name back — so replaying with a blank
+   * draft would **erase** the name, which is the opposite of what reopening a
+   * settings flow should do.
+   */
+  beginReplay: (name: string | null) => void;
   reset: () => void;
 }
 
-const EMPTY = { step: 1, name: '', nameCommitted: false };
+const EMPTY = { step: 1, name: '', nameCommitted: false, replaying: false };
 
 /**
  * Whether the language rows and the deck choice are shown.
@@ -60,6 +80,14 @@ export const useOnboardingDraft = create<OnboardingDraft>((set) => ({
   // Blank stays uncommitted, so the language rows cannot be revealed by
   // tabbing through an empty field.
   commitName: () => set((s) => ({ nameCommitted: s.name.trim().length > 0 })),
+  beginReplay: (name) =>
+    set({
+      // Reset first, or a replay resumes wherever the last run was abandoned.
+      ...EMPTY,
+      replaying: true,
+      name: name ?? '',
+      nameCommitted: (name ?? '').trim().length > 0,
+    }),
   /*
    * Called on the way out. The flow is one-shot in production, so this matters
    * only under Fast Refresh and to anyone who reaches it twice in development —

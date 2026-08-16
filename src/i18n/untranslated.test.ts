@@ -23,13 +23,13 @@ import { scanSource } from './scan';
  * somebody wrote down rather than a hole in the search.
  */
 
-const ROOTS = ['app', 'src/components'];
+const ROOTS = ['app', 'src/components', 'src/features', 'src/lib', 'src/api'];
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) walk(full, out);
-    else if (full.endsWith('.tsx') && !full.includes('.test.')) out.push(full);
+    else if (/\.tsx?$/.test(full) && !full.includes('.test.')) out.push(full);
   }
   return out;
 }

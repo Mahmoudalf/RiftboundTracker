@@ -26,6 +26,22 @@ export const MAX_PAGE_SIZE = 100;
 const TIMEOUT_MS = 15_000;
 const MAX_RETRIES = 3;
 
+/**
+ * A transport or schema failure, described for whoever has to diagnose it.
+ *
+ * **Its `message` is English on purpose and stays that way.** These strings name
+ * an endpoint, a retry count, or Zod's own parse output — none of it actionable
+ * by a player, and none worth translating into a sentence that would still be
+ * two thirds jargon.
+ *
+ * That is only defensible because the message no longer reaches a screen.
+ * `syncCards` used to put `err.message` straight into `progress.message`, which
+ * Settings renders in red — so a German user could be shown *"Unexpected
+ * response shape for /cards: items.0.name Expected string, received null"*. The
+ * sync layer now reports a translated sentence and keeps this text for
+ * `sync_meta.last_error`. Any future caller that surfaces one of these owes the
+ * user its own translated message rather than this one.
+ */
 export class RiftcodexError extends Error {
   constructor(
     message: string,
@@ -84,6 +100,7 @@ async function request<T extends z.ZodTypeAny>(
         // Schema drift is not retryable; surface it so sync can keep the
         // last-known-good mirror rather than wiping it.
         throw new RiftcodexError(
+          // i18n-ignore — diagnostics, not copy. See the note above the class.
           `Unexpected response shape for ${path}: ${parsed.error.issues
             .slice(0, 3)
             .map((i) => `${i.path.join('.')} ${i.message}`)
@@ -98,6 +115,7 @@ async function request<T extends z.ZodTypeAny>(
       if (err instanceof RiftcodexError && err.status && err.status < 500 && err.status !== 429) {
         throw err;
       }
+      // i18n-ignore — the app cancelling its own request is not a player event.
       if (signal?.aborted) throw new RiftcodexError('Request cancelled', undefined, err);
       lastError = err;
     } finally {
@@ -107,6 +125,7 @@ async function request<T extends z.ZodTypeAny>(
   }
 
   throw new RiftcodexError(
+    // i18n-ignore — names the endpoint and the retry count, for a log.
     `Request failed after ${MAX_RETRIES} attempts: ${path}`,
     undefined,
     lastError

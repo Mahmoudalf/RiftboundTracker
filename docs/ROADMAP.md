@@ -1020,6 +1020,57 @@ languages. All of them route through `localeNumber()` in `lib/format.ts`. Dates 
 **Gate:** typecheck clean, lint clean, **578 tests / 36 files**, **664 keys** in each of three
 languages, scanner reporting 0 across 68 files.
 
+> **That 0 was over 68 files, and there are 97.** See
+> [the roots gap](#the-gates-own-roots-gap-2026-08-16) below — the same mistake this section
+> documents, made one level up.
+
+### The gate's own roots gap (2026-08-16)
+
+The scanner was pointed at `app` and `src/components` and told to read `.tsx`. So **`src/features`,
+`src/lib` and `src/api` were never scanned at all** — and being mostly plain `.ts`, they would have
+been skipped by the extension filter even if the roots had covered them. 32 strings sat there
+through a migration that reported zero.
+
+This is precisely the failure the section above describes, one level up: a search that cannot see
+everywhere returns a zero indistinguishable from one that can. The first time it was the shapes;
+this time it was the directories.
+
+Roots are now `app`, `src/components`, `src/features`, `src/lib`, `src/api`, matching `.ts` and
+`.tsx`. **97 files, 0 findings.**
+
+**26 of the 32 were translated.** The rest were judged, not translated, and each exclusion is named:
+
+| | |
+| --- | --- |
+| `legality.ts` (11) | Every legality message. The count lines were built from a label, a fraction and a tail — German puts the shortfall *before* the noun, so no fragment order reads correctly in both. `plural()` is gone with them; each case is a whole key |
+| `deck-code.ts` (8) | Import and export errors. `DeckCodeError.message` renders directly on deck detail and the import screen |
+| `sync.ts` (2) | `Downloading cards (3/15)` renders in Settings as `progress.message` |
+| `hands.ts` · `summary.ts` · `deck-diff.ts` (4) | Analytics row labels and a diff chip |
+| `finishes.ts` (2) | `finishLabel()` is a display label. German keeps **Foil** as the loanword collectors actually use — a translation choice, not an exclusion |
+| **`client.ts` (3) — excluded** | `RiftcodexError.message` names an endpoint, a retry count, or Zod's own parse output. Diagnostics, not copy. Marked `// i18n-ignore` with the reason on the class |
+| **`card-identity.ts` (2) — excluded** | `Alternate Art` and `Overnumbered` are **parsed out of the card's own name** — `variantLabel()` extracts them and `PICKABLE_VARIANTS` matches against exactly that string. Translating them would break the picker's filter outright. Added to `CARD_VOCABULARY` with all eight printing suffixes |
+
+**Excluding `client.ts` uncovered a real leak.** `syncCards` put `err.message` straight into
+`progress.message`, which Settings renders in red — so a schema drift could show a German player
+*"Unexpected response shape for /cards: items.0.name Expected string, received null"*. The user now
+gets a translated sentence and the exception text goes to `sync_meta.last_error`, where it is
+readable when something actually needs diagnosing. Excluding a string from translation was only
+defensible once it had stopped reaching a screen.
+
+`lib/` stayed pure: `deck-code`, `legality`, `finishes`, `deck-diff` and `analytics` all gained an
+`@/i18n` import and all of their Node tests still load — which is the constraint that broke
+`findings.test.ts` the first time.
+
+The pragma now also covers the line beneath a comment-only `// i18n-ignore`, like
+`eslint-disable-next-line`, because a multi-line template literal has nowhere on its first line to
+put a trailing comment.
+
+Proved non-vacuous by planting an English string in `src/lib/finishes.ts` — a directory the old
+roots never saw — and watching the gate name it: `src/lib/finishes.ts:66  Foil printing`.
+
+**Gate:** typecheck clean, lint clean, **592 tests / 37 files**, scanner reporting **0 across 97
+files**.
+
 ---
 
 ## M8 — Cloud
