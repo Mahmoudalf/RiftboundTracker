@@ -12,6 +12,7 @@ import { DISPLAY_NAME_MAX, displayName, setDisplayName } from '@/db/queries/sett
 import { TOAST_CONFIRM_MS, useToast } from '@/features/games/useToast';
 import { useCardSync } from '@/features/sync/useCardSync';
 import { LOCALES, useLocale, useT, type Key, type RuntimeLocale } from '@/i18n';
+import { localeNumber } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
 
@@ -182,7 +183,7 @@ export default function SettingsScreen() {
                 translation pass; the screen was still rendering the English
                 literals it was written with. */}
             {cardCount > 0
-              ? t('profile.library.stored', { count: cardCount.toLocaleString() })
+              ? t('profile.library.stored', { count: localeNumber(cardCount) })
               : t('profile.library.empty')}
           </Text>
           {progress?.phase === 'failed' && progress.message ? (

@@ -5,7 +5,7 @@ import { useT } from '@/i18n';
 import { baseName } from '@/lib/card-identity';
 import type { DeckDiff } from '@/lib/deck-diff';
 import { color, radius, space } from '@/theme/tokens';
-import { text } from '@/theme/typography';
+import { metaLine, text } from '@/theme/typography';
 
 /**
  * An expanded version node — the full change list, in place.
@@ -72,9 +72,14 @@ export function VersionNodeDetail({
   return (
     <View style={styles.root}>
       <Text style={styles.counts}>
-        {diff
-          ? `${ins.length + outs.length} changes · ${matchCount} ${matchCount === 1 ? 'match' : 'matches'}`
-          : `First build · ${matchCount} ${matchCount === 1 ? 'match' : 'matches'}`}
+        {metaLine(
+          diff
+            ? t('version.changeCount', { count: ins.length + outs.length })
+            : t('version.firstBuild'),
+          t(matchCount === 1 ? 'version.matchCount.one' : 'version.matchCount.other', {
+            count: matchCount,
+          })
+        )}
       </Text>
 
       {ins.length > 0 || outs.length > 0 ? (
@@ -103,7 +108,7 @@ export function VersionNodeDetail({
         </View>
       ) : (
         <Text style={styles.empty}>
-          {diff ? 'Only the printings changed — the same cards.' : 'Where the deck started.'}
+          {t(diff ? 'version.printingsOnly' : 'version.whereItStarted')}
         </Text>
       )}
 
@@ -118,7 +123,9 @@ export function VersionNodeDetail({
             pressed && styles.pressed,
           ]}
         >
-          <Text style={styles.actionLabel}>{isCurrent ? 'Current list' : 'Open this list'}</Text>
+          <Text style={styles.actionLabel}>
+            {t(isCurrent ? 'version.currentList' : 'version.openList')}
+          </Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"

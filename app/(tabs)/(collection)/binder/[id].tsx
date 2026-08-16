@@ -37,6 +37,7 @@ import { useCardFilters } from '@/features/cards/useCardFilters';
 import { useCardSync } from '@/features/sync/useCardSync';
 import { useT, type Key } from '@/i18n';
 import { finishLabel, finishesFor, supportsFinish, type Finish } from '@/lib/finishes';
+import { localeNumber } from '@/lib/format';
 import { domainColor, PLAYABLE_DOMAINS } from '@/theme/domains';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
@@ -255,8 +256,8 @@ export default function BinderScreen() {
     <Screen
       title={binderId ? t('binder.fallbackName') : t('collection.gallery')}
       meta={metaLine(
-        t('binder.shown', { count: cards.length.toLocaleString() }),
-        binderId ? null : t('binder.inLibrary', { count: cardCount.toLocaleString() }),
+        t('binder.shown', { count: localeNumber(cards.length) }),
+        binderId ? null : t('binder.inLibrary', { count: localeNumber(cardCount) }),
         isSyncing ? t('binder.syncing') : null
       )}
     >

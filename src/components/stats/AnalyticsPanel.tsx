@@ -309,9 +309,9 @@ export function AnalyticsPanel({
        * each entry carries its own record, so listing it again underneath was
        * the same table twice with the selected scope buried in it.
        */
-      title: 'RECORD',
+      title: t('analytics.record'),
       rows: [{ key: 'scope', label: scopeLabel, rate: rateOf(scopedGames) }],
-      needs: 'No games in this scope.',
+      needs: t('analytics.needs.scope'),
     },
     {
       title: t('analytics.turnOrder'),
@@ -324,33 +324,43 @@ export function AnalyticsPanel({
         { key: 'play', label: t('analytics.wentFirst'), rate: split.onPlay },
         { key: 'draw', label: t('analytics.wentSecond'), rate: split.onDraw },
       ].filter((row) => row.rate.total > 0),
-      note: `From ${split.coverage.recorded} of ${split.coverage.total} games where it was recorded.`,
-      needs: 'Nothing recorded yet. Each match on the log form asks who went first; answer it and this fills in.',
+      note: t('analytics.from.games', {
+        recorded: split.coverage.recorded,
+        total: split.coverage.total,
+      }),
+      needs: t('analytics.needs.turnOrder'),
     },
     {
-      title: 'FORMAT',
+      title: t('analytics.format'),
       rows: bestOfSegments(scopedGames),
       // Named the options, so it had to stop naming Bo5 the moment the log form
       // did. Only reachable now on games logged before that form always
       // recorded a format.
-      needs: 'No format recorded yet. Every game logged from here on records Bo1 or Bo3.',
+      needs: t('analytics.needs.format'),
     },
     {
       title: t('analytics.gameStyle'),
       rows: styleSegments(scopedGames).map((s) => ({ ...s, label: gameStyleLabel(s.label) })),
-      needs: 'No games logged yet.',
+      needs: t('analytics.needs.style'),
     },
     {
       title: t('analytics.openingHands'),
       rows: performanceByMulliganCount(scopedMatches),
-      note: `From ${scopedHands.recorded} of ${scopedHands.total} matches where the deal was recorded.`,
-      needs: 'No opening deals recorded yet. Open a logged game, choose Add match detail, and tap the cards you were dealt — once for a card you kept, twice for one you sent back.',
+      note: t('analytics.from.deals', {
+        recorded: scopedHands.recorded,
+        total: scopedHands.total,
+      }),
+      needs: t('analytics.needs.hands'),
     },
     {
       title: t('analytics.howClose'),
       rows: scopedScores.segments,
-      note: `From ${scopedScores.coverage.recorded} of ${scopedScores.coverage.total} matches where the score was recorded. Close means decided by ${CLOSE_MARGIN} points or fewer.`,
-      needs: 'No scores recorded yet. Riftbound scores to 8, and winning 8–7 is a different match from winning 8–0 — the result column cannot tell them apart. Add it from a logged game.',
+      note: t('analytics.from.scores', {
+        recorded: scopedScores.coverage.recorded,
+        total: scopedScores.coverage.total,
+        margin: CLOSE_MARGIN,
+      }),
+      needs: t('analytics.needs.scores'),
     },
   ];
 
@@ -361,7 +371,7 @@ export function AnalyticsPanel({
       title: t('analytics.cardsThrownBack'),
       pairs: scopedCards.map((card) => ({
         key: card.cardId,
-        label: nameOf(card.cardId) ?? 'No longer in the library',
+        label: nameOf(card.cardId) ?? t('analytics.cardGone'),
         value: `${Math.round(card.mulliganRate * 100)}% back · ${card.mulliganed} of ${card.seen}`,
       })),
     });
@@ -401,7 +411,9 @@ export function AnalyticsPanel({
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ selected: includeCasual }}
-          accessibilityLabel={`Casual games ${includeCasual ? 'included' : 'excluded'}`}
+          accessibilityLabel={t(
+            includeCasual ? 'analytics.casual.a11y.on' : 'analytics.casual.a11y.off'
+          )}
           onPress={() => setIncludeCasual((on) => !on)}
           style={({ pressed }) => [
             styles.chip,
@@ -436,10 +448,11 @@ export function AnalyticsPanel({
         </Text>
         <Text style={[styles.anchorCi, provisional && styles.anchorCiQuiet]}>
           {overall.interval === null
-            ? 'No games yet'
-            : `95% CI ${Math.round(overall.interval.low * 100)}–${Math.round(
-                overall.interval.high * 100
-              )}%${provisional ? ' · under 20 games' : ''}`}
+            ? t('analytics.noGamesYet')
+            : t(provisional ? 'analytics.ci.provisional' : 'analytics.ci', {
+                low: Math.round(overall.interval.low * 100),
+                high: Math.round(overall.interval.high * 100),
+              })}
         </Text>
       </View>
 
@@ -456,7 +469,7 @@ export function AnalyticsPanel({
               label: t('analytics.currentStreak'),
               value:
                 run.current === 0
-                  ? 'None'
+                  ? t('analytics.streak.none')
                   : `${run.current > 0 ? 'W' : 'L'}${Math.abs(run.current)}`,
             },
             {
@@ -470,7 +483,7 @@ export function AnalyticsPanel({
 
       {found.length > 0 ? (
         <View>
-          <GroupTitle>FINDINGS</GroupTitle>
+          <GroupTitle>{t('analytics.findings')}</GroupTitle>
           <View style={styles.findings}>
             {found.map((finding, index) => (
               <FindingCard key={finding.key} finding={finding} rank={index + 1} />
@@ -510,7 +523,7 @@ export function AnalyticsPanel({
       {drawerOpen ? (
         <View style={styles.drawer}>
           <View>
-            <GroupTitle>AGAINST</GroupTitle>
+            <GroupTitle>{t('analytics.against')}</GroupTitle>
             <Dropdown
               label={t('analytics.opponent')}
               value={scope}

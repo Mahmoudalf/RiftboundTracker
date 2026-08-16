@@ -59,19 +59,20 @@ export function VersionCompareSheet({
     // `total`, not `decided`: since 2026-08-14 a draw is half a win and half a
     // loss, so a version with nothing but draws has a real rate to compare.
     if (rateA.total === 0 || rateB.total === 0) {
-      return 'One of these has no games logged yet, so there is nothing to compare.';
+      return t('version.nothingToCompare');
     }
     if (separable(rateA, rateB)) {
       const better = (rateB.rate ?? 0) > (rateA.rate ?? 0) ? b : a;
-      return `v${better?.versionNumber} is measurably ahead — the intervals do not overlap.`;
+      return t('version.ahead', { number: better?.versionNumber ?? '' });
     }
     const thinner = rateA.total <= rateB.total ? rateA : rateB;
     const more = gamesNeeded(thinner.points, thinner.total);
     return more === null
-      ? 'Too close to call — the intervals overlap, and no realistic number of matches would separate them.'
-      : `Too close to call — the intervals overlap. About ${more} more ${
-          more === 1 ? 'match' : 'matches'
-        } would start to separate them.`;
+      ? t('version.tooClose')
+      : t('version.tooCloseWithEstimate', {
+          count: more,
+          games: t(more === 1 ? 'finding.game' : 'finding.games'),
+        });
   })();
 
   return (
@@ -103,16 +104,19 @@ export function VersionCompareSheet({
                 <View key={version.id} style={styles.column}>
                   <Text style={styles.columnNumber}>v{version.versionNumber}</Text>
                   <Text style={styles.columnLabel} numberOfLines={2}>
-                    {version.label ?? (index === 0 ? 'Earlier' : 'Later')}
+                    {version.label ?? t(index === 0 ? 'version.earlier' : 'version.later')}
                   </Text>
                   <Text style={styles.stat}>
-                    {version.mainCount}/{MAIN_DECK_TARGET} main
+                    {t('version.mainCount', {
+                      count: version.mainCount,
+                      target: MAIN_DECK_TARGET,
+                    })}
                   </Text>
                   <Text style={styles.stat}>
-                    {matchCounts.get(version.id) ?? 0} matches
+                    {t('version.matchCount.other', { count: matchCounts.get(version.id) ?? 0 })}
                   </Text>
                   <Text style={[styles.stat, version.isLegal ? styles.legal : styles.illegal]}>
-                    {version.isLegal ? 'Legal' : 'Incomplete'}
+                    {t(version.isLegal ? 'version.legal' : 'version.incomplete')}
                   </Text>
                 </View>
               ) : null

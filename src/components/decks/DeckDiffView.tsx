@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { t } from '@/i18n';
 import { describeDiff, type DeckDiff } from '@/lib/deck-diff';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
@@ -23,11 +24,14 @@ interface DeckDiffViewProps {
   emptyMessage?: string;
 }
 
-export function DeckDiffView({ diff, limit, emptyMessage = 'No changes' }: DeckDiffViewProps) {
+export function DeckDiffView({ diff, limit, emptyMessage }: DeckDiffViewProps) {
   const chips = describeDiff(diff);
+  // Defaulted here rather than in the signature: a parameter default is
+  // evaluated per render, but writing it as a literal froze it in English.
+  const empty = emptyMessage ?? t('diff.noChanges');
 
   if (chips.length === 0) {
-    return <Text style={styles.empty}>{emptyMessage}</Text>;
+    return <Text style={styles.empty}>{empty}</Text>;
   }
 
   const shown = limit ? chips.slice(0, limit) : chips;
@@ -67,13 +71,13 @@ export function DeckDiffView({ diff, limit, emptyMessage = 'No changes' }: DeckD
 
 /** One line: "6 cards changed across Main deck, Runes". */
 export function diffHeadline(diff: DeckDiff): string {
-  if (diff.isEmpty) return 'Nothing changed';
+  if (diff.isEmpty) return t('diff.nothingChanged');
   if (diff.cardSetIdentical) {
     const n = diff.reprinted.length;
-    return `${n} ${n === 1 ? 'card' : 'cards'} swapped to a different printing`;
+    return t(n === 1 ? 'diff.reprinted.one' : 'diff.reprinted.other', { count: n });
   }
   const n = diff.netCardsMoved;
-  return `${n} ${n === 1 ? 'card' : 'cards'} in and out`;
+  return t(n === 1 ? 'diff.moved.one' : 'diff.moved.other', { count: n });
 }
 
 const styles = StyleSheet.create({

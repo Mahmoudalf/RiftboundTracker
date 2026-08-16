@@ -131,8 +131,8 @@ export function CardPickerSheet({
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
             {multi ? (
               <Text style={[styles.counter, chosen > multi.limit && styles.counterOver]}>
-                {chosen} of {multi.limit} chosen
-                {chosen > 0 ? ' · tap again to add a copy, once more to clear' : ''}
+                {t('picker.chosenOf', { chosen, limit: multi.limit })}
+                {chosen > 0 ? t('picker.tapAgain') : ''}
               </Text>
             ) : null}
           </View>
@@ -147,7 +147,7 @@ export function CardPickerSheet({
         </View>
 
         {cards.length === 0 ? (
-          <Text style={styles.empty}>{emptyMessage ?? 'Nothing to choose from.'}</Text>
+          <Text style={styles.empty}>{emptyMessage ?? t('picker.nothingToChoose')}</Text>
         ) : (
           <FlashList
             data={cards}
@@ -176,7 +176,7 @@ export function CardPickerSheet({
                       : baseName(item.name)
                   }
                   accessibilityHint={
-                    multi ? 'Tap to add a copy, tap past the limit to clear' : undefined
+                    multi ? t('picker.tapHint') : undefined
                   }
                   onPress={() => {
                     if (multi) {

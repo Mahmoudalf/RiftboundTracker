@@ -59,7 +59,7 @@ export default function ImportDeckScreen() {
       const result = decodeDeckCode(code, catalogue);
 
       if (result.slots.length === 0) {
-        setError('That code resolved to no cards this app knows about.');
+        setError(t('import.noCards'));
         setPreview(null);
         return;
       }
@@ -87,12 +87,12 @@ export default function ImportDeckScreen() {
     if (!preview) return;
     const legend = preview.slots.find((s) => s.zone === 'legend')?.card;
     if (!legend) {
-      setError('This code has no Legend, so there is no deck to build from it.');
+      setError(t('import.noLegend'));
       return;
     }
 
     const { deckId } = createDeck({
-      name: name.trim() || 'Imported deck',
+      name: name.trim() || t('import.defaultName'),
       legend,
       champion: preview.slots.find((s) => s.zone === 'champion')?.card ?? null,
       slots: preview.slots,
@@ -109,7 +109,7 @@ export default function ImportDeckScreen() {
   return (
     <Screen
       title={t('import.title')}
-      meta={preview ? 'Check it over, then save' : 'Paste a deck code'}
+      meta={t(preview ? 'import.checkOver' : 'import.pasteCode')}
       action={
         preview ? (
           <Pressable

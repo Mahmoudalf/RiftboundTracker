@@ -73,7 +73,9 @@ export function SaveVersionSheet({
         <View style={styles.grabber} />
 
         <Text style={styles.title} accessibilityRole="header">
-          {willFork ? `Save as v${versionNumber + 1}` : 'Save changes'}
+          {willFork
+            ? t('version.saveAs', { number: versionNumber + 1 })
+            : t('version.saveChanges')}
         </Text>
         <Text style={styles.headline}>{diffHeadline(diff)}</Text>
 
@@ -84,9 +86,17 @@ export function SaveVersionSheet({
         {willFork ? (
           <>
             <Text style={styles.explain}>
-              {matchCount > 0
-                ? `v${versionNumber} has ${matchCount === 1 ? '1 match' : `${matchCount} matches`} logged against it, so it stays exactly as it was played and this change becomes v${versionNumber + 1}.`
-                : `v${versionNumber} is locked, so it stays exactly as it is and this change becomes v${versionNumber + 1}.`}
+              {matchCount === 0
+                ? t('version.forkExplain.locked', {
+                    number: versionNumber,
+                    next: versionNumber + 1,
+                  })
+                : t(
+                    matchCount === 1
+                      ? 'version.forkExplain.one'
+                      : 'version.forkExplain.other',
+                    { number: versionNumber, count: matchCount, next: versionNumber + 1 }
+                  )}
             </Text>
 
             <TextInput
@@ -108,14 +118,17 @@ export function SaveVersionSheet({
             style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
           >
             <Text style={styles.primaryLabel}>
-              {willFork ? `Save as v${versionNumber + 1}` : 'Save'}
+              {willFork ? t('version.saveAs', { number: versionNumber + 1 }) : t('version.save')}
             </Text>
           </Pressable>
 
           {willFork ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityHint={`Rewrites v${versionNumber} in place. Its ${matchCount} matches will describe the edited list.`}
+              accessibilityHint={t(
+                matchCount === 1 ? 'version.amendMeta.one' : 'version.amendMeta.other',
+                { number: versionNumber, count: matchCount }
+              )}
               onPress={onAmendInstead}
               style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
             >

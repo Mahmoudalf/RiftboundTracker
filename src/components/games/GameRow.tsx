@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
 import type { GameRow as GameRowType } from '@/db/schema/games';
+import { t } from '@/i18n';
 import { baseName } from '@/lib/card-identity';
 import { bestOfLabel, gameDate, gameStyleLabel } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
@@ -31,7 +32,7 @@ export function GameRow({ game, onPress }: GameRowProps) {
   // `opp_label` used to be the middle branch here — free text for an opponent
   // outside the card library. Nothing ever wrote it, so the fallback it fed was
   // unreachable; the column went in migration 22.
-  const opponent = game.oppLegendName ? baseName(game.oppLegendName) : 'Unknown opponent';
+  const opponent = game.oppLegendName ? baseName(game.oppLegendName) : t('game.unknownOpponent');
 
   const champion = game.oppChampionName ? baseName(game.oppChampionName) : null;
 

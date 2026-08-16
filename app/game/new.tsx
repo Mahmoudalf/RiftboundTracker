@@ -528,7 +528,13 @@ export default function LogMatchScreen() {
     const version = selected.version ? ` v${selected.version.versionNumber}` : '';
 
     showToast(
-      `Logged · ${deck.name}${version} now ${record.wins}–${record.losses} (${rate}%)`,
+      t('log.toast', {
+        deck: deck.name,
+        version,
+        wins: record.wins,
+        losses: record.losses,
+        rate,
+      }),
       // Stays up the long default: a mis-tap on a result needs time to notice.
       { action: { label: t('log.undo'), onPress: () => undoGame(id) } }
     );

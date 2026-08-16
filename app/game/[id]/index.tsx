@@ -377,7 +377,7 @@ export default function GameDetailScreen() {
             <SectionLabel>{t('game.section.event')}</SectionLabel>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Open ${event.name}`}
+              accessibilityLabel={t('event.openA11y', { name: event.name })}
               onPress={() => router.push(`/event/${event.id}`)}
               style={({ pressed }) => [styles.eventLink, pressed && styles.pressed]}
             >

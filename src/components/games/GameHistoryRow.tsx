@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Pressable } from '@/components/ui/Pressable';
 import type { CardFace, GameHistoryEntry } from '@/db/queries/history';
 import { useT, type Key } from '@/i18n';
+import { t } from '@/i18n';
 import { baseName } from '@/lib/card-identity';
 import { cardImage } from '@/lib/cdn';
 import { bestOfLabel, gameDate, gameStyleLabel } from '@/lib/format';
@@ -69,7 +70,7 @@ function Face({ face }: { face: CardFace }) {
 }
 
 function Side({ legend, champion, align }: { legend: CardFace; champion: CardFace; align: 'left' | 'right' }) {
-  const name = legend.name ? baseName(legend.name) : 'Unknown';
+  const name = legend.name ? baseName(legend.name) : t('game.unknownLegend');
   const champ = champion.name ? baseName(champion.name) : null;
 
   return (

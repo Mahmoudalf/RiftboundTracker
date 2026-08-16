@@ -12,6 +12,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "test": "vitest run",
     "test:watch": "vitest",
+    "i18n:scan": "tsx scripts/find-untranslated.ts",
     "seed": "tsx scripts/generate-seed.ts",
     "db:generate": "drizzle-kit generate"
   },

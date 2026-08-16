@@ -5,6 +5,7 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { DomainBadge } from '@/components/cards/DomainBadge';
 import { Pressable } from '@/components/ui/Pressable';
+import { t } from '@/i18n';
 import { baseName } from '@/lib/card-identity';
 import { cardImage } from '@/lib/cdn';
 import type { DeckSlot } from '@/lib/legality';
@@ -42,7 +43,7 @@ function Stepper({
     <View style={styles.stepper}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Remove one ${label}`}
+        accessibilityLabel={t('card.removeCopy', { name: label })}
         onPress={() => tap(-1)}
         hitSlop={6}
         style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}
@@ -54,7 +55,7 @@ function Stepper({
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Add one ${label}`}
+        accessibilityLabel={t('card.addCopy', { name: label })}
         onPress={() => tap(1)}
         hitSlop={6}
         style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}

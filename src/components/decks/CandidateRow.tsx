@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
 import type { CardRow } from '@/db/schema/cards';
+import { t } from '@/i18n';
 import { isLandscapeCard, uprightArt } from '@/lib/card-art';
 import { cardImage } from '@/lib/cdn';
 import { color, radius, space } from '@/theme/tokens';
@@ -85,7 +86,7 @@ export function CandidateRow({
       <View style={styles.stepper}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Remove a copy of ${card.name}`}
+          accessibilityLabel={t('card.removeCopy', { name: card.name })}
           disabled={quantity === 0}
           onPress={onRemove}
           style={({ pressed }) => [
@@ -101,7 +102,7 @@ export function CandidateRow({
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Add a copy of ${card.name}`}
+          accessibilityLabel={t('card.addCopy', { name: card.name })}
           disabled={!!blocked}
           onPress={onAdd}
           style={({ pressed }) => [

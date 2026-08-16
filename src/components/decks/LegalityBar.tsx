@@ -82,8 +82,11 @@ export function LegalityBar({ result, onPress }: LegalityBarProps) {
       accessibilityRole={onPress ? 'button' : 'summary'}
       accessibilityLabel={
         legal
-          ? 'Deck is legal'
-          : `${issues.length} ${issues.length === 1 ? 'issue' : 'issues'}. ${headline?.message ?? ''}`
+          ? t('legality.legalA11y')
+          : t(issues.length === 1 ? 'legality.issuesA11y.one' : 'legality.issuesA11y.other', {
+              count: issues.length,
+              headline: headline?.message ?? '',
+            })
       }
       onPress={onPress}
       disabled={!onPress || issues.length === 0}

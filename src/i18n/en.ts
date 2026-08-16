@@ -177,6 +177,14 @@ export const en = {
   'match.mulligan.help':
     'First two — pick which of your opening hand went back, up to {max} at a time. Last two — the replacements you drew, once something has gone back.',
   'match.mulligan.over': '{count} sent back — Riftbound recycles at most {max}. Left as entered.',
+  // Past tense, and not the same words as `game.result.*` — that pair labels a
+  // control you are about to press, this one narrates what happened.
+  'match.onPlay': 'On the play',
+  'match.onDraw': 'On the draw',
+  'match.won': 'Won',
+  'match.lost': 'Lost',
+  'match.drew': 'Drew',
+  'match.detailSaved': 'Match detail saved',
   'match.pick.hand': 'Your opening hand',
   'match.pick.drewBack': 'What you drew back',
   'match.pick.whichBack': 'Which cards went back?',
@@ -273,6 +281,36 @@ export const en = {
   'editor.leave.discard': 'Discard and continue',
   'editor.leave.stay': 'Stay here',
   'editor.renamedTo': 'Renamed to {name}',
+
+  // Why a card cannot go in. These lived in a module-scope constant holding
+  // English, which froze the language at import — the same defect the roadmap
+  // records for the tab labels. Keys now, translated where they are drawn.
+  'blocked.offIdentity': 'Off identity',
+  'blocked.copyLimit': 'Max {max}',
+  'blocked.foreignSignature': 'Another Champion',
+  'blocked.duplicate': 'Already in deck',
+  'blocked.deckFull': 'Deck is full',
+
+  'editor.identity.a11y': '{role}: {name}',
+  'editor.identity.pick': 'Pick a {role}',
+  'editor.identity.pickOne': 'Pick one',
+  'editor.identity.legendFirst': 'Legend first',
+  'editor.changeLegend': 'Change Legend',
+  'editor.changeChampion': 'Change Champion',
+  'editor.changeLegend.body':
+    'Changing it changes the deck’s domains — cards that fall outside get flagged, not deleted',
+  'editor.championsFor': 'Champions that partner {name}',
+  'editor.noChampionPartner': 'No Champion Unit in the library partners this Legend.',
+  'editor.libraryDownloading': 'The card library has not finished downloading.',
+
+  'editor.overwriteTitle': 'Overwrite v{version}?',
+  // Three bodies, not one with a nested ternary. Which form to use is itself a
+  // translatable decision, and German does not pluralise where English does.
+  'editor.overwriteBody.none': 'This version will be rewritten in place.',
+  'editor.overwriteBody.one':
+    'The match already logged on this version will be attributed to the edited list. This cannot be undone.',
+  'editor.overwriteBody.other':
+    'The {count} matches already logged on this version will be attributed to the edited list. This cannot be undone.',
 
   // ── Building a new deck ───────────────────────────────────────────────────
   'build.title': 'Build a deck',
@@ -422,6 +460,25 @@ export const en = {
   'event.details': 'Event details',
   'event.delete': 'Delete event',
   'event.style': 'Event style',
+  'event.deleteTitle': 'Delete {name}?',
+  // Singular and plural as their own keys — German does not inflect where
+  // English does, and the count sits in a different clause.
+  'event.deleteBody.one':
+    'The game played here is kept — it still counts towards your deck and overall records. Only the grouping goes.',
+  'event.deleteBody.other':
+    'The {count} games played here are kept — they still count towards your deck and overall records. Only the grouping goes.',
+  'event.deleteBody.none': 'This event has no games logged against it.',
+  'event.noRounds': 'No rounds yet',
+  'event.roundsLogged.one': '1 round logged',
+  'event.roundsLogged.other': '{count} rounds logged',
+  'event.finished': 'Finished {place}',
+  'event.ofScheduled': 'of {count} scheduled',
+  'event.changePlacement': 'Change placement',
+  'event.recordPlacement': 'Record where you placed',
+  'event.name': 'Name',
+  'event.notesPlaceholder': 'How did it go? What would you change?',
+  'event.finalPlacement': 'Final placement',
+  'event.roundsPlaceholder': 'Rounds scheduled, if you know',
   'event.placement': 'Where did you place?',
 
   // ── Decks tab ─────────────────────────────────────────────────────────────
@@ -459,6 +516,28 @@ export const en = {
   // ── Analytics ─────────────────────────────────────────────────────────────
   'analytics.casualGames': 'Casual games',
   'analytics.overall': "Overall",
+  'analytics.record': 'RECORD',
+  'analytics.format': 'FORMAT',
+  'analytics.needs.scope': 'No games in this scope.',
+  'analytics.needs.turnOrder':
+    'Nothing recorded yet. Each match on the log form asks who went first; answer it and this fills in.',
+  'analytics.needs.format':
+    'No format recorded yet. Every game logged from here on records Bo1 or Bo3.',
+  'analytics.needs.style': 'No games logged yet.',
+  'analytics.needs.hands':
+    'No opening deals recorded yet. Open a logged game, choose Add match detail, and tap the cards you were dealt — once for a card you kept, twice for one you sent back.',
+  'analytics.needs.scores':
+    'No scores recorded yet. Riftbound scores to 8, and winning 8–7 is a different match from winning 8–0 — the result column cannot tell them apart. Add it from a logged game.',
+  'analytics.from.games': 'From {recorded} of {total} games where it was recorded.',
+  'analytics.from.deals': 'From {recorded} of {total} matches where the deal was recorded.',
+  'analytics.from.scores':
+    'From {recorded} of {total} matches where the score was recorded. Close means decided by {margin} points or fewer.',
+  'analytics.cardGone': 'No longer in the library',
+  'analytics.casual.a11y.on': 'Casual games included',
+  'analytics.casual.a11y.off': 'Casual games excluded',
+  'analytics.noGamesYet': 'No games yet',
+  'analytics.ci': '95% CI {low}–{high}%',
+  'analytics.ci.provisional': '95% CI {low}–{high}% · under 20 games',
   'analytics.turnOrder': "TURN ORDER",
   'analytics.wentFirst': "Went first",
   'analytics.wentSecond': "Went second",
@@ -595,7 +674,28 @@ export const en = {
   'deck.archiveThis': 'Archive this deck',
   'deck.restoreArchive': 'Restore from archive',
   'deck.archiveTitle': 'Archive {name}?',
+  'deck.archiveBody':
+    'It leaves the deck list. Its versions and match history are kept, and it still counts in your overall stats — “Show archived” on the Decks tab brings it back.',
   'deck.shareFailed': 'Something went wrong building the deck code.',
+  'deck.shareTitle': 'Could not build a code',
+  // Two keys rather than one with an optional tail: German puts the caveat list
+  // where English does not, and a joined fragment cannot move.
+  'deck.copied': 'Copied to clipboard',
+  'deck.copiedWith': 'Copied to clipboard · {caveats}',
+  'deck.deleteTitle': 'Delete this deck?',
+  'deck.deleteBody': 'Its versions and match history go with it.',
+  'version.deleteFailed': 'This version cannot be deleted',
+  'version.hasGames':
+    'It has matches logged against it, and those results only mean anything attached to the list that played them.',
+  'version.lastOne': 'A deck has to keep at least one version.',
+  'deck.legalRest': 'Everything else checks out.',
+  'deck.pooledPrintings': 'Same cards, different printings — pooled',
+  'deck.details.name': 'Name',
+  'deck.details.namePlaceholder': 'Deck name',
+  'deck.details.notesPlaceholder': 'What is this deck trying to do? What did you last change?',
+  // The details sheet reuses the existing `version.label` below rather than
+  // adding a second key for the same field.
+  'version.notesPlaceholder': 'Why did you make this change?',
   'import.unreadable': 'That code could not be read.',
 
   'collection.binders': 'Binders',
@@ -743,6 +843,101 @@ export const en = {
   'legality.fields': 'Fields',
 
   // ── Versions ──────────────────────────────────────────────────────────────
+  'version.ahead': 'v{number} is measurably ahead — the intervals do not overlap.',
+  'version.mainCount': '{count}/{target} main',
+  'version.changeCount': '{count} changes',
+  'version.a11y': 'Version {number}{label}, {count} matches',
+  'version.hint.pick': 'Tap to pick this version for the comparison',
+  'version.hint.compare': 'Long press to compare with another version',
+  'version.untitled': 'Untitled change',
+  'version.firstBuild': 'First build',
+  'version.forkedFrom': 'Forked from v{number}',
+  'version.legal': 'Legal',
+  'version.incomplete': 'Incomplete',
+  'version.locked': 'Locked',
+  'version.noGamesYet': 'No games yet',
+  'version.current': 'Current',
+  'version.matchCount.one': '1 match',
+  'version.matchCount.other': '{count} matches',
+  'version.nothingToCompare': 'One of these has no games logged yet, so there is nothing to compare.',
+  'version.tooClose':
+    'Too close to call — the intervals overlap, and no realistic number of matches would separate them.',
+  'version.tooCloseWithEstimate':
+    'Too close to call — the intervals overlap. About {count} more {games} would start to separate them.',
+  'version.earlier': 'Earlier',
+  'version.later': 'Later',
+  'version.printingsOnly': 'Only the printings changed — the same cards.',
+  'version.whereItStarted': 'Where the deck started.',
+  'version.currentList': 'Current list',
+  'version.openList': 'Open this list',
+  'version.firstBuildMeta': 'First build · {count} {cards}',
+  'version.saveAs': 'Save as v{number}',
+  'version.saveChanges': 'Save changes',
+  'version.save': 'Save',
+  'version.amendMeta.one': 'Rewrites v{number} in place. Its 1 match will describe the edited list.',
+  'version.amendMeta.other':
+    'Rewrites v{number} in place. Its {count} matches will describe the edited list.',
+  'version.forkExplain.one':
+    'v{number} has 1 match logged against it, so it stays exactly as it was played and this change becomes v{next}.',
+  'version.forkExplain.other':
+    'v{number} has {count} matches logged against it, so it stays exactly as it was played and this change becomes v{next}.',
+  'version.forkExplain.locked':
+    'v{number} is locked, so it stays exactly as it is and this change becomes v{next}.',
+  'diff.noChanges': 'No changes',
+  'diff.nothingChanged': 'Nothing changed',
+  'diff.reprinted.one': '1 card swapped to a different printing',
+  'diff.reprinted.other': '{count} cards swapped to a different printing',
+  'diff.moved.one': '1 card in and out',
+  'diff.moved.other': '{count} cards in and out',
+  'goldfish.openingHand': 'Opening hand',
+  'goldfish.hand': 'Hand',
+  'goldfish.keep': 'Keep this hand',
+  'goldfish.recycle': 'Recycle {count}',
+  'goldfish.recycleAndDraw': 'Recycle {count} and draw',
+  'build.legendMeta': 'It sets the deck’s two domains',
+  'build.championMeta': 'Partners {name}',
+  'build.reviewMeta': 'Name it and save',
+  'build.cancel': 'Cancel',
+  'import.checkOver': 'Check it over, then save',
+  'import.pasteCode': 'Paste a deck code',
+  'import.noCards': 'That code resolved to no cards this app knows about.',
+  'import.noLegend': 'This code has no Legend, so there is no deck to build from it.',
+  'import.defaultName': 'Imported deck',
+  'picker.tapAgain': '· tap again to add a copy, once more to clear',
+  'picker.nothingToChoose': 'Nothing to choose from.',
+  'picker.tapHint': 'Tap to add a copy, tap past the limit to clear',
+  'slot.tapToChoose': 'Tap to choose',
+  'slot.draw': 'DRAW',
+  'slot.mull': 'MULL',
+  'analytics.none': 'None',
+  'analytics.findings': 'FINDINGS',
+  'analytics.against': 'AGAINST',
+  'deck.promoSent.one': '1 promo printing sent as standard',
+  'deck.promoSent.other': '{count} promo printings sent as standard',
+  'deck.unknownCard': 'an unknown card',
+  'decks.hideArchived': 'Hide archived',
+  'decks.showArchived.one': 'Show 1 archived deck',
+  'decks.showArchived.other': 'Show {count} archived decks',
+  'filters.noCardsMatch': 'No cards match',
+  'filters.showCards.one': 'Show 1 card',
+  'filters.showCards.other': 'Show {count} cards',
+  'card.removeCopy': 'Remove a copy of {name}',
+  'card.addCopy': 'Add a copy of {name}',
+  'picker.chosenOf': '{chosen} of {limit} chosen',
+  'analytics.streak.none': 'None',
+  'matchup.you': 'YOU',
+  'matchup.them': 'THEM',
+  'binder.default': 'DEFAULT',
+  'binder.create': 'Create',
+  'legality.legalA11y': 'Deck is legal',
+  'legality.issuesA11y.one': '1 issue. {headline}',
+  'legality.issuesA11y.other': '{count} issues. {headline}',
+  'game.unknownLegend': 'Unknown',
+  'game.unknownOpponent': 'Unknown opponent',
+  'event.openA11y': 'Open {name}',
+  'editor.lockedBanner.one': 'v{number} · 1 match tracked — saving will create v{next}',
+  'editor.lockedBanner.other': 'v{number} · {count} matches tracked — saving will create v{next}',
+  'editor.lockedBanner.locked': 'v{number} · locked — saving will create v{next}',
   'version.keepEditing': 'Keep editing',
   'version.nameThis': 'Name this version',
   'version.label': 'Version label',

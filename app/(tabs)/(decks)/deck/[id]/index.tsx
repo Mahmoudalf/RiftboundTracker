@@ -307,10 +307,8 @@ export default function DeckDetailScreen() {
       load();
     } catch (err) {
       Alert.alert(
-        'This version cannot be deleted',
-        err instanceof VersionHasMatchesError
-          ? 'It has matches logged against it, and those results only mean anything attached to the list that played them.'
-          : 'A deck has to keep at least one version.'
+        t('version.deleteFailed'),
+        err instanceof VersionHasMatchesError ? t('version.hasGames') : t('version.lastOne')
       );
     }
   };
@@ -358,10 +356,8 @@ export default function DeckDetailScreen() {
       );
     } catch (err) {
       Alert.alert(
-        'Could not build a code',
-        err instanceof DeckCodeError
-          ? err.message
-          : t('deck.shareFailed')
+        t('deck.shareTitle'),
+        err instanceof DeckCodeError ? err.message : t('deck.shareFailed')
       );
       return;
     }
@@ -379,14 +375,16 @@ export default function DeckDetailScreen() {
     }
     if (result.reprinted.length > 0) {
       caveats.push(
-        `${result.reprinted.length} promo ${result.reprinted.length === 1 ? 'printing' : 'printings'} sent as standard`
+        t(result.reprinted.length === 1 ? 'deck.promoSent.one' : 'deck.promoSent.other', {
+          count: result.reprinted.length,
+        })
       );
     }
 
     showToast(
       caveats.length > 0
-        ? `Copied to clipboard · ${caveats.join(' · ')}`
-        : 'Copied to clipboard',
+        ? t('deck.copiedWith', { caveats: caveats.join(' · ') })
+        : t('deck.copied'),
       {
         // Sharing is a second intent, not a second step. Offered here so it
         // costs one more tap rather than making everyone take it.
@@ -436,7 +434,7 @@ export default function DeckDetailScreen() {
 
     Alert.alert(
       t('deck.archiveTitle', { name: deck?.name ?? '' }),
-      'It leaves the deck list. Its versions and match history are kept, and it still counts in your overall stats — "Show archived" on the Decks tab brings it back.',
+      t('deck.archiveBody'),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -452,10 +450,10 @@ export default function DeckDetailScreen() {
   };
 
   const onDelete = () => {
-    Alert.alert('Delete this deck?', 'Its versions and match history go with it.', [
+    Alert.alert(t('deck.deleteTitle'), t('deck.deleteBody'), [
       { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: () => {
           deleteDeck(id);
@@ -587,7 +585,7 @@ export default function DeckDetailScreen() {
             {/* Named, not counted — the card is still in the deck, it is the
                 library that lost it, and only the name makes that actionable. */}
             Not in the card library:{' '}
-            {missing.map((m) => m.name ?? 'an unknown card').join(', ')}. They are still part of
+            {missing.map((m) => m.name ?? t('deck.unknownCard')).join(', ')}. They are still part of
             this deck, but the counts below are short. Refreshing the library in Settings usually
             fixes it.
           </Text>
@@ -613,7 +611,7 @@ export default function DeckDetailScreen() {
                   <Text style={styles.calloutNote}>
                     {legality.issues.length > 1
                       ? `${legality.issues.length - 1} more to fix.`
-                      : 'Everything else checks out.'}
+                      : t('deck.legalRest')}
                   </Text>
                 </View>
               </View>
@@ -958,7 +956,7 @@ export default function DeckDetailScreen() {
                         label={versionStatLabel(stat)}
                         sublabel={
                           stat.pooled
-                            ? 'Same cards, different printings — pooled'
+                            ? t('deck.pooledPrintings')
                             : (stat.label ?? undefined)
                         }
                         compact
@@ -986,11 +984,11 @@ export default function DeckDetailScreen() {
       <DetailsSheet
         visible={editingDeck}
         title={t('deck.details')}
-        nameLabel="Name"
-        namePlaceholder="Deck name"
+        nameLabel={t('deck.details.name')}
+        namePlaceholder={t('deck.details.namePlaceholder')}
         initialName={deck.name}
         initialNotes={deck.notes ?? ''}
-        notesPlaceholder="What is this deck trying to do? What did you last change?"
+        notesPlaceholder={t('deck.details.notesPlaceholder')}
         onClose={() => setEditingDeck(false)}
         onSave={onSaveDeckDetails}
         secondary={{
@@ -1002,14 +1000,14 @@ export default function DeckDetailScreen() {
       <DetailsSheet
         visible={editingVersion !== null}
         title={`v${editingVersion?.versionNumber ?? ''}`}
-        nameLabel="Label"
+        nameLabel={t('version.label')}
         namePlaceholder="−2 Bewitching Spirit"
         // Optional on purpose: an unlabelled version reads as "Untitled
         // change", which is true, and forcing a name would produce worse ones.
         nameRequired={false}
         initialName={editingVersion?.label ?? ''}
         initialNotes={editingVersion?.notes ?? ''}
-        notesPlaceholder="Why did you make this change?"
+        notesPlaceholder={t('version.notesPlaceholder')}
         onClose={() => setEditingVersion(null)}
         onSave={onSaveVersionDetails}
       />

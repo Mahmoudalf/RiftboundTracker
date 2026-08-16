@@ -60,9 +60,16 @@ interface Draft {
   hand: OpeningHandValue;
 }
 
-function turnOrderLabel(onPlay: boolean | null): string | null {
+/**
+ * `t` is a parameter rather than a module-scope import.
+ *
+ * This helper sits outside the component, so it cannot call `useT()`; taking
+ * the translate function makes the dependency visible at the one call site
+ * instead of shadowing the component's own `t` from module scope.
+ */
+function turnOrderLabel(onPlay: boolean | null, t: ReturnType<typeof useT>): string | null {
   if (onPlay === null) return null;
-  return onPlay ? 'On the play' : 'On the draw';
+  return t(onPlay ? 'match.onPlay' : 'match.onDraw');
 }
 
 /**
@@ -225,7 +232,7 @@ export default function GameMatchesScreen() {
 
     // A confirmation, not an undoable action — the edit is still on the screen
     // behind it and nothing was destroyed.
-    showToast('Match detail saved', { durationMs: TOAST_CONFIRM_MS });
+    showToast(t('match.detailSaved'), { durationMs: TOAST_CONFIRM_MS });
     router.back();
   };
 
@@ -247,12 +254,18 @@ export default function GameMatchesScreen() {
         {matches.map((match, i) => (
           <MatchDetailCard
             key={match.id}
-            title={`Match ${match.matchNumber}`}
+            title={t('game.matchNumber', { number: match.matchNumber })}
             result={match.result}
             summary={
               metaLine(
-                match.result === 'win' ? 'Won' : match.result === 'loss' ? 'Lost' : 'Drew',
-                turnOrderLabel(match.onPlay)
+                t(
+                  match.result === 'win'
+                    ? 'match.won'
+                    : match.result === 'loss'
+                      ? 'match.lost'
+                      : 'match.drew'
+                ),
+                turnOrderLabel(match.onPlay, t)
               ) || ''
             }
             value={draftAt(i).score}
@@ -281,19 +294,19 @@ export default function GameMatchesScreen() {
         visible={picker !== null}
         title={
           picker?.kind === 'dealt'
-            ? 'Your opening hand'
+            ? t('match.pick.hand')
             : picker?.kind === 'mulligan'
-              ? 'Which cards went back?'
-              : 'What you drew back'
+              ? t('match.pick.whichBack')
+              : t('match.pick.drewBack')
         }
         subtitle={
-          picker?.kind === 'mulligan' ? 'Only the cards you were dealt.' : (deck?.name ?? undefined)
+          picker?.kind === 'mulligan' ? t('match.pick.onlyDealt') : (deck?.name ?? undefined)
         }
         cards={pickerCards}
         emptyMessage={
           picker?.kind === 'mulligan'
-            ? 'Fill in the opening hand first — a card can only go back if it was dealt.'
-            : 'This deck version has no main-deck cards the library can resolve.'
+            ? t('match.pick.mulliganFirst')
+            : t('match.pick.noMainDeck')
         }
         multi={
           picker

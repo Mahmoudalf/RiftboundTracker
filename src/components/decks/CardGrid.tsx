@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Pressable } from '@/components/ui/Pressable';
 import type { CardRow } from '@/db/schema/cards';
+import { t } from '@/i18n';
 import { baseName, variantLabel } from '@/lib/card-identity';
 import { cardImage } from '@/lib/cdn';
 import { CARD_ASPECT, color, radius, space } from '@/theme/tokens';
@@ -66,7 +67,7 @@ export function CardGrid({
   columns = 3,
   tileAspect = CARD_ASPECT,
   header,
-  emptyMessage = 'No cards match.',
+  emptyMessage,
 }: CardGridProps) {
   return (
     <FlashList
@@ -79,7 +80,9 @@ export function CardGrid({
        * filtering down to nothing does not unmount the header — which would
        * shut an open filter menu the moment it emptied the grid.
        */
-      ListEmptyComponent={<Text style={styles.emptyText}>{emptyMessage}</Text>}
+      ListEmptyComponent={
+        <Text style={styles.emptyText}>{emptyMessage ?? t('editor.noCardsMatch')}</Text>
+      }
       contentContainerStyle={styles.list}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
@@ -145,7 +148,7 @@ export function CardGrid({
             {mode === 'quantity' && quantity > 0 ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Remove one ${baseName(item.name)}`}
+                accessibilityLabel={t('card.removeCopy', { name: baseName(item.name) })}
                 onPress={() => onRemove?.(item)}
                 hitSlop={8}
                 style={({ pressed }) => [styles.remove, pressed && styles.pressed]}

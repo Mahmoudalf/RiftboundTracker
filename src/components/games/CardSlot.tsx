@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import type { CardRow } from '@/db/schema/cards';
+import { t } from '@/i18n';
 import { isLandscapeCard, uprightArt } from '@/lib/card-art';
 import { baseName } from '@/lib/card-identity';
 import { cardImage } from '@/lib/cdn';
@@ -95,7 +96,7 @@ export function CardSlot({
   card,
   state,
   width,
-  placeholder = 'Tap to choose',
+  placeholder,
   onPress,
   accessibilityLabel,
 }: CardSlotProps) {
@@ -110,7 +111,7 @@ export function CardSlot({
     accessibilityLabel ??
     (card
       ? `${baseName(card.name)}${mulliganed ? ', sent back' : drew ? ', drawn back' : ''}`
-      : placeholder);
+      : (placeholder ?? t('slot.tapToChoose')));
 
   // Same style list either way, so going read-only cannot move a tile.
   const Frame = readOnly ? View : Pressable;
@@ -185,7 +186,7 @@ export function CardSlot({
         {mulliganed || drew ? (
           <View style={styles.badge}>
             <Text style={[styles.badgeLabel, drew && styles.badgeLabelDrew]}>
-              {drew ? 'DRAW' : 'MULL'}
+              {t(drew ? 'slot.draw' : 'slot.mull')}
             </Text>
           </View>
         ) : null}
@@ -195,7 +196,7 @@ export function CardSlot({
         style={[styles.name, !card && styles.namePlaceholder]}
         numberOfLines={2}
       >
-        {card ? baseName(card.name) : placeholder}
+        {card ? baseName(card.name) : (placeholder ?? t('slot.tapToChoose'))}
       </Text>
     </Frame>
   );

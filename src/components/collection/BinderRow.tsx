@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
+import { t } from '@/i18n';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -42,7 +43,7 @@ export function BinderRow({ name, subtitle, isDefault = false, onPress }: Binder
           <Text style={styles.name} numberOfLines={1}>
             {name}
           </Text>
-          {isDefault ? <Text style={styles.tag}>DEFAULT</Text> : null}
+          {isDefault ? <Text style={styles.tag}>{t('binder.default')}</Text> : null}
         </View>
         <Text style={styles.subtitle} numberOfLines={1}>
           {subtitle}

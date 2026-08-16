@@ -9,6 +9,7 @@ import { Pressable } from '@/components/ui/Pressable';
 import { countMatchingCards, facetValues, type CardSort } from '@/db/queries/cards';
 import { useCardFilters } from '@/features/cards/useCardFilters';
 import { useT, type Key } from '@/i18n';
+import { localeNumber } from '@/lib/format';
 import { domainColor, PLAYABLE_DOMAINS } from '@/theme/domains';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
@@ -186,8 +187,10 @@ export default function FiltersScreen() {
         >
           <Text style={styles.doneLabel}>
             {matching === 0
-              ? 'No cards match'
-              : `Show ${matching.toLocaleString()} ${matching === 1 ? 'card' : 'cards'}`}
+              ? t('filters.noCardsMatch')
+              : t(matching === 1 ? 'filters.showCards.one' : 'filters.showCards.other', {
+                  count: localeNumber(matching),
+                })}
           </Text>
         </Pressable>
       </View>

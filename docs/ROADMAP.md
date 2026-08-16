@@ -31,7 +31,7 @@
 | [M4](#m4--matches) | Match tracking | ✅ Done |
 | [M5](#m5--analytics) | Analytics | ✅ Done |
 | [M6](#m6--extras) | Extras | ✅ Done |
-| [M7](#m7--localization) | Onboarding & languages | ⬜ Not started |
+| [M7](#m7--localization) | Onboarding & languages | 🟨 M7B done · M7A partial |
 | [M8](#m8--cloud) | Cloud sync | ⬜ Not started |
 | [M9](#m9--ship) | Polish & ship | ⬜ Not started |
 
@@ -926,6 +926,12 @@ rather than assumed.
 
 ### M7B — every screen migrated (2026-08-14)
 
+> **This section's count was wrong, and the correction is below** — see
+> [M7B finished](#m7b--finished-and-enforced-2026-08-16). The "0" was measured against a scanner
+> that only looked at two of the seven places a string can live. Left standing rather than edited,
+> because the mistake is the useful part: a zero from a search that cannot see everything is
+> indistinguishable from a zero from one that can.
+
 **All app copy now flows through `t()`.** The inventory went 239 → 0 real strings; what the scanner
 still reports is code fragments its regex catches (`Record<…>`, `useState<…>`), not copy.
 
@@ -956,6 +962,63 @@ and French strings from every cluster confirmed present.
 and does not fit a third of the screen at one line in `ChoiceRow`. Shortened to **`Remis`**, per the
 owner's standing call that a tight container wins over the voice. The prose strings — `Prompt` and
 `EmptyState` bodies, helper text — sit in containers that wrap freely and keep their full length.
+
+---
+
+### M7B — finished, and enforced (2026-08-16)
+
+**M7B is done.** The two open checklist items — the last of the copy, and locale-aware number
+formatting — are closed, and a test now fails the build if either regresses.
+
+**The 2026-08-14 count was measured against the wrong thing.** That pass reported 239 → 0 and the
+zero was true *for what it searched*: text between JSX tags, and a list of known prop names. A fresh
+scan found **137 strings still in English across 26 files**, living in five shapes the first scanner
+never looked at:
+
+| Shape | Example |
+| --- | --- |
+| An argument to a call | `Alert.alert('Delete this deck?', 'Its versions and match history go with it.')` |
+| A value in an object literal | `needs: 'No games in this scope.'` |
+| A string returned from a helper | `return onPlay ? 'On the play' : 'On the draw'` |
+| A template literal | `` `Match ${n}` `` — the old pattern matched `'quotes'` only |
+| A module-scope constant table | `BLOCK_LABELS`, defined far from the component that draws it |
+
+Two more turned up while fixing those, and both are worth naming because they are the same class of
+blind spot: an **ALL-CAPS label** (`LEGEND`, `CHAMPION`) reads as an identifier and passed every
+capital-first rule, and a **sentence opening with an interpolation** (`` `v${n} is measurably ahead…` ``)
+starts with a lowercase letter and passed them too.
+
+**Coverage came out uneven, not uniformly missing**, which is why spot-checking would never have
+caught it. `app/game/[id]/index.tsx` had a fully translated delete dialog; `deck/[id]/index.tsx` next
+door had four dialogs and one translated title. The archive prompt ended up with a **German title, an
+English body and German buttons** — worse than untranslated, because it reads as broken rather than
+as unfinished. Every dialog touched in this pass was converted whole.
+
+**Several strings already had keys.** `match.pick.hand`, `match.pick.whichBack` and four others
+existed in all three languages while the component beside them rendered the English literal. The
+first pass created the key and never wired the call site.
+
+**`src/i18n/scan.ts` does not look for shapes.** It takes every string literal in a file and decides
+by *content* whether a person reads it — the only rule that a new way of writing a string cannot
+out-flank. False positives are named (`ALLOWED`, `NEVER_TRANSLATED`, or an inline `// i18n-ignore`)
+rather than handled by narrowing the search, so every exception is a decision somebody wrote down.
+
+- `npm run i18n:scan` — per-file counts. `-v` for every string with its line.
+- `src/i18n/untranslated.test.ts` — the same scanner, as a build failure. It asserts the file list is
+  non-empty first, so a broken path cannot pass vacuously.
+- `src/i18n/scan.test.ts` — 19 fixtures, one per shape, written from the **real** strings that got
+  through. A scanner tested on invented strings only proves it finds what someone already thought of.
+
+Proved non-vacuous by planting an `Alert.alert` argument and watching the gate name the file, the
+line and the string.
+
+**Numbers now follow the app's language, not the phone's.** Thirteen `toLocaleString()` calls passed
+no locale, so a German app on an English phone printed `1,451` where German writes `1.451` — quietly
+undoing the override that exists for exactly the player whose phone and head are in different
+languages. All of them route through `localeNumber()` in `lib/format.ts`. Dates were already correct.
+
+**Gate:** typecheck clean, lint clean, **578 tests / 36 files**, **664 keys** in each of three
+languages, scanner reporting 0 across 68 files.
 
 ---
 

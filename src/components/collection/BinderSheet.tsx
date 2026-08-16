@@ -62,7 +62,7 @@ export function BinderSheet({ visible, onClose, onSave }: BinderSheetProps) {
             onPress={save}
             style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
           >
-            <Text style={styles.primaryLabel}>Create</Text>
+            <Text style={styles.primaryLabel}>{t('binder.create')}</Text>
           </Pressable>
         </>
       }

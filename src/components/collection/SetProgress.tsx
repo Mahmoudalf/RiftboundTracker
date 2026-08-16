@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Pressable } from '@/components/ui/Pressable';
 import type { SetCompletion } from '@/db/queries/collection';
 import { useT } from '@/i18n';
+import { localeNumber } from '@/lib/format';
 import { color, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -47,7 +48,7 @@ export function SetProgress({ sets }: { sets: readonly SetCompletion[] }) {
                 {set.label}
               </Text>
               <Text style={styles.count}>
-                {set.owned.toLocaleString()}/{set.total.toLocaleString()}
+                {localeNumber(set.owned)}/{localeNumber(set.total)}
               </Text>
             </View>
             <View

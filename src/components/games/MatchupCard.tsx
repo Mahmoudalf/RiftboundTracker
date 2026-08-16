@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { t } from '@/i18n';
 import { cardImage } from '@/lib/cdn';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
@@ -59,7 +60,7 @@ export function MatchupCard({ side, title, subtitle, imageUrl }: MatchupCardProp
       />
 
       <Text style={[styles.tag, mine ? styles.tagLeft : styles.tagRight]}>
-        {mine ? 'YOU' : 'THEM'}
+        {t(mine ? 'matchup.you' : 'matchup.them')}
       </Text>
 
       <View style={[styles.body, mine ? styles.bodyMine : styles.bodyTheirs]}>

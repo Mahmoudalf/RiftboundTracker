@@ -86,7 +86,7 @@ export default function GoldfishScreen() {
     >
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
-          <SectionLabel>{canMulligan ? 'Opening hand' : 'Hand'}</SectionLabel>
+          <SectionLabel>{t(canMulligan ? 'goldfish.openingHand' : 'goldfish.hand')}</SectionLabel>
           {canMulligan ? (
             <Text style={styles.hint}>
               Tap up to {MULLIGAN_LIMIT} to recycle. They go to the bottom of the deck and can come
@@ -121,7 +121,9 @@ export default function GoldfishScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={
-                picked.length === 0 ? 'Keep this hand' : `Recycle ${picked.length}`
+                picked.length === 0
+                  ? t('goldfish.keep')
+                  : t('goldfish.recycle', { count: picked.length })
               }
               onPress={() => {
                 setState(mulligan(state, picked));
@@ -130,7 +132,9 @@ export default function GoldfishScreen() {
               style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
             >
               <Text style={styles.primaryLabel}>
-                {picked.length === 0 ? 'Keep this hand' : `Recycle ${picked.length} and draw`}
+                {picked.length === 0
+                  ? t('goldfish.keep')
+                  : t('goldfish.recycleAndDraw', { count: picked.length })}
               </Text>
             </Pressable>
           </View>

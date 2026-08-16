@@ -48,7 +48,7 @@ import {
 } from '@/features/decks/timing';
 import { reconcileWithStored, useDeckEditor } from '@/features/decks/useDeckEditor';
 import { TOAST_CONFIRM_MS, useToast } from '@/features/games/useToast';
-import { useT } from '@/i18n';
+import { useT, type Key } from '@/i18n';
 import { baseName, cardKey } from '@/lib/card-identity';
 import { diffLists, type DeckDiff } from '@/lib/deck-diff';
 import {
@@ -91,12 +91,18 @@ const zoneForPool = (pool: Pool, card: CardRow): DeckZone =>
 
 const MAIN_DECK_TYPES = ['Unit', 'Spell', 'Gear'];
 
-/** Tile-sized wording for each reason a card cannot go in. */
-const BLOCK_LABELS: Record<NonNullable<ReturnType<typeof slotBlockReason>>, string> = {
-  'off-identity': 'Off identity',
-  'copy-limit': `Max ${COPY_LIMIT}`,
-  'foreign-signature': 'Another Champion',
-  'battlefield-duplicate': 'Already in deck',
+/**
+ * Tile-sized wording for each reason a card cannot go in.
+ *
+ * **Keys, not text.** This held English literals, which a module-scope constant
+ * evaluates once — so the labels froze in whatever language the bundle started
+ * in and never followed the picker. Same defect the tab bar had.
+ */
+const BLOCK_LABELS: Record<NonNullable<ReturnType<typeof slotBlockReason>>, Key> = {
+  'off-identity': 'blocked.offIdentity',
+  'copy-limit': 'blocked.copyLimit',
+  'foreign-signature': 'blocked.foreignSignature',
+  'battlefield-duplicate': 'blocked.duplicate',
 };
 
 export default function DeckEditorScreen() {
@@ -560,9 +566,11 @@ export default function DeckEditorScreen() {
   /** Why this card cannot be added. Null means it can. */
   const blockedReason = (card: CardRow) => {
     const reason = slotBlockReason(card, list);
-    if (reason) return BLOCK_LABELS[reason];
+    // `copy-limit` is the only one carrying a number; the rest ignore the
+    // parameter, which is cheaper than branching on which key takes one.
+    if (reason) return t(BLOCK_LABELS[reason], { max: COPY_LIMIT });
     if (zone === 'battlefield' && legality.counts.battlefield >= BATTLEFIELD_COUNT) {
-      return 'Deck is full';
+      return t('blocked.deckFull');
     }
     return null;
   };
@@ -661,11 +669,18 @@ export default function DeckEditorScreen() {
           // Stated before the first edit, not at save time. Learning that a
           // change forks a version while confirming the change is too late.
           editing?.version.lockedAt
-            ? `v${editing.version.versionNumber} · ${
-                editing.matchCount > 0
-                  ? `${editing.matchCount === 1 ? '1 match' : `${editing.matchCount} matches`} tracked`
-                  : 'locked'
-              } — saving will create v${editing.version.versionNumber + 1}`
+            ? t(
+                editing.matchCount === 0
+                  ? 'editor.lockedBanner.locked'
+                  : editing.matchCount === 1
+                    ? 'editor.lockedBanner.one'
+                    : 'editor.lockedBanner.other',
+                {
+                  number: editing.version.versionNumber,
+                  count: editing.matchCount,
+                  next: editing.version.versionNumber + 1,
+                }
+              )
             : null
         }
       />
@@ -681,8 +696,13 @@ export default function DeckEditorScreen() {
               accessibilityRole="button"
               accessibilityLabel={
                 card
-                  ? `${which === 'legend' ? 'Legend' : 'Champion'}: ${baseName(card.name)}`
-                  : `Pick a ${which === 'legend' ? 'Legend' : 'Champion'}`
+                  ? t('editor.identity.a11y', {
+                      role: t(which === 'legend' ? 'zone.legend' : 'zone.champion'),
+                      name: baseName(card.name),
+                    })
+                  : t('editor.identity.pick', {
+                      role: t(which === 'legend' ? 'zone.legend' : 'zone.champion'),
+                    })
               }
               disabled={which === 'champion' && !legend}
               onPress={() => setPicker(which)}
@@ -693,10 +713,12 @@ export default function DeckEditorScreen() {
               ]}
             >
               <Text style={styles.identityLabel}>
-                {which === 'legend' ? 'LEGEND' : 'CHAMPION'}
+                {t(which === 'legend' ? 'zone.legend' : 'zone.champion')}
               </Text>
               <Text style={card ? styles.identityValue : styles.identityEmpty} numberOfLines={1}>
-                {card ? baseName(card.name) : which === 'legend' ? 'Pick one' : 'Legend first'}
+                {card
+                  ? baseName(card.name)
+                  : t(which === 'legend' ? 'editor.identity.pickOne' : 'editor.identity.legendFirst')}
               </Text>
             </Pressable>
           );
@@ -998,20 +1020,20 @@ export default function DeckEditorScreen() {
 
       <CardPickerSheet
         visible={picker !== null}
-        title={picker === 'legend' ? 'Change Legend' : 'Change Champion'}
+        title={t(picker === 'legend' ? 'editor.changeLegend' : 'editor.changeChampion')}
         subtitle={
           picker === 'legend'
-            ? 'Changing it changes the deck’s domains — cards that fall outside get flagged, not deleted'
+            ? t('editor.changeLegend.body')
             : legend
-              ? `Champions that partner ${baseName(legend.name)}`
+              ? t('editor.championsFor', { name: baseName(legend.name) })
               : undefined
         }
         cards={pickerCards}
         selectedId={picker === 'legend' ? (legend?.id ?? null) : (champion?.id ?? null)}
         emptyMessage={
           picker === 'champion'
-            ? 'No Champion Unit in the library partners this Legend.'
-            : 'The card library has not finished downloading.'
+            ? t('editor.noChampionPartner')
+            : t('editor.libraryDownloading')
         }
         onSelect={(card) => (picker === 'legend' ? setLegend(card) : setChampion(card))}
         onClose={() => setPicker(null)}
@@ -1075,13 +1097,13 @@ export default function DeckEditorScreen() {
 
       <Prompt
         visible={asking === 'amend'}
-        title={`Overwrite v${editing?.version.versionNumber ?? 1}?`}
+        title={t('editor.overwriteTitle', { version: editing?.version.versionNumber ?? 1 })}
         body={
-          (editing?.matchCount ?? 0) > 0
-            ? `The ${
-                editing?.matchCount === 1 ? 'match' : `${editing?.matchCount} matches`
-              } already logged on this version will be attributed to the edited list. This cannot be undone.`
-            : 'This version will be rewritten in place.'
+          (editing?.matchCount ?? 0) === 0
+            ? t('editor.overwriteBody.none')
+            : editing?.matchCount === 1
+              ? t('editor.overwriteBody.one')
+              : t('editor.overwriteBody.other', { count: editing?.matchCount ?? 0 })
         }
         onDismiss={() => setAsking(null)}
         actions={[

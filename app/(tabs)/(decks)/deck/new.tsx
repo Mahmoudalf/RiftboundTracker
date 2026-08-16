@@ -227,10 +227,10 @@ export default function NewDeckScreen() {
   /* ---------------------------------------------------------------- chrome */
 
   const HEADINGS: Record<Step, { title: string; meta: string }> = {
-    legend: { title: t('build.pickLegend'), meta: 'It sets the deck’s two domains' },
+    legend: { title: t('build.pickLegend'), meta: t('build.legendMeta') },
     champion: {
       title: t('build.pickChampion'),
-      meta: legend ? `Partners ${baseName(legend.name)}` : '',
+      meta: legend ? t('build.championMeta', { name: baseName(legend.name) }) : '',
     },
     main: { title: t('zone.main'), meta: t('build.mainMeta', { count: legality.counts.main, target: MAIN_DECK_TARGET }) },
     runes: {
@@ -254,7 +254,7 @@ export default function NewDeckScreen() {
           ? t('build.sideboardMeta', { count: sideboardCount })
           : t('build.sideboardOptional'),
     },
-    overview: { title: t('build.review'), meta: 'Name it and save' },
+    overview: { title: t('build.review'), meta: t('build.reviewMeta') },
   };
 
   /*
@@ -375,7 +375,7 @@ export default function NewDeckScreen() {
             blockedReason={(card) =>
               copiesOf(card, ['battlefield']) === 0 &&
               legality.counts.battlefield >= BATTLEFIELD_COUNT
-                ? 'Deck is full'
+                ? t('blocked.deckFull')
                 : null
             }
             onAdd={(card) => {
@@ -453,7 +453,9 @@ export default function NewDeckScreen() {
           onPress={() => (stepIndex === 0 ? router.back() : go(-1))}
           style={({ pressed }) => [styles.secondary, pressed && styles.pressedButton]}
         >
-          <Text style={styles.secondaryLabel}>{stepIndex === 0 ? 'Cancel' : 'Back'}</Text>
+          <Text style={styles.secondaryLabel}>
+            {t(stepIndex === 0 ? 'build.cancel' : 'common.back')}
+          </Text>
         </Pressable>
 
         {step !== 'overview' ? (

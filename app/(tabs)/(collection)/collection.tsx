@@ -20,6 +20,7 @@ import {
 } from '@/db/queries/collection';
 import { useCardSync } from '@/features/sync/useCardSync';
 import { useT } from '@/i18n';
+import { localeNumber } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
 
@@ -81,7 +82,7 @@ export default function CollectionScreen() {
           <Icon name="search" size={15} color={color.textFaint} />
           <Text style={styles.searchLabel} numberOfLines={1}>
             {cardCount > 0
-              ? t('collection.searchCount', { count: cardCount.toLocaleString() })
+              ? t('collection.searchCount', { count: localeNumber(cardCount) })
               : t('collection.searchPlain')}
           </Text>
         </Pressable>
@@ -104,12 +105,12 @@ export default function CollectionScreen() {
         */}
         <View style={styles.summary}>
           <View style={styles.summaryHead}>
-            <Text style={styles.total}>{copies.toLocaleString()}</Text>
+            <Text style={styles.total}>{localeNumber(copies)}</Text>
             <Text style={styles.totalMeta}>
               {t('collection.copies')} ·{' '}
               {t('collection.distinctOf', {
-                distinct: distinct.toLocaleString(),
-                total: cardCount.toLocaleString(),
+                distinct: localeNumber(distinct),
+                total: localeNumber(cardCount),
               })}
             </Text>
           </View>
@@ -150,7 +151,7 @@ export default function CollectionScreen() {
             <BinderRow
               name={t('collection.gallery')}
               isDefault
-              subtitle={t('collection.galleryRow', { copies: copies.toLocaleString() })}
+              subtitle={t('collection.galleryRow', { copies: localeNumber(copies) })}
               onPress={() => router.push('/binder/gallery')}
             />
 
@@ -161,8 +162,8 @@ export default function CollectionScreen() {
                 subtitle={
                   binder.totalCards > 0
                     ? t('collection.binderRow', {
-                        distinct: binder.distinctCards.toLocaleString(),
-                        copies: binder.totalCards.toLocaleString(),
+                        distinct: localeNumber(binder.distinctCards),
+                        copies: localeNumber(binder.totalCards),
                       })
                     : t('collection.binderEmpty')
                 }

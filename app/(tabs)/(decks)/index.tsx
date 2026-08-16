@@ -100,8 +100,13 @@ export default function DecksScreen() {
           >
             <Text style={styles.archiveLabel}>
               {showArchived
-                ? 'Hide archived'
-                : `Show ${archived.length} archived ${archived.length === 1 ? 'deck' : 'decks'}`}
+                ? t('decks.hideArchived')
+                : t(
+                    archived.length === 1
+                      ? 'decks.showArchived.one'
+                      : 'decks.showArchived.other',
+                    { count: archived.length }
+                  )}
             </Text>
           </Pressable>
         ) : null}

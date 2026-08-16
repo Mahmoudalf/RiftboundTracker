@@ -130,3 +130,20 @@ export function recordLine(wins: number, losses: number, draws = 0): string | nu
   if (wins + losses + draws === 0) return null;
   return `${wins}–${losses}${draws > 0 ? `–${draws}` : ''}`;
 }
+
+/**
+ * A number, grouped the way the **app's** language groups numbers.
+ *
+ * Thirteen call sites reached for a bare `toLocaleString()`, which takes the
+ * *device* locale — so a German app on an English phone printed `1,451` where
+ * German writes `1.451`. The in-app language override exists precisely for the
+ * player whose phone is in one language and whose head is in another, and a
+ * separator that follows the phone quietly undoes it.
+ *
+ * `pseudo` is not a real BCP-47 tag and borrows English grouping; it is probing
+ * layout, not number systems.
+ */
+export function localeNumber(value: number): string {
+  const locale = useLocale.getState().locale;
+  return value.toLocaleString(locale === 'pseudo' ? 'en' : locale);
+}

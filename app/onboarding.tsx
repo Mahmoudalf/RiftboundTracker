@@ -43,11 +43,18 @@ const LANGUAGE_NAMES: Record<Locale, string> = {
   fr: 'Français',
 };
 
-/** The English subtitle under each option, as the design draws it. */
+/**
+ * The English name under each option, as the design draws it.
+ *
+ * Deliberately **not** translated, and not a miss: a picker that names every
+ * language in the language you are already reading helps nobody who has landed
+ * in one they cannot read — which is the situation the picker exists for. Same
+ * convention as the endonyms above.
+ */
 const LANGUAGE_SUBTITLES: Record<Locale, string> = {
   en: 'English',
-  de: 'German',
-  fr: 'French',
+  de: 'German', // i18n-ignore
+  fr: 'French', // i18n-ignore
 };
 
 export default function OnboardingScreen() {

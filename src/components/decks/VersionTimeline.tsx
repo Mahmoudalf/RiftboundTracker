@@ -96,13 +96,15 @@ export function VersionTimeline({
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={`Version ${version.versionNumber}${
-                version.label ? `, ${version.label}` : ''
-              }, ${node.matchCount} matches`}
+              accessibilityLabel={t('version.a11y', {
+                number: version.versionNumber,
+                label: version.label ? `, ${version.label}` : '',
+                count: node.matchCount,
+              })}
               accessibilityHint={
                 selecting
-                  ? 'Tap to pick this version for the comparison'
-                  : 'Long press to compare with another version'
+                  ? t('version.hint.pick')
+                  : t('version.hint.compare')
               }
               onPress={() => onPress(node)}
               onLongPress={selecting ? undefined : () => onLongPress(node)}
@@ -116,7 +118,8 @@ export function VersionTimeline({
               <View style={styles.header}>
                 <Text style={styles.number}>v{version.versionNumber}</Text>
                 <Text style={styles.label} numberOfLines={1}>
-                  {version.label ?? (version.parentVersionId ? 'Untitled change' : 'First build')}
+                  {version.label ??
+                    t(version.parentVersionId ? 'version.untitled' : 'version.firstBuild')}
                 </Text>
                 {/* Only while picking — an empty circle on every node at rest
                     would read as a status the version does not have. */}
@@ -128,20 +131,23 @@ export function VersionTimeline({
               <Text style={styles.meta}>
                 {metaLine(
                   branched && node.parentNumber !== null
-                    ? `Forked from v${node.parentNumber}`
+                    ? t('version.forkedFrom', { number: node.parentNumber })
                     : null,
                   formatDate(version.createdAt),
                   `${version.mainCount}/${MAIN_DECK_TARGET}`,
-                  version.isLegal ? 'Legal' : 'Incomplete',
+                  t(version.isLegal ? 'version.legal' : 'version.incomplete'),
                   // A locked version with no matches only exists before M4, via
                   // the dev lock. "No games yet" there would contradict the
                   // editor banner standing right next to it.
                   node.matchCount > 0
-                    ? `${node.matchCount} ${node.matchCount === 1 ? 'match' : 'matches'}`
-                    : version.lockedAt
-                      ? 'Locked'
-                      : 'No games yet',
-                  node.isCurrent ? 'Current' : null
+                    ? t(
+                        node.matchCount === 1
+                          ? 'version.matchCount.one'
+                          : 'version.matchCount.other',
+                        { count: node.matchCount }
+                      )
+                    : t(version.lockedAt ? 'version.locked' : 'version.noGamesYet'),
+                  node.isCurrent ? t('version.current') : null
                 )}
               </Text>
 

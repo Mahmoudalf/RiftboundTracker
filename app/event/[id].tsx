@@ -69,14 +69,16 @@ export default function EventDetailScreen() {
 
   const onDelete = () => {
     Alert.alert(
-      `Delete ${event?.name}?`,
-      games.length > 0
-        ? `The ${games.length} ${games.length === 1 ? 'game' : 'games'} played here are kept — they still count towards your deck and overall records. Only the grouping goes.`
-        : 'This event has no games logged against it.',
+      t('event.deleteTitle', { name: event?.name ?? '' }),
+      games.length === 0
+        ? t('event.deleteBody.none')
+        : games.length === 1
+          ? t('event.deleteBody.one')
+          : t('event.deleteBody.other', { count: games.length }),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => {
             deleteEvent(id);
@@ -127,15 +129,19 @@ export default function EventDetailScreen() {
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           <Text style={styles.record}>
-            {recordLine(event.wins, event.losses, event.draws) ?? 'No rounds yet'}
+            {recordLine(event.wins, event.losses, event.draws) ?? t('event.noRounds')}
           </Text>
           <Text style={styles.meta}>
             {metaLine(
-              `${event.total} ${event.total === 1 ? 'round' : 'rounds'} logged`,
+              t(event.total === 1 ? 'event.roundsLogged.one' : 'event.roundsLogged.other', {
+                count: event.total,
+              }),
               // Only shown once entered — a blank placement is not a result of
               // zero, it is a tournament that has not finished.
-              event.finalPlacement ? `Finished ${placeLabel(event.finalPlacement)}` : null,
-              event.rounds ? `of ${event.rounds} scheduled` : null
+              event.finalPlacement
+                ? t('event.finished', { place: placeLabel(event.finalPlacement) })
+                : null,
+              event.rounds ? t('event.ofScheduled', { count: event.rounds }) : null
             )}
           </Text>
 
@@ -145,7 +151,7 @@ export default function EventDetailScreen() {
             style={({ pressed }) => [styles.button, pressed && styles.pressed]}
           >
             <Text style={styles.buttonLabel}>
-              {event.finalPlacement ? 'Change placement' : 'Record where you placed'}
+              {t(event.finalPlacement ? 'event.changePlacement' : 'event.recordPlacement')}
             </Text>
           </Pressable>
         </View>
@@ -182,11 +188,11 @@ export default function EventDetailScreen() {
       <DetailsSheet
         visible={editing}
         title={t('event.details')}
-        nameLabel="Name"
-        namePlaceholder="Nexus Night #4"
+        nameLabel={t('event.name')}
+        namePlaceholder={t('log.event.placeholder')}
         initialName={event.name}
         initialNotes={event.notes ?? ''}
-        notesPlaceholder="How did it go? What would you change?"
+        notesPlaceholder={t('event.notesPlaceholder')}
         onClose={() => setEditing(false)}
         extra={
           <>
@@ -230,12 +236,12 @@ export default function EventDetailScreen() {
       <DetailsSheet
         visible={placing}
         title={t('event.placement')}
-        nameLabel="Final placement"
+        nameLabel={t('event.finalPlacement')}
         namePlaceholder="3"
         initialName={event.finalPlacement ? String(event.finalPlacement) : ''}
         nameRequired={false}
         initialNotes={event.rounds ? String(event.rounds) : ''}
-        notesPlaceholder="Rounds scheduled, if you know"
+        notesPlaceholder={t('event.roundsPlaceholder')}
         onClose={() => setPlacing(false)}
         onSave={(place, rounds) => {
           const parse = (value: string) => {
