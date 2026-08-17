@@ -81,7 +81,7 @@ function identityKeys(identity: readonly string[]): string[] {
  * Double quotes delimit FTS5 string literals, so each token is quoted and given
  * a `*` suffix. Returns null when nothing searchable survives sanitising.
  */
-export function toFtsQuery(input: string): string | null {
+function toFtsQuery(input: string): string | null {
   const tokens = input
     .trim()
     .split(/\s+/)

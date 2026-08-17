@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '../global.css';
 
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { Toast } from '@/components/ui/Toast';
 import { onboardingDone } from '@/db/queries/settings';
 import { loadStoredLocale, useLocale } from '@/i18n';
@@ -95,34 +96,48 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <StatusBar style="light" />
-          <Stack
-            key={locale}
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: color.bg },
-              animation: 'slide_from_right',
-            }}
-          >
-            <Stack.Screen name="(tabs)" />
-            {/* No back gesture and no animation in: it is not somewhere you
-                navigated to, it is where the app starts. */}
-            <Stack.Screen
-              name="onboarding"
-              options={{ animation: 'none', gestureEnabled: false }}
-            />
-            <Stack.Screen
-              name="game/new"
-              options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-            />
-            <Stack.Screen
-              name="card/[id]"
-              options={{ presentation: 'modal', animation: 'fade' }}
-            />
-            <Stack.Screen
-              name="cards/filters"
-              options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-            />
-          </Stack>
+          {/*
+            Inside the providers, outside the navigator.
+
+            Inside, so the fallback can use the theme and the safe-area insets —
+            a crash screen drawn on a white ground under the notch is its own
+            small failure. Outside the navigator, so a screen that throws while
+            rendering is caught rather than taking the whole tree down: the
+            boundary survives, the route below it does not.
+
+            It does **not** wrap `Toast`, which sits above the navigator for its
+            own reasons and has no render of its own to fail.
+          */}
+          <ErrorBoundary>
+            <Stack
+              key={locale}
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: color.bg },
+                animation: 'slide_from_right',
+              }}
+            >
+              <Stack.Screen name="(tabs)" />
+              {/* No back gesture and no animation in: it is not somewhere you
+                  navigated to, it is where the app starts. */}
+              <Stack.Screen
+                name="onboarding"
+                options={{ animation: 'none', gestureEnabled: false }}
+              />
+              <Stack.Screen
+                name="game/new"
+                options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+              />
+              <Stack.Screen
+                name="card/[id]"
+                options={{ presentation: 'modal', animation: 'fade' }}
+              />
+              <Stack.Screen
+                name="cards/filters"
+                options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+              />
+            </Stack>
+          </ErrorBoundary>
 
           {/* Above the navigator, because the log-match sheet closes as part of
               raising the toast — one owned by that screen would unmount in the

@@ -24,7 +24,7 @@ import type { ApiCard } from './schemas';
  * database that is slightly stale is vastly better than one that is empty.
  */
 
-export const SYNC_TTL_MS = 24 * 60 * 60 * 1000;
+const SYNC_TTL_MS = 24 * 60 * 60 * 1000;
 
 export interface SyncProgress {
   phase: 'checking' | 'downloading' | 'writing' | 'done' | 'skipped' | 'failed';
@@ -60,7 +60,7 @@ function bindings(row: NewCardRow): (string | number | null)[] {
 }
 
 /** Bulk upsert in a single transaction with one prepared statement. */
-export function upsertCards(rows: NewCardRow[]): number {
+function upsertCards(rows: NewCardRow[]): number {
   if (rows.length === 0) return 0;
 
   const statement = sqlite.prepareSync(UPSERT_SQL);
@@ -106,7 +106,7 @@ export function cardCount(): number {
   return sqlite.getFirstSync<{ n: number }>('SELECT COUNT(*) AS n FROM cards')?.n ?? 0;
 }
 
-export function isSyncDue(): boolean {
+function isSyncDue(): boolean {
   const meta = readMeta();
   if (!meta?.last_synced_at) return true;
   return Date.now() - new Date(meta.last_synced_at).getTime() > SYNC_TTL_MS;

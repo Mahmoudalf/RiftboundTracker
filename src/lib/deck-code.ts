@@ -290,6 +290,31 @@ export class DeckCodeError extends Error {
 const BASE32_RUN = /[A-Z2-7]{24,}/g;
 
 /**
+ * Ceilings, checked **before** any work is done on the input.
+ *
+ * This parser is the only place in the app where arbitrary text from outside
+ * reaches a decoder — the import screen hands it whatever is on the clipboard.
+ * It always rejected bad input correctly, but it rejected it *after* allocating
+ * for it: a 5 MB paste cost about 98 MB of heap on the way to throwing, roughly
+ * twenty times the input. On a phone that is how a stray paste becomes an
+ * out-of-memory crash, and rejecting after allocating is not rejecting.
+ *
+ * Both ceilings sit far above anything real and far below anything dangerous. A
+ * full 57-card deck encodes to a few hundred characters, so the code limit is
+ * about ten times the largest genuine code; the paste limit is generous enough
+ * to hold an article with a code buried in it.
+ *
+ * `MAX_CANDIDATES` bounds the second cost. A paste under the size limit can
+ * still contain thousands of base32-looking runs, and every one of them would
+ * be handed to the decoder in turn. Candidates are sorted longest-first, so a
+ * real code sits at the front — thirty-two attempts is far more than any
+ * genuine paste needs.
+ */
+const MAX_CODE_LENGTH = 4_096;
+const MAX_PASTE_LENGTH = 64 * 1_024;
+const MAX_CANDIDATES = 32;
+
+/**
  * Pull a deck code out of whatever the user pasted.
  *
  * Candidates are tried longest first and validated by actually decoding them,
@@ -297,12 +322,19 @@ const BASE32_RUN = /[A-Z2-7]{24,}/g;
  * wrong one — the wrong one does not decode.
  */
 export function extractDeckCode(pasted: string): string {
+  // Length first, before `trim()` copies it and before the scan runs. Checking
+  // the raw argument is the point: any work done ahead of this is work an
+  // oversized input got for free.
+  if (pasted.length > MAX_PASTE_LENGTH) throw new DeckCodeError(t('deckCode.pasteTooLong'));
+
   const text = pasted.trim();
   if (!text) throw new DeckCodeError(t('deckCode.pasteFirst'));
 
   const candidates = [...text.matchAll(BASE32_RUN)]
     .map((m) => m[0])
-    .sort((a, b) => b.length - a.length);
+    .sort((a, b) => b.length - a.length)
+    // Longest first, so a real code is already at the front.
+    .slice(0, MAX_CANDIDATES);
 
   if (candidates.length === 0) {
     throw new DeckCodeError(t('deckCode.noneFound'));
@@ -382,6 +414,9 @@ function preferredPrinting(rows: readonly CardRow[]): CardRow {
  * that is how our model stores it.
  */
 export function decodeDeckCode(code: string, catalogue: readonly CardRow[]): DecodeResult {
+  // Before `trim()`, for the same reason as above.
+  if (code.length > MAX_CODE_LENGTH) throw new DeckCodeError(t('deckCode.tooLong'));
+
   const trimmed = code.trim();
   if (!trimmed) throw new DeckCodeError(t('deckCode.enterOne'));
 

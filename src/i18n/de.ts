@@ -597,6 +597,9 @@ export const de: Translation = {
   'sync.checking': 'Suche nach neuen Karten',
   'sync.downloading': 'Karten werden geladen',
   'sync.indexing': 'Suchindex wird aufgebaut',
+  'crash.title': 'Etwas ist schiefgelaufen',
+  'crash.body': 'Beim Zeichnen dieses Bildschirms ist ein Problem aufgetreten. Deine Decks und Partien sind sicher — es wurde nichts geschrieben, als es passierte.',
+  'crash.retry': 'Erneut versuchen',
   'sync.failed': 'Aktualisierung fehlgeschlagen',
 
   'legality.noLegend': 'Wähle eine Legende — sie legt die Domänen des Decks fest',
@@ -623,6 +626,8 @@ export const de: Translation = {
   'deckCode.noneFound': 'In diesem Text wurde kein Deck-Code gefunden.',
   'deckCode.notValidLooking': 'Das sieht nicht nach einem gültigen Deck-Code aus.',
   'deckCode.importedName': 'Importiertes Deck',
+  'deckCode.tooLong': 'Das ist länger als jeder Deck-Code. Füge nur den Code selbst ein.',
+  'deckCode.pasteTooLong': 'Das ist zu viel Text zum Durchsuchen. Füge nur den Deck-Code ein.',
   'deckCode.enterOne': 'Gib einen Deck-Code ein.',
   'deckCode.notValid': 'Das ist kein gültiger Deck-Code.',
 

@@ -22,6 +22,11 @@
 
 **M0 – M5 is the complete usable product.** M6 – M9 is expansion and release.
 
+**T1 is lettered, not numbered, on purpose.** Inserting Localization as M7 already pushed Cloud from
+M7 to M8 once, and every roadmap entry written before that now needs reading with the old numbers.
+A letter slots a milestone into the sequence without renumbering the ones after it, so nothing
+written today can be made wrong by tomorrow.
+
 | Milestone | Theme | Status |
 | --- | --- | --- |
 | [M0](#m0--foundation) | Foundation | ✅ Done |
@@ -31,20 +36,40 @@
 | [M4](#m4--matches) | Match tracking | ✅ Done |
 | [M5](#m5--analytics) | Analytics | ✅ Done |
 | [M6](#m6--extras) | Extras | ✅ Done |
-| [M7](#m7--localization) | Onboarding & languages | 🟨 M7B done · M7A partial |
-| [M8](#m8--cloud) | Cloud sync | ⬜ Not started |
+| [M7](#m7--localization) | Onboarding & languages | ✅ Done |
+| [T1](#t1--security-hardening) | Security hardening | 🟡 §D §E §F done |
+| [M8](#m8--cloud-and-the-web-platform) | Cloud + web platform | ⬜ Not started |
 | [M9](#m9--ship) | Polish & ship | ⬜ Not started |
 
 > **Renumbered 2026-08-14.** Localization entered as a new M7, moving Cloud to M8 and Ship to M9.
 > Historical notes below that say *"before M7"* meant the **Cloud** milestone and now name it, so a
 > future renumber cannot make them wrong again.
 
-## Where things stand — 2026-08-14
+## Where things stand — 2026-08-16
 
-The pre-Cloud polish pass is **finished**. Everything below is either shipped and device-checked, or
-carried deliberately with a reason.
+**M7 is done.** Onboarding, German and French, and the machinery that keeps the translation honest.
+M8 — Cloud is next and unblocked.
 
-**Shipped since 2026-08-13**
+**Shipped since 2026-08-14**
+
+| | |
+| --- | --- |
+| **M7A** · onboarding | Welcome + progressive setup, a development disclaimer on the first screen, library progress that never blocks, replayable from Settings. [Detail](#m7a--what-shipped-2026-08-16) |
+| **M7B** · finished and enforced | The last 137 strings, locale-aware number formatting, and a test that fails the build on untranslated prose. [Detail](#m7b--finished-and-enforced-2026-08-16) |
+| **The gate's roots gap** | The scanner had never looked at `src/features`, `src/lib` or `src/api` — 32 more strings, and a leak that showed German users Zod's English output. [Detail](#the-gates-own-roots-gap-2026-08-16) |
+| **Settings panel** | The You tab became Settings. Migration 23, a display name, a feedback form that collects nothing. [Detail](#the-settings-panel-2026-08-16) |
+| **Language persists** | The last open M7B item. Applied at module load, before the navigator's first render |
+| **Icon system** | Five "icons" were Unicode characters absent from every bundled font. One `ViewToggle` replaces three drawings of one control. [Detail](#the-icon-system-2026-08-16) |
+| **Version-lock rule** | Taught at the moment it happens rather than in advance. [Detail](#the-version-lock-rule-taught-where-it-happens-2026-08-16) |
+| **Stats** | "All decks" was unselectable — the sentinel doubled as "nothing chosen yet", so the tap was overwritten before it rendered. Tabs moved above the deck picker, which a long deck name used to push off the row |
+| **H1** · key audited | Repo verified clean across all 17 commits. Revocation still owner-side. [Detail](#h1--the-key-audited-2026-08-16) |
+
+**Numbers:** 23 migrations · **592 tests / 37 files** · **712 keys** in each of three languages ·
+scanner reporting 0 across 97 files.
+
+<details>
+<summary><strong>Shipped 2026-08-13 → 08-14</strong> (the pre-Cloud polish pass)</summary>
+
 
 | | |
 | --- | --- |
@@ -64,11 +89,13 @@ carried deliberately with a reason.
 | **G2** · collection coverage counter | Closed by owner decision — passed as drawn |
 | **G4** · progress fill colour | Closed by owner decision — the Create-Deck step bar stays white |
 
+</details>
+
 **Needs attention — nothing blocking, all owner-side**
 
 | | |
 | --- | --- |
-| **H1** · **delete** the Piltover Archive key | The feature that would have used it is dropped (see Backlog), so there is nothing to rotate *to* — the key just needs revoking on their site. Still worth doing: it was pasted into a chat log, and an unused key is not a safe key, only an unmonitored one |
+| **H1** · **delete** the Piltover Archive key | **Repo side verified clean 2026-08-16 — the revocation itself is still open and only the owner can do it.** See [the audit](#h1--the-key-audited-2026-08-16). The feature that would have used it is dropped (see Backlog), so there is nothing to rotate *to*. Still worth doing: it was pasted into a chat log, and an unused key is not a safe key, only an unmonitored one |
 | **D2** · 60 fps and airplane mode | **Postponed by owner, 2026-08-14.** Cannot be tested on a dev build — Metro is the connection that airplane mode cuts. Needs a release build (`--variant release` or an EAS preview) |
 | **B2 / analytics on device** | Both need real logged data before they show anything. Not defects; not yet observed either |
 
@@ -84,8 +111,48 @@ carried deliberately with a reason.
 **The gap list is empty of anything that blocks a release.** The only items left against the app are
 D2 (postponed, needs a release build to test) and H1 (owner-side, and not a code change).
 
-**Next milestone: M7 — Localization** (onboarding, then German and French). **M8 — Cloud** follows and
-is unblocked: A1–A8 existed precisely so no dead schema reaches Supabase.
+**Current milestone: T1 — Security hardening. Batch 1 landed 2026-08-16** — §D untrusted input, §E
+supply chain and §F failure behaviour are done. What remains in T1 is §A, §B and §C, which are
+answers to record rather than code to write. Then **M8 — Cloud and the web platform**, which is
+unblocked: A1–A8 existed precisely so no dead schema reaches Supabase.
+
+**M9 — Ship has not started, and several of its items need lead time rather than effort.**
+`app.json` still carries the pre-retheme `#0A0B0F` for the splash and the Android adaptive icon
+against a `#141416` shell; `assets/` holds only `domains/` and `seed/`, so there is no app icon,
+splash or store screenshot; and there is no `eas.json`, which is also what blocks D2. (The missing
+error boundary was the fourth item here — ~~added in T1 §F on 2026-08-16~~.) None of it is hard.
+All of it is required before a build reaches a store.
+
+---
+
+## H1 — the key, audited (2026-08-16)
+
+**The repository is clean. The key itself is still live until the owner deletes it on
+piltoverarchive.com, which is an account action nobody else can perform.**
+
+What was checked, and what each check found:
+
+| Check | Result |
+| --- | --- |
+| Working tree, `ak_`-shaped secrets | none |
+| Working tree, `api_key` / `apikey` / `secret` / `token` | only false positives — `Token` the card supertype, `design-token`, FTS5 tokens, `isTokenCard` |
+| **All 17 commits**, every blob, for the key pattern | **absent** — `git grep` over `git rev-list --all` exits 1 |
+| `.env` files on disk | none exist; `.gitignore` covers `.env` and `.env.*` (lines 39–40) |
+| `piltoverarchive.com` in history | present only as prose in `docs/ROADMAP.md`'s backlog entry — never a call site |
+
+**`@piltoverarchive/riftbound-deck-codes` stays, and removing it would break deck import and
+export.** It shares a name with the site and nothing else: version 1.4.0, Apache-2.0, **zero
+dependencies**, and no `fetch`, `XMLHttpRequest`, `axios` or `http` anywhere in the package. It
+encodes and decodes deck codes offline and has never needed a credential.
+
+So the app requires **no credential of any kind** outside Supabase, which M8 will introduce. That was
+already the position after the URL-import feature was dropped; this audit is the evidence for it
+rather than the claim.
+
+**Still open, owner-side:** sign in at piltoverarchive.com, find the API key section of the account
+settings, and delete the key. Deleting beats regenerating — a replacement is another secret to look
+after for a feature that no longer exists. The key was pasted into a chat log, and a log is not a
+place a secret stops existing.
 
 ---
 
@@ -847,18 +914,21 @@ conflict messages and sync status are all copy that would need writing twice.
 
 ### M7A — Onboarding
 
-- [ ] First-run flow: what this app is for, and the one idea it is built on — a deck is a *living
+- [x] First-run flow: what this app is for, and the one idea it is built on — a deck is a *living
       object with a version history*, and a match is bound to the exact list that played it
-- [ ] The version-locking rule introduced **by using it**, never by a wall of text. The editor
+- [x] The version-locking rule introduced **by using it**, never by a wall of text. The editor
       already states it inline (*"v2 · 30 matches tracked — saving will create v3"*); onboarding's
       job is to make that sentence land the first time it appears rather than explain it in advance
-- [ ] Card library download on first launch, with progress — the bundled seed makes this
+- [x] Card library download on first launch, with progress — the bundled seed makes this
       non-blocking, and the user should be told that rather than left watching a spinner
-- [ ] An empty Decks tab that is an invitation, not a blank list
-- [ ] Skippable, and re-openable from Profile
+- [x] An empty Decks tab that is an invitation, not a blank list — **already satisfied when
+      checked**, see below
+- [x] Skippable, and re-openable from Profile
 
 **Done when:** a player who has never seen the app can build a legal deck and log a match without
 being told anything out of band.
+
+**All five closed 2026-08-16.** See [M7A — what shipped](#m7a--what-shipped-2026-08-16).
 
 ### M7B — German and French
 
@@ -881,6 +951,209 @@ chrome, and no card name altered.
 **Settled 2026-08-14:** German and French ship **together**. German is proofread by the owner; French
 rides on user feedback, so every string in `fr.ts` is a first draft until somebody who speaks it has
 read it *in the app*. French is the long pole, not German.
+
+### M7A — what shipped (2026-08-16)
+
+Two screens in `app/onboarding.tsx`, built from `1_Onboarding_Welcome` and `1_Onboarding_Setup` in
+the Hi-Fi doc. Welcome, then one progressively-disclosed setup screen: name → language and first
+deck. Everything is skippable, and `completeOnboarding()` runs on **every** exit, so seeing it once
+is enough however you leave.
+
+**Three deliberate departures from the mockup**, each because the design describes a picture and the
+app has to behave:
+
+- The design's product name is **Rifthall**, a naming exploration the app never adopted.
+- Its name-field helper reads *"Shown on match history and shared decks"* — a promise the app cannot
+  keep, since nothing reads a display name and nothing leaves the device. It says what is true.
+- **Skip is always available.** The design fades *"I'll look around first"* in only once the deck
+  section opens, which leaves the first thirty seconds of a brand-new app with no way out of a form
+  nobody asked for.
+
+**The gate for the second half is the name, not the language — and that is a fix, not a
+simplification.** The design opens the deck choice only after a language is *chosen*. English is
+preselected, so an English speaker has nothing to choose; tapping the row you are already on is not
+an action anyone performs, and the flow dead-ended with the deck options never appearing. Both
+sections open on the name instead. **A default that is already correct must never require
+confirming** — anything gated behind "change this setting" is unreachable for whoever the default
+already suits, which is the majority.
+
+**The version-locking rule is introduced by the editor, not by onboarding.** The rule is a statement
+about an object a first-run user does not own yet; it is learnable when it constrains you and not
+before. See [the locked-version banner](#the-version-lock-rule-taught-where-it-happens-2026-08-16).
+
+**The empty Decks tab needed no work** — it was checked rather than assumed and was already an
+invitation: *"Track a deck through every change"*, the version model in one sentence, and two actions
+with a clear primary. `EmptyState`'s own docstring carries the rule it follows.
+
+#### The language picker was an inescapable loop
+
+Reported from a device: choosing a language sent the flow back to step 1, every time.
+
+`<Stack key={locale}>` remounts the entire navigator so every screen re-reads every string — and a
+keyed remount unmounts whatever is on screen. The step counter was `useState` inside that screen, so
+picking a language destroyed it. **The one control the flow exists to offer was the one thing that
+reset it**, and the only way back to the language rows was to walk forward and trip the same wire.
+
+Progress now lives in `useOnboardingDraft` at module scope, which outlives the remount. The language
+row writes the draft *before* calling `setLocale`, because `setLocale` is what tears the component
+down. Guarded by a test that switches language four times in a row — the loop was not a one-off
+reset, and that is what made it inescapable rather than merely annoying.
+
+**Any future screen holding in-progress state has the same exposure.** Onboarding is the only one
+today; the deck editor would qualify, but Settings is unreachable without leaving it first.
+
+#### The welcome screen was centred on the wrong box
+
+The hero sat about a tenth of the screen high. `flex: 1` centres within whatever its siblings leave,
+and the development disclaimer below it is a ~190 px block — so "the middle" was the middle of a
+shorter, upward-biased region. Measured at **38 %** down the screen against a target of 45–50 %.
+
+The disclaimer moved *inside* the centred group, which is where it belongs — it is part of what the
+screen has to say, not a footnote pushing the message around. Group centre: **47.9 %**.
+
+A real bug fell out of the same pass: the welcome CTA had **no bottom safe-area inset**, so on any
+phone with a home indicator the button sat partly underneath it.
+
+#### The development disclaimer
+
+On the first screen a user ever sees, above the only button — not buried in About, where nobody
+looks before using the thing. Bordered in the accent so it reads as a notice rather than more body
+copy, and it names the one consequence a player can act on: **the data is local, so the only backup
+is the one they make.**
+
+#### The card library, reported rather than spun
+
+Four states, and the distinction that matters is **empty versus seeded**, not syncing versus idle.
+With cards on the device every message is reassurance; with none, a failure is the one case worth
+calling a problem — and even then nothing blocks.
+
+**A progress bar is drawn only while the library is genuinely empty.** Once the bundled seed has
+landed the download is background work, and a progress bar over background work is an invitation to
+wait for it — the exact failure the checklist item names.
+
+#### Reopenable, without eating the settings it walks past
+
+`beginReplay(displayName())` resets the draft — so a replay cannot resume mid-form from an abandoned
+run — then seeds the stored name and marks it committed.
+
+That is not a convenience. `finish()` writes the draft's name back, so **replaying from a blank draft
+would erase a name set months ago** — a settings screen deleting a setting because you opened it.
+Guarded by a test that fails with `expected '' to be 'Linus'` when the seeding is removed. The
+language needs no equivalent: the picker reads the live store and only writes when tapped.
+
+`replaying` lives in the draft store rather than component state for the same reason the step does —
+it is read at the very *end* of the flow, to decide whether to hand back to Settings or to the app.
+
+---
+
+### The Settings panel (2026-08-16)
+
+The **You** tab became **Settings**. The old name promised an account the app does not have, and the
+screen was never about a person — it is where the app is configured.
+
+Five cards: display name · language · card library · feedback · about.
+
+**Migration 23 adds a `settings` key/value table.** Key/value rather than a column per preference,
+which would cost a migration every time a checkbox is added to a table whose contents are optional by
+definition. The trade is that the schema stops describing itself, so `queries/settings.ts` is the
+only module allowed to name a key and `getSetting`/`setSetting` are deliberately **not** exported.
+Four keys today: `display_name`, `locale`, `onboarded`, `seen_fork`.
+
+**The language preference now persists** — the last open M7B item. Applied at module load in the root
+layout rather than in an effect, because `<Stack>` is keyed on the locale: applying it after the
+first render would remount the navigator and the user would watch the app open in one language and
+switch to another.
+
+**Feedback collects nothing.** An earlier draft attached the app version, platform, OS version,
+language and row counts. Device and OS details are personal data under the GDPR, so collecting them
+would oblige the project to run a *Datenschutz-Folgenabschätzung* — for a fan app that otherwise has
+nothing to assess. **Owner's decision, and it stands for telemetry, crash reporting and analytics
+alike.** The report is a category and what the user typed. There is no backend yet, so the button
+copies rather than sends, and the card says so; a Send button that quietly did nothing would be the
+one dishonest control in the app.
+
+**The version in About is read from `app.json`** rather than hand-typed. A hand-written `v0.1.0` is
+the same shape of mistake as the `M1` label that sat there for five milestones: a fact about the
+build with nothing keeping it true.
+
+The German tab reads **Optionen**, not *Einstellungen*. The bar draws 9.5 px uppercase monospace in
+about a 76 pt cell — thirteen characters wrap and take the bar's height with them. The screen title
+matches the tab rather than the two disagreeing, and `numberOfLines={1}` on the label means no future
+translation can grow the bar.
+
+---
+
+### The icon system (2026-08-16)
+
+Reported as *"the Decks and Collections icons look wrong"*. The audit found something worse than
+inconsistency.
+
+**Five "icons" were Unicode characters that no bundled font contains.** Checked against the actual
+`.ttf` glyph maps rather than assumed:
+
+| | Space Grotesk | JetBrains Mono |
+| --- | --- | --- |
+| `⌕` U+2315 — search, 3 sites | **missing** | **missing** |
+| `☰` U+2630 — list toggle | **missing** | **missing** |
+| `▦` U+25A6 — gallery toggle | **missing** | **missing** |
+| `✓` U+2713 — language tick | **missing** | **missing** |
+| `⇩` U+21E9 — import | **missing** | **missing** |
+| `›` `↓` `−` | present | present |
+
+All five were being drawn by whatever the OS substituted — a different typeface at a different
+weight, and **a different one on Android than on iOS**. They were never part of the icon set; they
+only looked like they were. `−` stays as text, being genuine typography whose icon form would be the
+identical single stroke.
+
+**One control had three drawings.** List/gallery was words in a bordered pill on deck overview, and
+`☰`/`▦` in an inset track in the editor and the preview. Now one `ViewToggle`. Icons over words
+because the pair sits beside a search field and a filter that are already icons — and because
+"Gallery" made the widest thing on that row a translation risk for nothing.
+
+**`decks` described a three-card stack but only closed the front card**; the other two were open
+polylines with no corners, so at 23 dp it read as one card with two stray diagonals.
+
+**`cards` took four attempts**, each rendered and looked at rather than reasoned about:
+
+1. rect + spine + rings → read as a sidebar divider
+2. two cards in a storage box → the tops merged into a blob
+3. 2×2 grid of card-proportioned rects → indistinguishable from `gallery`; a 1.3 aspect ratio is not
+   perceptible at 23 dp
+4. **folder with a card in it** → distinct silhouette, survives the scale
+
+The lesson that cost three tries: **at this size an icon is read by its outline, not its contents.**
+Only changing the silhouette worked. The old one also lit just its top two cells on the active fill,
+so the tab looked half-selected whenever you were on it.
+
+---
+
+### The version-lock rule, taught where it happens (2026-08-16)
+
+The rule was already stated at all three moments — the editor banner before the edit, the save sheet
+at the confirm, the toast after. The gap was narrower than "introduce the rule": **the earliest
+statement, the one placed there specifically to arrive before it is too late, is a terse status line
+that a first-time reader has no reason to parse as a rule.**
+
+So the fix is not a new surface. Until a fork has happened, the same line in the same place says the
+whole thing; afterwards it collapses to the short form for good. Whole sentences per case
+(`.locked.long` / `.one.long` / `.other.long`), never a tail glued onto a translated first sentence —
+German puts the new version number at the end of its clause.
+
+**`seen_fork` is written when the fork completes, not when the banner renders**, and the distinction
+is the whole reason it is not a dismissal flag: reading a warning and backing out is not the same as
+watching it come true, and that player is exactly who still needs the long form. `firstFork` and
+`parentGames` are captured **before** the flag is written and before `forkVersion` runs, or the first
+would be false on the one occasion it must be true.
+
+The first fork's toast names the games left behind — *"Saved as v2 · v1 keeps its 1 game"*. A count
+makes it concrete: "your earlier version is untouched" is a policy; naming their games is a fact
+about their deck. It falls back to the standard line when the forked version had none, because
+claiming it "keeps its 0 games" would be a lie about the one thing the message exists to make real.
+
+Proved by planting the regression — `seen_fork` written on render — and watching the *second* render
+already read short.
+
+---
 
 ### M7B — what has landed (2026-08-14)
 
@@ -1073,18 +1346,353 @@ files**.
 
 ---
 
-## M8 — Cloud
+## T1 — Security hardening
 
-- [ ] Supabase project, schema migrations mirroring the local tables
-- [ ] RLS policies (`auth.uid() = user_id`) on every table
+Everything that has to be true before a build is allowed near a store, and before a backend exists
+to get it wrong against. It sits **between M7 and M8 deliberately**: half of it is about what the app
+already does, and the other half sets the rules M8's backend has to be built to. Auditing the client
+after the server exists means auditing twice.
+
+**Done when:** the app can be submitted to both stores without a policy answer being guessed at, no
+secret ships in the bundle that is not designed to be public, and every place untrusted input enters
+the app has a named owner and a test.
+
+**Status: batch 1 done (2026-08-16) — §D, §E, §F complete.** §A (store paperwork), §B (bundle and
+transport) and §C (data at rest) remain, and all three are decisions to record rather than code to
+write. Findings are in [T1 batch 1 — done](#t1-batch-1--done-2026-08-16) at the end of this section.
+
+### A · Store and platform requirements
+
+- [ ] **Apple privacy manifest** (`PrivacyInfo.xcprivacy`). Required since 2024, and required for the
+      *dependencies* too — Expo modules declare their own. It must list every "required reason" API
+      the app touches (file timestamps, user defaults, disk space) and every data type collected.
+      **The app collects nothing**, which makes this short to write and important to get exactly
+      right: a manifest that over-declares invites questions that have no answer.
+- [ ] **Google Play Data Safety form.** Same content, different form. Both must agree with each other
+      and with the privacy policy, or review flags the mismatch.
+- [ ] **Account deletion.** Apple requires an in-app path to delete an account for any app that
+      creates one. M8 creates one, so this is a T1 rule that M8 must build to rather than a thing to
+      bolt on afterwards.
+- [ ] **Attribution and non-commercial compliance.** Card art and names are Riot's, used under the
+      Legal Jibber Jabber policy for fan content. The About card carries the disclaimer; T1 confirms
+      it satisfies the actual policy text rather than a paraphrase of it.
+- [ ] **Age rating and content declaration**, consistent across both stores.
+
+### B · Secrets, transport, and what ships in the bundle
+
+- [ ] **Establish the rule that the JS bundle is public.** Anything in it can be read by anyone who
+      installs the app. Today that is fine because the app has **no credential of any kind**
+      ([H1 audit](#h1--the-key-audited-2026-08-16)). M8 changes that, and the rule has to be written
+      down before it does.
+- [ ] **The Supabase anon key is designed to be public — but only if RLS is correct.** This is the
+      single most consequential line in T1. It converts row-level security from a convenience into
+      *the* authorization boundary, which is why M8's policies are a T1 deliverable and not an M8
+      one.
+- [ ] **HTTPS everywhere, no ATS exceptions.** The only host today is `api.riftcodex.com`; confirm
+      no plaintext fallback and no `NSAllowsArbitraryLoads`.
+- [ ] **Card images are hotlinked from Riot's Sanity CDN.** Confirm that stays HTTPS and carries no
+      identifying query parameters.
+
+### C · Data at rest on the device
+
+- [ ] **Decide whether the SQLite file needs encryption, and record the answer either way.** It holds
+      decks, match history and a display name — no credentials, no contact data, nothing a stranger
+      gains from. On a locked phone it already sits inside the OS sandbox and full-disk encryption.
+      SQLCipher costs a native dependency and a migration; the likely honest answer is *no*, and the
+      point of the item is that it becomes a decision rather than an omission.
+- [ ] **Auth tokens are a different question and get a different answer.** When M8 introduces a
+      session, it belongs in `expo-secure-store` (Keychain / Keystore), never in the SQLite file or
+      `AsyncStorage`.
+- [ ] **Confirm nothing sensitive reaches logs.** `sync_meta.last_error` now holds raw exception text
+      by design; check it cannot capture anything but transport and schema detail.
+
+### D · Untrusted input
+
+- [x] **The deck-code parser is the app's one real attack surface.** It takes arbitrary text from the
+      clipboard (`import.tsx`) and hands it to a third-party decoder. Fuzz it: malformed base32,
+      enormous inputs, deeply nested or absurd card counts. It already throws `DeckCodeError` on bad
+      input — the question is whether it *always* throws rather than hanging or allocating wildly.
+
+      **Closed 2026-08-16.** 29 fuzz cases in `deck-code-fuzz.test.ts`. It always threw correctly —
+      but it allocated **~20× its input** on the way there, 98 MB of heap to reject a 5 MB paste.
+      Three ceilings now sit ahead of any work: 4 KB per code, 64 KB per paste, 32 candidate runs.
+- [x] **Audit the ~~four~~ fifteen dynamic SQL sites.** `events.ts:181` and `games.ts:316` interpolate
+      a `sets.join(', ')` column list; `migrations.ts:855` and `testing.ts:96` interpolate a version
+      number. All four look like code-built identifiers rather than user data, and every value is
+      already parameterised — **confirm it, and add a test that fails if a user-supplied string ever
+      reaches one.**
+
+      **Closed 2026-08-16 — there are fifteen, not four.** The original grep matched one pattern.
+      `sql-injection.test.ts` proves it two ways: seven payloads round-tripping verbatim with every
+      table intact, and a structural scan that fails on any future interpolation not on a named
+      allowlist. The allowlist is the point — it makes the fifteenth site the last one that can be
+      added silently.
+- [x] **Deep links — the rule, settled 2026-08-16.**
+
+      > **The scheme carries navigation only, never credentials or commands.** Every deep link must
+      > be equivalent to a tap the user could have made themselves. **Nothing acts**: no delete, no
+      > import-and-save, no sign-out.
+
+      The scheme was never "unhandled" — there is no linking config, so expo-router's default
+      applies and **all twenty routes are already reachable** from outside. Six take an id, and that
+      id is the only part of the surface an attacker chooses.
+
+      `src/db/route-params.test.ts` turns "the id is looked up and misses" from reasoning into a
+      guarded property: fifteen hostile ids — SQL payloads, path traversal, 100 KB strings, unicode,
+      null bytes — against all seven lookups the six routes perform. None throws, all return empty,
+      every table survives. Proved non-vacuous by making `getDeck` throw on a blank id.
+
+      `/_sitemap` is overridden at `app/_sitemap.tsx` — see below.
+- [x] **Riftcodex responses are already validated with Zod** at the boundary. Confirm no path around
+      it, including the bundled seed. **Confirmed 2026-08-16.** The seed is the one path around it,
+      and correctly so — `generate-seed.ts` validates with `cardPage.parse`. The unguarded gap was
+      schema drift between generation and load; `seed-shape.test.ts` holds it.
+
+### E · Supply chain
+- [x] **Re-measure the npm advisories** (the standing Backlog item) as part of the audit rather than
+      separately. **Done 2026-08-16: 27 → 26 advisories, 4 root causes → 3** — `nanoid` cleared by a
+      patch bump. See the correction in H2 for what that count used to say and why it was wrong.
+
+      **`nanoid` does ship** — `node_modules/nanoid/non-secure/index.js`, confirmed by source map,
+      not by grep. The remaining three (`uuid`, `image-size`, `esbuild`) genuinely do not. Re-check
+      with `npm run audit:bundle` after every SDK bump rather than reasoning about it.
+- [x] **Upgrade Expo 57.0.11 → 57.0.13 and the six drifting packages**, then re-measure. Deferred
+      through the UI work on purpose; T1 is where it belongs, because a dependency bump plus a
+      rebuild-and-retest is exactly this milestone's shape. **Done 2026-08-16** — `expo install
+      --check` reports everything up to date.
+- [x] **`npx expo-doctor` clean**, and recorded. **21/21 on 2026-08-16** — the check count grew from
+      20 with the SDK bump.
+
+### F · Failure behaviour
+- [x] **Error boundary.** Nothing in the tree implemented `componentDidCatch`, so a render error took
+      the whole app down with no recovery and no report. Listed here rather than in M9 because it is
+      also the thing that decides *what a crash is allowed to say* — and the app has just finished
+      removing exception text from a user-facing screen. **Added 2026-08-16** at the root, inside the
+      providers and outside the navigator. It never renders the exception and *does not keep it in
+      state* — `getDerivedStateFromError` drops the error rather than storing it, so a stack trace is
+      not one careless edit away from the screen. The `console.error` is `__DEV__`-guarded.
+- [x] **If crash reporting is added, it collects nothing about the device.** Standing owner decision:
+      no telemetry, no OS or device data, no location. A crash reporter that phones home with a
+      device profile would reintroduce exactly the DSFA obligation the feedback form was designed to
+      avoid. **Ticked 2026-08-16 as a recorded constraint, not as built work** — there is no crash
+      reporter and none is planned; the boundary above deliberately reports nowhere. This is the
+      standing rule any future one must satisfy.
+
+---
+
+
+### T1 batch 1 — done (2026-08-16)
+
+**§D, §E and §F are complete.** §A (store paperwork), §B (bundle and transport) and §C (data at
+rest) remain, and all three are decisions to record rather than code to write.
+
+Four recorded claims were disproven by measuring them. Each had been written down as fact, and each
+was measured with a method that could not see what it claimed to rule out — the same shape as the
+M7B "239 → 0" count and the gate's own roots gap.
+
+| Recorded | Actual |
+| --- | --- |
+| npm: 4 root causes | **3** — `nanoid` cleared by a patch bump |
+| "none of the four is in the release bundle" | **`nanoid` shipped** |
+| "every remedy npm proposes is a downgrade" | true of three; `nanoid` was `npm audit fix` |
+| T1 §D: "four dynamic SQL sites" | **fifteen** — the original grep matched one pattern |
+
+Corrected in place at [H2](#corrected-2026-08-16--three-of-the-claims-above-were-wrong), in the
+Backlog entry, and in gap 10.
+
+**What the work turned up beyond the checklist:**
+
+**The deck-code parser allocated ~20× its input before rejecting it.** A 5 MB paste cost 98 MB of
+heap on the way to throwing. It always threw the right error — but rejecting *after* allocating is
+not rejecting, and on a phone that is how a stray paste becomes an out-of-memory crash. Three
+ceilings now sit ahead of any work: 4 KB per code, 64 KB per paste, 32 candidate runs.
+
+**Every route survives a hostile id, and that was worth proving rather than assuming.** The deep-link
+audit's real question was whether any of the six `[id]` routes throws on a malformed parameter
+instead of rendering an empty state — a route that throws is a crash reachable from outside the app
+by anyone who can send a link. `route-params.test.ts` puts fifteen hostile ids through all seven
+lookups: **none throws, all return empty, every table survives.** The claim held. It is now a
+guarded property rather than a reading of the code, which matters because the next `[id]` route is
+one file away and nothing else would catch it.
+
+**`/_sitemap` ships in release builds.** expo-router generates a screen listing every route in the
+app, and it is not dev-only — confirmed in the release bundle's source map. Same class as gap 21,
+where `version-selfcheck` sat in the production bundle for five milestones.
+
+**There is no app-facing config for it.** `sitemap: false` exists but is passed to `ExpoRoot`
+through a `config` prop owned by the generated entry point, not surfaced through `app.json` or the
+config plugin. **The fix is a route override** — `app/_sitemap.tsx`, a deliberate choice, and the
+supported mechanism: `appendSitemapRoute` only generates the internal route when the app has not
+provided one. It redirects to `/` rather than rendering nothing, so the link is a no-op instead of
+a dead end. The expo-router `Sitemap.js` *module* remains in the bundle as dead weight — it is
+statically referenced by the system-route factory and cannot be removed from app code — but the
+route no longer renders it.
+
+**The suite's only wall-clock assertion was over-tight.** `expect(compareMs).toBeLessThan(25)`
+failed once under disk load and passed three runs after. Measured cost is 0.3–0.6 ms; the bound was
+forty times that and still could not tell "slow code" from "descheduled process". **Widened to
+250 ms with the reasoning recorded in the test**, because an implementation that walked the whole
+history would take seconds at 800 versions — the regression it guards is caught either way.
+
+**The seed is the one path around the Zod boundary, and that is correct.**
+`scripts/generate-seed.ts` validates with `cardPage.parse`, so the data *is* Zod-checked — at
+generation, not at load. What was unguarded is the gap between those moments: the seed is a
+hand-regenerated artefact, the schema moves with migrations, and `as NewCardRow[]` hides drift.
+The seed on disk predates ten migrations; checked, and it still matches at **29 columns for 29**.
+`seed-shape.test.ts` now holds that.
+
+**The error boundary is written to have nothing to leak.** `getDerivedStateFromError` drops the
+error instead of storing it, so `State` is `{ crashed: boolean }` and there is no exception in the
+component to render by accident later. That is deliberate, and it is the same decision as the
+feedback form: the cheapest way to guarantee something is never shown or sent is to never hold it.
+
+**New tooling:** `npm run audit:bundle` reads a source map and reports which packages genuinely
+ship. It exists because the naïve method fails in both directions — grepping bytecode matched
+`esbuild` and `uuid` as bare words, and searching a *minified* bundle for renamed identifiers is
+how "none in the release bundle" became a recorded fact while `nanoid` shipped.
+
+**Gate:** typecheck clean, lint clean, **755 tests / 42 files** (642 / 41 before this batch),
+scanner 0 across 99 files, `expo-doctor` 21/21, bundle rebuilt and re-audited — `nanoid` still the
+only advisory root present, `/_sitemap` now resolving to `app/_sitemap.tsx`.
+
+---
+
+## M8 — Cloud and the web platform
+
+Two interfaces onto one account: **the phone for the table, the web for the desk.** You log a match
+between rounds on your phone; you sit down at home and rebuild the deck on a screen with room for it.
+
+The scope grew on 2026-08-16 from "cloud sync" to "cloud sync plus a web platform". That is a bigger
+change to the *product* than to the *plan*, because a web client needs the same thing sync needed: a
+Postgres database with row-level security and auth in front of it. The web app is a second consumer
+of that, not a second backend.
+
+### The shape
+
+```
+                     ┌──────────────────────────┐
+   phone ─ SQLite ──▶│  Supabase                │◀── web browser
+      (offline-first)│  Postgres · Auth · RLS   │    (online-only)
+        sync engine  └──────────────────────────┘    direct queries
+                                 ▲
+                                 │  shared, verbatim
+                     ┌───────────┴──────────────┐
+                     │  packages/core           │
+                     │  legality · deck-diff    │
+                     │  deck-code · analytics   │
+                     │  i18n catalogue          │
+                     └──────────────────────────┘
+```
+
+**No custom API server.** Supabase is Postgres with auth and row-level security in front of it, and
+both clients speak to it with the same library. Writing an API server instead would mean
+re-implementing authorization in application code — the layer most likely to have a hole, replacing
+one the database enforces. Given [T1](#t1--security-hardening) makes RLS *the* authorization
+boundary, adding a second one to get wrong is the opposite of the goal.
+
+**Only the phone needs a sync engine.** This is the simplification most easily missed. The phone is
+offline-first and keeps its SQLite, so it needs reconciliation. The web app is online by definition —
+it queries Postgres directly and holds no local copy. Half the hard work only has to exist once.
+
+**`src/lib/` moves to a shared package, and it can.** Legality, deck diffing, deck codes and the
+analytics layer are pure TypeScript with **zero React Native imports** — a property this codebase has
+defended deliberately, most recently when the i18n layer had to stay Node-loadable. That makes the
+move close to a file move, and it buys the thing that matters: the web platform and the app cannot
+disagree about whether a deck is legal. Two clients giving different answers about the same list is
+the worst bug this product could ship.
+
+**Not Expo Web.** The Expo app compiles to web, and the backlog has carried "web export" for months.
+It is the wrong tool here: a web platform for the desk wants width, a keyboard and multiple columns,
+and Expo Web would deliver a phone in a browser window. Share the logic, not the screens.
+
+### What gets built
+
+**Backend**
+
+- [ ] Supabase project; Postgres schema mirroring the eight user tables — `decks`, `deck_versions`,
+      `deck_version_cards`, `games`, `matches`, `events`, `binders`, `binder_cards`
+- [ ] RLS `auth.uid() = user_id` on every one of them, written and tested **before** any client
+      trusts it (a T1 rule)
 - [ ] Auth: email, Sign in with Apple, Google
-- [ ] Sync engine: pull-then-push, last-write-wins on `updated_at`, soft-delete propagation
-- [ ] Sign-in **claims** existing local data rather than replacing it
-- [ ] Sync status and manual trigger in Profile
-- [ ] Conflict and offline-queue handling
+- [ ] **In-app account deletion**, because Apple requires it of any app that creates an account
+- [ ] The card catalogue server-side: one job syncs Riftcodex into Postgres so the web app has cards
+      to read without every browser paging a hobby API
 
-**Done when:** two devices converge to the same state after concurrent offline edits, and a
-signed-out user who signs in keeps every deck and match they already had.
+**Phone**
+
+- [ ] Sync engine: pull-then-push, last-write-wins on `updated_at`, soft deletes propagate via
+      `deleted_at`
+- [ ] **Sign-in claims existing local rows rather than replacing them** — stamp `user_id` and upload.
+      The single most data-destructive thing on this list if it is got wrong
+- [ ] Sync status and a manual trigger in Settings
+- [ ] Offline queue; the app stays fully usable signed-out
+
+**Web**
+
+- [ ] A separate app — Next.js or Vite + React — reading Supabase directly
+- [ ] Deck browsing, the editor, the version timeline, analytics, and the card gallery, laid out for
+      a screen rather than a thumb
+- [ ] The same three languages, from the same catalogue
+
+**Shared**
+
+- [ ] `packages/core` — `legality`, `deck-diff`, `deck-code`, `analytics`, and the i18n catalogue,
+      imported by both clients
+
+### The columns that were waiting for this
+
+`user_id`, `dirty`, `updated_by_device` and `deleted_at` have been on every user table since **M0**,
+before anything needed them. `deleted_at` is why deletion can sync at all: a genuinely deleted row is
+invisible, so the other device would simply upload it again — a soft delete is a *change*, and
+changes travel.
+
+Migration 22 then dropped six write-only columns and the `sets` table specifically so none of it
+would be mirrored into Postgres, wrapped in an RLS policy and taught to a sync engine. Migration 23's
+key/value `settings` table means a new preference costs no migration on either database.
+
+### Why last-write-wins is enough
+
+It is a crude conflict rule and it is the right one here, because of what the data model already
+prevents. **A version is immutable once a game is logged against it, and games are only ever added.**
+There is very little two devices can genuinely fight over: editing a played deck on both produces two
+forks, not a conflict, and both survive. Anything more elaborate would be machinery for a problem the
+version rule already rules out.
+
+**Done when:** two devices converge after concurrent offline edits · a signed-out user who signs in
+keeps every deck and match they already had · the web platform and the app agree, to the card, on
+what a deck contains and whether it is legal.
+
+---
+
+
+### Auth constraints, set by T1 (2026-08-16)
+
+These are decisions [T1](#t1--security-hardening) made on M8's behalf, because auditing a client
+after the server exists means auditing twice. They are requirements, not preferences.
+
+- [ ] **PKCE is mandatory** — Supabase's `flowType: 'pkce'`. A custom scheme cannot be claimed
+      exclusively, so another app can register `riftbound://` and receive the callback. PKCE makes
+      an intercepted authorization code useless without the verifier, which never leaves the device.
+      This is *the* answer to scheme hijacking, and it is not optional.
+- [ ] **Prefer Universal Links / App Links over the custom scheme.** Both are *verified* — they
+      require a file hosted on your domain, so no other app can claim them. The usual reason not to
+      bother is that you need a domain. **M8 is building a web platform, so there will be one**,
+      which makes verified links close to free — and is a concrete argument for **building the web
+      app before wiring auth** rather than after.
+- [ ] **The callback validates `state`, exchanges immediately, and never persists or logs the
+      params.** An authorization code that lingers in a log or a database row is a credential at
+      rest that nobody is guarding.
+- [ ] **Session tokens go in `expo-secure-store`** (Keychain / Keystore), **never in SQLite**. The
+      database is decided as unencrypted (T1 §C) precisely because it holds nothing that needs
+      protecting; a session token would change that answer overnight.
+
+**The callback is the one deep link that acts, and that is why it is fenced.** T1 §D's rule is that
+the scheme carries navigation only — every link equivalent to a tap the user could have made. An
+OAuth callback breaks that by definition: it arrives from outside and completes a sign-in. So it is
+the **single** exception, and the constraints above are what keep it narrow — it acts only on a flow
+*this device started*, proves that with a verifier that never left the device, and consumes the code
+immediately. A second acting link would be a new exception needing the same argument made again, and
+the answer should be no.
 
 ---
 
@@ -1096,11 +1704,17 @@ signed-out user who signs in keeps every deck and match they already had.
       first-impression work rather than being one line on a release checklist
 - [ ] Accessibility pass — contrast, 44pt targets, screen reader labels (use `accessibility_text`
       from the API for cards), Dynamic Type, reduce-motion
-- [ ] Attribution / disclaimer screen
-- [ ] Error boundaries and crash reporting
+- [x] ~~Attribution / disclaimer screen~~ — the screen exists (Settings › About). Whether it is
+      *sufficient* against Riot's actual policy text is a compliance question, and moved to
+      [T1 §A](#a--store-and-platform-requirements)
+- [x] ~~Error boundaries and crash reporting~~ — **moved to [T1 §F](#f--failure-behaviour)**. It
+      is not only a polish item: it decides what a crash is allowed to *say*, and the app has just
+      finished removing exception text from a user-facing screen
 - [ ] EAS Build + EAS Update pipeline
 - [ ] App icon, splash, store screenshots and copy
-- [ ] Privacy policy
+- [x] ~~Privacy policy~~ — **moved to [T1 §A](#a--store-and-platform-requirements)**, where it
+      sits beside the Apple privacy manifest and the Play Data Safety form. All three describe the
+      same facts and have to agree; writing them apart is how they end up disagreeing
 - [ ] TestFlight / Play internal testing
 
 ---
@@ -2146,6 +2760,9 @@ Also fixed: the Edit-match-detail button advertised "Champion turns", a column d
 
 ## H2 · The npm advisories, measured (2026-08-14)
 
+> **Three claims in this section were disproven on 2026-08-16** — see
+> [the correction](#corrected-2026-08-16--three-of-the-claims-above-were-wrong) at the end.
+
 **27 findings, 4 root causes.** The other 23 are packages that merely depend on one of these four —
 npm counts every link in the chain, which is what makes the headline number alarming.
 
@@ -2201,6 +2818,52 @@ developer-machine issue in principle — a website able to query a local dev ser
 `esbuild --serve`, and `drizzle-kit` uses esbuild to transpile a config file rather than to serve
 anything, so no such server is ever opened.
 
+
+### Corrected 2026-08-16 — three of the claims above were wrong
+
+Re-measured during [T1 §E](#e--supply-chain). Left in place rather than edited away, on the same
+principle as the M7B "239 → 0" correction: **the mistake is the useful part.** Each of these was
+recorded as measured fact, and each was measured with a method that could not see what it claimed to
+rule out.
+
+| Recorded above | Actual, 2026-08-16 |
+| --- | --- |
+| 4 root causes | **3** — `nanoid` is cleared |
+| "the app a player installs contains none of the four" | **`nanoid` shipped**, and this section's own table said so two paragraphs earlier |
+| "every remedy npm proposes is a *downgrade*" | True of three. **`nanoid` was a patch bump**, 3.3.17 → 3.3.18 |
+| `expo-doctor` 20/20 | **21/21** — the check count grew with the SDK |
+
+**The release-bundle check had a hole, and it is the interesting one.** It searched a *minified*
+production bundle for `urlAlphabet` and `customRandom` and concluded absence. But a minifier renames
+local identifiers, so their absence from a minified bundle is not evidence of anything — the section
+even names that trap when arguing the *dev* bundle is "the conclusive half", then relies on the
+minified one for the release claim anyway.
+
+The sound method is the **source map**: `sources` lists every file Metro compiled in, by path,
+regardless of minification.
+
+```
+modules in the RELEASE bundle: 2275
+  uuid        not in bundle
+  image-size  not in bundle
+  esbuild     not in bundle
+  nanoid      IN BUNDLE (1)  /node_modules/nanoid/non-secure/index.js
+```
+
+Grepping the Hermes bytecode for strings had *also* matched `esbuild` and `uuid` — as bare words in
+unrelated code, not as modules. Both directions of that error are why the source map is now the
+method of record.
+
+**What was right:** the vulnerable function still never shipped. The advisory
+([GHSA-2v37-7h3g-55p8](https://github.com/advisories/GHSA-2v37-7h3g-55p8)) is about `customRandom` in
+`nanoid/index.js`; what ships is `nanoid/non-secure/index.js`, whose `while (i-- > 0)` exits
+immediately at size 0. So the conclusion — no reason to hold a release — held. The reasoning under it
+did not.
+
+Now moot regardless: `npm audit fix` (not `--force`) bumped nanoid to 3.3.18. **27 → 26 advisories,
+4 → 3 root causes**, no downgrade, no SDK change.
+
+
 ## H3 · The over-exposed exports, re-verified (2026-08-14)
 
 Seven names carry `export` and are referenced in exactly **one file each** — their own. Confirmed by
@@ -2221,6 +2884,25 @@ found these exists to catch code that is *unreachable*, which none of this is.
 keywords that make a module's front door wider than its hallway, with no consequence at runtime, in
 the bundle, or to a user. It is filed as tidying so it stops occupying a slot on a list of defects.
 
+### Closed 2026-08-16 — all seven
+
+Re-measured first, because the earlier count was two days old and 73 files had changed since. Each
+name still had callers only inside its own file, and both traps were checked rather than assumed:
+
+- **No barrel re-exports them.** `src/i18n/index.ts` is the only barrel in the tree and it names none
+  of these modules.
+- **No test imports either constant.** `SIGNATURE_LIMIT` and `SYNC_TTL_MS` are referenced only by the
+  functions beside them, so nothing had to choose between reaching for a constant and hardcoding a
+  number.
+- Nothing outside TypeScript refers to them either — no `.js`, `.mjs` or config file, so a dynamic
+  reference that typecheck could not see does not exist.
+
+The change is seven lines, one keyword each. No reordering, no renaming, nothing moved:
+`git diff --numstat` reads `3/3`, `1/1`, `3/3` across the three files.
+
+**A clean typecheck is the proof, not a formality** — an unexported name with an outside importer
+does not compile. Gate: typecheck clean, lint clean, 592 tests / 37 files.
+
 ## Known gaps
 
 Found on a device, not yet fixed. Each is a real defect or a real omission — none is a
@@ -2239,7 +2921,7 @@ Found on a device, not yet fixed. Each is a real defect or a real omission — n
 | 7 | ~~**Deck rename, notes, and archive are unreachable**~~ — **closed.** *Deck details* on the deck overview edits name and notes and archives; the Decks tab grew a **Show N archived** toggle that doubles as the divider, and deck detail carries an "Archived" chip. `archiveDeck` already took a boolean, so restoring came free | Unreachable-code audit | Closed |
 | 8 | ~~**The editor never mentions unresolvable cards**~~ — **closed.** The editor carries the same banner deck detail has, naming each card and its count. It reports the shortfall from **countable zones only** — `missingCards` also returns the Legend and Champion, which appear in no total, so summing everything would have claimed the main deck was a card short when it was the Legend's printing that vanished | Unreachable-code audit | Closed |
 | 9 | ~~**Dead code:** `useDeckEditor.isDirty()`~~ — **closed.** It dragged two more with it: `baseline` existed only to feed it, and `fingerprint()` only to compute `baseline`. The editor diffs against the database at save time, so a second answer to "has this changed" was one more thing that could disagree | Unreachable-code audit | Closed |
-| 10 | ~~**15 moderate `npm audit` advisories, all dev tooling**~~ — **re-measured; the entry was stale and understated.** It is **26 (12 moderate, 14 high)** and no longer "all dev tooling" by name — `react-native`, `expo` and `react-native-reanimated` are listed. But only **four root advisories** exist; the other 22 are transitive echoes: `esbuild` (dev-server request forgery), `image-size` ×2 (DoS parsing ICNS/JXL/HEIF), `uuid` (buffer bounds). **None reaches the app** — verified by searching the full dev bundle's module graph for `node_modules/uuid`, `node_modules/image-size` and `node_modules/esbuild`: zero references each. **Still not fixed, and now for a stated reason:** every remedy npm proposes is a *downgrade* — `expo@53` (on 57), `react-native@0.72.17` (on 0.86.2), `drizzle-kit@0.18.1`. `npm audit fix --force` would roll the project back three SDK majors. `npx expo-doctor` passes 20/20, which is the check that actually describes this tree's health | Post-move `npm ci`; re-measured in the final gap sweep | Low — decided, not deferred |
+| 10 | ~~**15 moderate `npm audit` advisories, all dev tooling**~~ — **re-measured; the entry was stale and understated.** It is **26 (12 moderate, 14 high)** and no longer "all dev tooling" by name — `react-native`, `expo` and `react-native-reanimated` are listed. But only **four root advisories** exist; the other 22 are transitive echoes: `esbuild` (dev-server request forgery), `image-size` ×2 (DoS parsing ICNS/JXL/HEIF), `uuid` (buffer bounds). **None reaches the app** — verified by searching the full dev bundle's module graph for `node_modules/uuid`, `node_modules/image-size` and `node_modules/esbuild`: zero references each. ~~**Still not fixed, and now for a stated reason:** every remedy npm proposes is a *downgrade*~~ — **corrected 2026-08-16.** True of three of them; `nanoid` was a plain patch bump that `npm audit fix` applied without touching Expo, taking the count to 26 findings and 3 roots. The rest still want `expo@53` (on 57) and `react-native@0.72.17` (on 0.86.2), which `--force` would roll back three SDK majors. `npx expo-doctor` now passes **21/21** | Post-move `npm ci`; re-measured in the final gap sweep | Low — decided, not deferred |
 | 21 | ~~**M3 dev scaffolding was still shipping**~~ — **closed.** `version-selfcheck.ts` (341 lines, creates and hard-deletes a deck in the user's real database) plus its Profile block survived the M4 cleanup that ticked it off as done, and its own comment read "TEMPORARY — remove with M4". The `__DEV__` guard hid the button but the module was imported at top level, so it was in the **production Hermes bundle** — confirmed by finding its button string there. It also used `✓`/`✗`, the Unicode glyphs M1 banned for rendering as tofu. Deleted | Final gap sweep | Closed — a checklist tick is not evidence |
 | 11 | ~~**`events` and `matches.event_id` are shipped but unwritable**~~ — **closed.** M6 event mode writes both: an event is created from the log flow, rounds attach to it, and the taxonomy was corrected on the way — match style (Casual / Online / Tournament / Testing) is a separate question from event style (Nexus Night / Skirmish / Locals / Regional Qualifier / Regional Final), which only opens under Tournament | M4 data-layer audit | Closed |
 | 12 | ~~**`match_games` is shipped but unwritten**~~ — **closed.** Per-game logging writes it: a card per game asking turn order, both Battlefields and who won, revealed one at a time and withdrawn once the match is settled. Migration 16 added `battlefield_card_id` / `opp_battlefield_card_id` so the two sides can be told apart, and the match result became **derived** from the games rather than asked for | M4 data-layer audit | Closed |
@@ -2310,15 +2992,18 @@ Deliberately deferred — revisit after launch with real usage data.
   it means the app needs **no credential of any kind** outside Supabase, which is worth more than the
   convenience. Note that `@piltoverarchive/riftbound-deck-codes` is unaffected — it is an offline
   Apache-2.0 npm package with zero dependencies and no network calls, and shares only the name
-- **Re-check the npm advisories after every Expo SDK upgrade** (was H2). 27 findings, 4 root causes
-  — `image-size`, `nanoid`, `esbuild`, `uuid@7` — and **none of them is in the release bundle**,
+- **Re-check the npm advisories after every Expo SDK upgrade** (was H2). ~~27 findings, 4 root
+  causes — `image-size`, `nanoid`, `esbuild`, `uuid@7` — and none of them is in the release
+  bundle~~ — **corrected 2026-08-16: 26 findings, 3 root causes, and `nanoid` did ship** until it was
+  bumped. See [the correction](#corrected-2026-08-16--three-of-the-claims-above-were-wrong). The
+  remaining three are still absent from the release bundle,
   verified by building it. Three are bundler and `prebuild` tooling that never leaves the build
   machine; the fourth ships as a library whose vulnerable function does not. They cannot be fixed
   here: `npm audit fix --force` proposes five SemVer *downgrades*, `expo@53` against 57 and
   `react-native@0.72` against 0.86. **The upgrade is the fix** — Expo bumping its own dependencies is
   the only thing that clears them, so re-run `npm audit` after each SDK bump and re-measure rather
   than assuming the shape is unchanged
-- **Drop `export` from seven internal-only names** (was H3). `toFtsQuery`; `legendOf`, `championOf`,
+- ~~**Drop `export` from seven internal-only names** (was H3)~~ — **done 2026-08-16, all seven.** `toFtsQuery`; `legendOf`, `championOf`,
   `SIGNATURE_LIMIT`; `upsertCards`, `isSyncDue`, `SYNC_TTL_MS`. **The actual state: nothing is
   broken, nothing is dead, nothing is unreachable** — each has a caller inside its own file and no
   caller outside it, tests included. The only effect is that the module advertises more surface than

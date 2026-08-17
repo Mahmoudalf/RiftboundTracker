@@ -589,6 +589,9 @@ export const fr: Translation = {
   'sync.checking': 'Recherche de nouvelles cartes',
   'sync.downloading': 'Téléchargement des cartes',
   'sync.indexing': "Construction de l'index de recherche",
+  'crash.title': 'Un problème est survenu',
+  'crash.body': 'L’application a rencontré un problème en affichant cet écran. Vos decks et vos parties sont intacts — rien n’était en cours d’écriture.',
+  'crash.retry': 'Réessayer',
   'sync.failed': 'Échec de la synchronisation',
 
   'legality.noLegend': 'Choisissez une légende — elle fixe les domaines du deck',
@@ -615,6 +618,8 @@ export const fr: Translation = {
   'deckCode.noneFound': 'Aucun code de deck trouvé dans ce texte.',
   'deckCode.notValidLooking': 'Cela ne ressemble pas à un code de deck valide.',
   'deckCode.importedName': 'Deck importé',
+  'deckCode.tooLong': 'C’est plus long que n’importe quel code de deck. Collez uniquement le code.',
+  'deckCode.pasteTooLong': 'Cela fait trop de texte à parcourir. Collez uniquement le code de deck.',
   'deckCode.enterOne': 'Saisissez un code de deck.',
   'deckCode.notValid': 'Ce code de deck n’est pas valide.',
 

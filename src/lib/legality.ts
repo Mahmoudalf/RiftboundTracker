@@ -87,7 +87,7 @@ export const BATTLEFIELD_COUNT = 3;
 /** Rule 103.2.b — "Your **Main Deck** can include up to 3 copies of the same named card." */
 export const COPY_LIMIT = 3;
 /** Rule 103.2.d.1 — "a deck may only contain a sum total of 3 Signature cards". */
-export const SIGNATURE_LIMIT = 3;
+const SIGNATURE_LIMIT = 3;
 
 /**
  * Zones the 3-copy limit applies to.
@@ -175,11 +175,11 @@ export interface LegalityResult {
   counts: DeckCounts;
 }
 
-export function legendOf(list: DeckList): CardRow | null {
+function legendOf(list: DeckList): CardRow | null {
   return list.slots.find((s) => s.zone === 'legend')?.card ?? null;
 }
 
-export function championOf(list: DeckList): CardRow | null {
+function championOf(list: DeckList): CardRow | null {
   return list.slots.find((s) => s.zone === 'champion')?.card ?? null;
 }
 

@@ -733,6 +733,9 @@ export const en = {
   'sync.checking': 'Checking for new cards',
   'sync.downloading': 'Downloading cards',
   'sync.indexing': 'Building search index',
+  'crash.title': 'Something went wrong',
+  'crash.body': 'The app hit a problem drawing this screen. Your decks and games are safe — nothing was being written when it happened.',
+  'crash.retry': 'Try again',
   'sync.failed': 'Sync failed',
 
   // Legality issues that are not built from counts.
@@ -765,6 +768,8 @@ export const en = {
   'deckCode.noneFound': 'No deck code found in that text.',
   'deckCode.notValidLooking': 'That does not look like a valid deck code.',
   'deckCode.importedName': 'Imported deck',
+  'deckCode.tooLong': 'That is longer than any deck code. Paste just the code itself.',
+  'deckCode.pasteTooLong': 'That is too much text to search through. Paste just the deck code.',
   'deckCode.enterOne': 'Enter a deck code.',
   'deckCode.notValid': 'That is not a valid deck code.',
 

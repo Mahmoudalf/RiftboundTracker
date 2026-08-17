@@ -212,8 +212,29 @@ describe('version scaling', () => {
       // v1 is the seeded shell — Legend and Champion only — and every version
       // after it carries a full list.
       expect(cardRows).toBe((target - 1) * SLOTS_PER_VERSION + 2);
-      // Comparing reads exactly two lists however long the history is.
-      expect(compareMs).toBeLessThan(25);
+      /*
+       * Comparing reads exactly two lists however long the history is.
+       *
+       * **The bound is 250 ms, and it was 25.** This is the suite's only
+       * wall-clock assertion, and on 2026-08-16 it failed once immediately after
+       * an `npm install` churned the disk, then passed three consecutive full
+       * runs. Measured cost is 0.3–0.6 ms from 10 versions to 800, so 25 ms was
+       * already forty times the real figure — the failure was the process being
+       * descheduled, not the code being slow, and a bound that tight cannot tell
+       * those apart.
+       *
+       * Widened rather than deleted, because what it guards is real: an
+       * implementation that walked the whole history instead of reading two
+       * lists would take **seconds** at 800 versions, not 26 milliseconds. A
+       * ten-times-wider bound catches that regression just as surely and stops
+       * the suite failing on disk noise.
+       *
+       * Do not tighten this back. If the flatness of `compareVersions` ever
+       * needs a sharper guard, the honest one counts rows read rather than
+       * milliseconds elapsed — the two deterministic assertions above are the
+       * model.
+       */
+      expect(compareMs).toBeLessThan(250);
       rows.push(
         `${String(target).padStart(4)} versions | every focus ${overviewMs.toFixed(0).padStart(4)} ms | ` +
           `+Versions tab ${diffMs.toFixed(0).padStart(4)} ms | ` +
