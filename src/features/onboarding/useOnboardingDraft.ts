@@ -53,9 +53,50 @@ interface OnboardingDraft {
    */
   beginReplay: (name: string | null) => void;
   reset: () => void;
+
+  /**
+   * What the player chose on the way out, for the Decks tab to act on.
+   *
+   * **This exists because of a navigation bug worth naming.** `finish()` used to
+   * hand over with `router.replace('/deck/import')`, and `replace` swaps the
+   * *current* screen — so the import route became the **root** of the Decks
+   * stack and the deck list was never in it. Two symptoms, one cause: every
+   * later return to the Decks tab landed back on the paste screen, and once
+   * `import.tsx` replaced itself with the new deck there was nothing underneath
+   * to pop, so the back control did nothing.
+   *
+   * The fix has to land on the deck list *first* and push from there. Chaining
+   * `replace('/')` then `push('/deck/import')` looks equivalent and is not:
+   * expo-router queues both and resolves each action's target at drain time
+   * (`routingQueue.run`), so the push can be computed against state the replace
+   * has not applied yet.
+   *
+   * Handing the choice to the destination removes the ordering question — the
+   * Decks tab is mounted by the time it reads this, which is the guarantee that
+   * was missing.
+   */
+  handoff: DeckHandoff;
+  setHandoff: (choice: DeckHandoff) => void;
+  /** Read once and clear, so a remount cannot replay the navigation. */
+  takeHandoff: () => DeckHandoff;
 }
 
-const EMPTY = { step: 1, name: '', nameCommitted: false, replaying: false };
+/** Where onboarding sends someone who asked to start with a deck. */
+export type DeckHandoff = 'import' | 'new' | null;
+
+const EMPTY = {
+  step: 1,
+  name: '',
+  nameCommitted: false,
+  replaying: false,
+  /*
+   * Cleared by both reset paths on purpose. A handoff left over from an
+   * abandoned run would fire the next time the Decks tab mounted, which is the
+   * same class of bug as the one it was added to fix — a navigation nobody
+   * asked for.
+   */
+  handoff: null as DeckHandoff,
+};
 
 /**
  * Whether the language rows and the deck choice are shown.
@@ -73,7 +114,7 @@ export function setupRevealed(draft: Pick<OnboardingDraft, 'name' | 'nameCommitt
   return draft.nameCommitted && draft.name.trim().length > 0;
 }
 
-export const useOnboardingDraft = create<OnboardingDraft>((set) => ({
+export const useOnboardingDraft = create<OnboardingDraft>((set, get) => ({
   ...EMPTY,
   setStep: (step) => set({ step }),
   setName: (name) => set({ name }),
@@ -94,4 +135,13 @@ export const useOnboardingDraft = create<OnboardingDraft>((set) => ({
    * both of which are exactly when stale progress is most confusing.
    */
   reset: () => set(EMPTY),
+
+  setHandoff: (handoff) => set({ handoff }),
+  // `get()`, not `useOnboardingDraft.getState()` — reaching for the store from
+  // inside its own initializer makes the type circular and infers `any`.
+  takeHandoff: () => {
+    const { handoff } = get();
+    if (handoff !== null) set({ handoff: null });
+    return handoff;
+  },
 }));

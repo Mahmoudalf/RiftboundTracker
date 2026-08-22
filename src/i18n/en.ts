@@ -815,7 +815,7 @@ export const en = {
   // half-built app that says so is a different thing from one that does not.
   'onboarding.wip': 'In development',
   'onboarding.wip.body':
-    'An unfinished project, built in the open — expect things to change or break between updates. Your decks and games live only on this device.',
+    'An unfinished project, built in the open — expect things to change or break between updates. Your decks and games stay on this device — nothing is sent anywhere, though your own device backup may include them.',
   // The library's state on first launch. The point of every one of these is the
   // same: it is arriving, and nothing is waiting on it.
   'onboarding.library.downloading': 'Fetching the card library — {count} cards so far.',
@@ -853,22 +853,6 @@ export const en = {
   'profile.nameHelp':
     'Only used on this device for now. When cloud sync arrives it will be the name on your account.',
 
-  'profile.report': 'Feedback',
-  // States what is *not* collected, because that is the surprising part. The
-  // app attaches nothing — no device, no version, no counts.
-  'profile.report.body':
-    'Found a bug, or want something added? Only what you write here is included — nothing about your device is collected.',
-  'profile.report.kind': 'What is this?',
-  'profile.report.kind.bug': 'Bug',
-  'profile.report.kind.feature': 'Feature wish',
-  'profile.report.placeholder': 'What happened, or what you would like to see',
-  'profile.report.a11y': 'Your feedback',
-  'profile.report.copy': 'Copy',
-  'profile.report.copied': 'Copied — paste it wherever you send it',
-  // Honest about the state of things rather than pretending at a Send button.
-  'profile.report.noBackend':
-    'There is nowhere to send this from inside the app yet. Copying is the whole of it for now.',
-
   'profile.library': 'Card library',
   'profile.library.stored':
     '{count} cards stored on this device. Browsing, searching, and deckbuilding all work without a connection.',
@@ -880,6 +864,25 @@ export const en = {
     'Riftbound Tracker is an unofficial fan project. It is not affiliated with, endorsed by, or sponsored by Riot Games.',
   'profile.about.attribution':
     'Card data comes from Riftcodex. Card images, names, and game text are the property of Riot Games, used under Riot’s Legal Jibber Jabber policy for non-commercial fan content.',
+  /*
+   * The next two are Riot's words, reproduced exactly, and they are **the same
+   * string in every catalogue**. They are not ours to translate: both policies
+   * specify the notice as wording rather than as a topic, and a German
+   * rendering of Riot's sentence is no longer Riot's sentence. The two strings
+   * above stay, because they are what a player actually understands; these two
+   * are the compliance artefact. `i18n.test.ts` asserts the three catalogues
+   * keep them byte-identical, so a future translator cannot helpfully break it.
+   *
+   * `.riotFan` is required by the Legal Jibber Jabber policy, which is what the
+   * app ships under today. `.riotDev` is the boilerplate the developer-portal
+   * policy requires of a *registered* product — the footing the app moves to if
+   * registration produces an API key (T1 §A). Carrying both costs two lines and
+   * removes a step from that transition. See `docs/STORE.md` §5.
+   */
+  'profile.about.riotFan':
+    'Riftbound Tracker was created under Riot Games\' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project.',
+  'profile.about.riotDev':
+    "Riftbound Tracker isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.",
 
   // ── A single card ─────────────────────────────────────────────────────────
   'card.notFound': 'Card not found',

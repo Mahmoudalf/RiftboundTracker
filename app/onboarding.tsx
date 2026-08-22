@@ -89,6 +89,8 @@ export default function OnboardingScreen() {
   const commitName = useOnboardingDraft((s) => s.commitName);
   const replaying = useOnboardingDraft((s) => s.replaying);
   const resetDraft = useOnboardingDraft((s) => s.reset);
+  // Set after `reset()`, which clears it — see `finish()`.
+  const setHandoff = useOnboardingDraft((s) => s.setHandoff);
 
   /*
    * The card library, reported rather than hidden behind a spinner.
@@ -151,15 +153,31 @@ export default function OnboardingScreen() {
     completeOnboarding();
     const wasReplay = replaying;
     resetDraft();
-    // `replace`, not `push` — onboarding must not be reachable with a back
-    // gesture from the app it just handed over to.
-    if (choice === 'import') router.replace('/deck/import');
-    else if (choice === 'new') router.replace('/deck/new');
+
     // A replay was opened *from* somewhere, so it hands back there. Sending
     // someone who tapped a settings row to the Decks tab would read as the app
     // losing their place.
-    else if (wasReplay) router.back();
-    else router.replace('/');
+    if (wasReplay && choice === null) {
+      router.back();
+      return;
+    }
+
+    /*
+     * Always hand over to the Decks tab, never straight to a sub-route.
+     *
+     * `replace`, not `push` — onboarding must not be reachable with a back
+     * gesture from the app it just handed over to. But `replace` swaps the
+     * *current* screen, so replacing onboarding with `/deck/import` made import
+     * the **root** of the Decks stack: the deck list was never in it, returning
+     * to the tab always landed back on the paste screen, and the deck opened
+     * after importing had nothing to go back to.
+     *
+     * The choice travels in the store instead, and the Decks tab pushes it once
+     * it is mounted — which is the ordering guarantee that chaining a `push`
+     * behind this `replace` would not give. See `useOnboardingDraft.handoff`.
+     */
+    if (choice !== null) setHandoff(choice);
+    router.replace('/');
   };
 
   return (

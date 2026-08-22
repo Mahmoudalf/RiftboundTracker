@@ -20,12 +20,36 @@
 >
 > See [The vocabulary inversion](#the-vocabulary-inversion-2026-08-12) for what moved and why.
 
-**M0 – M5 is the complete usable product.** M6 – M9 is expansion and release.
+**M0 – M5 is the complete usable product.** Everything after it is expansion and release.
+
+> ### The order changed on 2026-08-20 — read this before the milestones below
+>
+> **Owner's call, and it inverts what came before it.** The plan used to end at a store release with
+> cloud sync somewhere in the middle. It now ends at the store, and the backend comes first:
+>
+> **stable app → OWASP hardening → backend → web platform → Riot → release**
+>
+> Three things drove it. The product is **two clients sharing one account**, not a phone app with
+> optional sync, so the server is a foundation rather than a feature. The backend is **self-hosted
+> to begin with** — on hardware already paid for, moving to rented hardware when there is money to
+> rent it with — which makes portability an architectural constraint rather than a preference. And
+> **Riot moves to the end**, so registration happens with something finished to show rather than a
+> plan to describe.
+>
+> Entries written before this date describe the old order. They are **not rewritten** — see the
+> vocabulary note above for why. [M8](#m8--cloud-and-the-web-platform) is the one that matters:
+> it planned the backend and the web platform together on managed Supabase, and it is superseded by
+> [B1](#b1--backend) and [W1](#w1--web-platform).
 
 **T1 is lettered, not numbered, on purpose.** Inserting Localization as M7 already pushed Cloud from
 M7 to M8 once, and every roadmap entry written before that now needs reading with the old numbers.
 A letter slots a milestone into the sequence without renumbering the ones after it, so nothing
 written today can be made wrong by tomorrow.
+
+**That convention paid for itself on 2026-08-20.** The plan was reordered around a backend and a
+self-hosted web platform, with the store release moved to the end — four milestones inserted and one
+split in two, and **not one existing number changed.** S1, B1, W1 and R1 slot in; M8 is superseded
+rather than renumbered; M9 is still M9.
 
 | Milestone | Theme | Status |
 | --- | --- | --- |
@@ -37,9 +61,14 @@ written today can be made wrong by tomorrow.
 | [M5](#m5--analytics) | Analytics | ✅ Done |
 | [M6](#m6--extras) | Extras | ✅ Done |
 | [M7](#m7--localization) | Onboarding & languages | ✅ Done |
-| [T1](#t1--security-hardening) | Security hardening | 🟡 §D §E §F done |
-| [M8](#m8--cloud-and-the-web-platform) | Cloud + web platform | ⬜ Not started |
-| [M9](#m9--ship) | Polish & ship | ⬜ Not started |
+| [T1](#t1--security-hardening) | Security hardening | ✅ Done |
+| [S1](#s1--stability-on-real-devices) | Stability on real devices | ⬜ **Next** |
+| [T2](#t2--owasp-hardening) | OWASP hardening — three lists, three surfaces | ⬜ Not started |
+| [B1](#b1--backend) | Backend — accounts, sync, self-hosted | ⬜ Not started |
+| [W1](#w1--web-platform) | Web platform | ⬜ Not started |
+| [R1](#r1--riot-api-and-compliance) | Riot API and compliance | ⬜ Not started |
+| ~~[M8](#m8--cloud-and-the-web-platform)~~ | ~~Cloud + web platform~~ | ↳ **split into B1 + W1, 2026-08-20** |
+| [M9](#m9--ship) | Release | ⬜ Last |
 
 > **Renumbered 2026-08-14.** Localization entered as a new M7, moving Cloud to M8 and Ship to M9.
 > Historical notes below that say *"before M7"* meant the **Cloud** milestone and now name it, so a
@@ -48,7 +77,12 @@ written today can be made wrong by tomorrow.
 ## Where things stand — 2026-08-16
 
 **M7 is done.** Onboarding, German and French, and the machinery that keeps the translation honest.
-M8 — Cloud is next and unblocked.
+~~M8 — Cloud is next and unblocked.~~ **Corrected 2026-08-19: T1 — Security hardening was inserted
+between M7 and M8 on 2026-08-16 and is next.** ~~M8 is still unblocked and still follows.~~
+**Corrected again 2026-08-20: T1 is done, and M8 no longer exists as one milestone** — the plan was
+reordered around a self-hosted backend and M8 split into [B1](#b1--backend) and
+[W1](#w1--web-platform). The order is now **[S1](#s1--stability-on-real-devices) →
+[T2](#t2--owasp-hardening) → B1 → W1 → [R1](#r1--riot-api-and-compliance) → [M9](#m9--ship)**.
 
 **Shipped since 2026-08-14**
 
@@ -57,15 +91,21 @@ M8 — Cloud is next and unblocked.
 | **M7A** · onboarding | Welcome + progressive setup, a development disclaimer on the first screen, library progress that never blocks, replayable from Settings. [Detail](#m7a--what-shipped-2026-08-16) |
 | **M7B** · finished and enforced | The last 137 strings, locale-aware number formatting, and a test that fails the build on untranslated prose. [Detail](#m7b--finished-and-enforced-2026-08-16) |
 | **The gate's roots gap** | The scanner had never looked at `src/features`, `src/lib` or `src/api` — 32 more strings, and a leak that showed German users Zod's English output. [Detail](#the-gates-own-roots-gap-2026-08-16) |
-| **Settings panel** | The You tab became Settings. Migration 23, a display name, a feedback form that collects nothing. [Detail](#the-settings-panel-2026-08-16) |
+| **Settings panel** | The You tab became Settings. Migration 23, a display name, ~~a feedback form that collects nothing~~ — **the feedback card was removed 2026-08-19**, see the note in [Detail](#the-settings-panel-2026-08-16) |
 | **Language persists** | The last open M7B item. Applied at module load, before the navigator's first render |
 | **Icon system** | Five "icons" were Unicode characters absent from every bundled font. One `ViewToggle` replaces three drawings of one control. [Detail](#the-icon-system-2026-08-16) |
 | **Version-lock rule** | Taught at the moment it happens rather than in advance. [Detail](#the-version-lock-rule-taught-where-it-happens-2026-08-16) |
 | **Stats** | "All decks" was unselectable — the sentinel doubled as "nothing chosen yet", so the tap was overwritten before it rendered. Tabs moved above the deck picker, which a long deck name used to push off the row |
 | **H1** · key audited | Repo verified clean across all 17 commits. Revocation still owner-side. [Detail](#h1--the-key-audited-2026-08-16) |
+| **T1** · security hardening | Four batches. §D, §E and §F were code; §B and §C were recorded decisions with tripwires; §A became [`docs/STORE.md`](STORE.md). [Detail](#t1--security-hardening) |
+| **The first release build** | An Android APK reached a real phone on 2026-08-20 and two navigation bugs surfaced within minutes, both one line, both invisible to a renderer-less suite. [Detail](#two-navigation-bugs-from-the-first-release-build-2026-08-20). iOS was asked for and [could not be built here](#ios-was-asked-for-and-not-built-2026-08-20) |
+| **The plan reordered** | Backend before release, Riot last. M8 split into [B1](#b1--backend) + [W1](#w1--web-platform); [S1](#s1--stability-on-real-devices) and [T2](#t2--owasp-hardening) inserted. No existing number changed |
 
-**Numbers:** 23 migrations · **592 tests / 37 files** · **712 keys** in each of three languages ·
-scanner reporting 0 across 97 files.
+**Numbers**, remeasured 2026-08-21: 23 migrations · ~~592 tests / 37 files~~ ~~761~~ **766 tests /
+43 files** · ~~712 keys~~ **749 keys** in each of three languages · scanner reporting 0 across
+~~97~~ **99** files. The key count went *down* — the feedback card took ten strings with it. Each figure
+here is counted, not carried forward: an earlier draft of this line stated a test count that had
+never been run.
 
 <details>
 <summary><strong>Shipped 2026-08-13 → 08-14</strong> (the pre-Cloud polish pass)</summary>
@@ -96,7 +136,7 @@ scanner reporting 0 across 97 files.
 | | |
 | --- | --- |
 | **H1** · **delete** the Piltover Archive key | **Repo side verified clean 2026-08-16 — the revocation itself is still open and only the owner can do it.** See [the audit](#h1--the-key-audited-2026-08-16). The feature that would have used it is dropped (see Backlog), so there is nothing to rotate *to*. Still worth doing: it was pasted into a chat log, and an unused key is not a safe key, only an unmonitored one |
-| **D2** · 60 fps and airplane mode | **Postponed by owner, 2026-08-14.** Cannot be tested on a dev build — Metro is the connection that airplane mode cuts. Needs a release build (`--variant release` or an EAS preview) |
+| **D2** · 60 fps and airplane mode | ~~**Postponed by owner, 2026-08-14.**~~ **Unblocked 2026-08-20 — a release APK exists.** Metro was the connection airplane mode cut, and a release build has no Metro. Now an [S1](#s1--stability-on-real-devices) item rather than a blocked one |
 | **B2 / analytics on device** | Both need real logged data before they show anything. Not defects; not yet observed either |
 
 **Carried deliberately**
@@ -111,17 +151,46 @@ scanner reporting 0 across 97 files.
 **The gap list is empty of anything that blocks a release.** The only items left against the app are
 D2 (postponed, needs a release build to test) and H1 (owner-side, and not a code change).
 
-**Current milestone: T1 — Security hardening. Batch 1 landed 2026-08-16** — §D untrusted input, §E
-supply chain and §F failure behaviour are done. What remains in T1 is §A, §B and §C, which are
-answers to record rather than code to write. Then **M8 — Cloud and the web platform**, which is
-unblocked: A1–A8 existed precisely so no dead schema reaches Supabase.
+**T1 — Security hardening is done (2026-08-20).** Three batches, on 2026-08-16 and 08-19. §D
+untrusted input, §E supply chain and §F failure behaviour were the code half; §B secrets and
+transport and §C data at rest were the decisions half; §A is the store-facing documents, now written
+in [`docs/STORE.md`](STORE.md). ~~Then **M8 — Cloud and the web platform**, which is unblocked.~~
+**The successor is [B1](#b1--backend), and the point survives the rename:** A1–A8 existed precisely so no dead schema
+reaches Postgres, and T1 has set the rules the backend has to be built to —
+[what replaced RLS](#what-replaces-rls),
+[auth](#auth-constraints-set-by-t1-2026-08-16) and [four more](STORE.md#7--what-m8-inherits).
+[T2](#t2--owasp-hardening) adds the API list to that set.
+
+**§A was scoped as paperwork and is not.** Reading Riot's actual policy rather than a paraphrase of
+it turned up a **registration requirement the project has not met**, a clause restricting card
+assets to *"provided by the Riot API"* when the app's data path is a community API, and an
+unapproved use case — published win rates and matchup percentages — that the phone app is clear of
+and **the M8 web platform would walk into**. All owner-side or M8-side; none blocks the work in
+front of us. [Detail](#t1-batch-3--done-2026-08-19).
+
+**Two copy items closed on 2026-08-19**, both deferred by the batches that found them: Riot's
+required notices now appear verbatim on the About card, and the welcome screen no longer tells users
+their data lives only on this device when both platforms back it up.
+[Detail](#t1-batch-4--done-2026-08-19).
+
+**One item came out of batch 2 that is not a security fix.** The welcome screen tells users *"Your
+decks and games live only on this device."* Both platforms back the database up — Google Drive on
+Android, iCloud on iOS — so the sentence is false as shipped. The backup stays; the sentence
+changes. [Why](#t1-batch-2--done-2026-08-19).
 
 **M9 — Ship has not started, and several of its items need lead time rather than effort.**
 `app.json` still carries the pre-retheme `#0A0B0F` for the splash and the Android adaptive icon
-against a `#141416` shell; `assets/` holds only `domains/` and `seed/`, so there is no app icon,
-splash or store screenshot; and there is no `eas.json`, which is also what blocks D2. (The missing
-error boundary was the fourth item here — ~~added in T1 §F on 2026-08-16~~.) None of it is hard.
-All of it is required before a build reaches a store.
+against a `#141416` shell; `assets/` holds ~~only `domains/` and `seed/`~~ **`domains/`, `seed/`
+and one placeholder splash**, so there is still no app icon or store screenshot; and there is no
+`eas.json`, ~~which is also what blocks D2~~. (The missing error boundary was the fourth item
+here — ~~added in T1 §F on 2026-08-16~~.) None of it is hard. All of it is required before a build
+reaches a store.
+
+**Two of those items moved to [S1](#s1--stability-on-real-devices) on 2026-08-20**, because they
+stopped being release paperwork and became things a device pass needs: the signing keystore, and
+real art in place of the `#0A0B0F` square that was generated to stop the Android build failing at
+resource linking. **The splash was never cosmetic** — a missing drawable is a build error, not a
+plain screen.
 
 ---
 
@@ -964,7 +1033,10 @@ app has to behave:
 
 - The design's product name is **Rifthall**, a naming exploration the app never adopted.
 - Its name-field helper reads *"Shown on match history and shared decks"* — a promise the app cannot
-  keep, since nothing reads a display name and nothing leaves the device. It says what is true.
+  keep, since nothing reads a display name and ~~nothing leaves the device~~. It says what is true.
+  **Corrected 2026-08-19:** nothing is *sent* anywhere by the app, which is what the helper is about,
+  but the database — display name included — is copied to Google Drive or iCloud by OS backup. See
+  [T1 batch 2](#t1-batch-2--done-2026-08-19).
 - **Skip is always available.** The design fades *"I'll look around first"* in only once the deck
   section opens, which leaves the first thirty seconds of a brand-new app with no way out of a form
   nobody asked for.
@@ -1018,8 +1090,16 @@ phone with a home indicator the button sat partly underneath it.
 
 On the first screen a user ever sees, above the only button — not buried in About, where nobody
 looks before using the thing. Bordered in the accent so it reads as a notice rather than more body
-copy, and it names the one consequence a player can act on: **the data is local, so the only backup
-is the one they make.**
+copy, and it names the one consequence a player can act on: ~~**the data is local, so the only
+backup is the one they make.**~~
+
+**Corrected 2026-08-19.** That reasoning was right and the sentence it produced was not. The copy
+read *"Your decks and games live only on this device"*, and [T1 §C](#c--data-at-rest-on-the-device)
+found both platforms copy the database into the user's own cloud backup — so the app was making a
+promise the OS breaks by default. The consequence a player can act on is still the point; it is now
+stated as two clauses rather than one, because **the app sends nothing** and **the device backup is
+the user's own** are both true and only the first was being said.
+[What changed, and why the backup stays](#t1-batch-4--done-2026-08-19).
 
 #### The card library, reported rather than spun
 
@@ -1051,7 +1131,7 @@ it is read at the very *end* of the flow, to decide whether to hand back to Sett
 The **You** tab became **Settings**. The old name promised an account the app does not have, and the
 screen was never about a person — it is where the app is configured.
 
-Five cards: display name · language · card library · feedback · about.
+Five cards: display name · language · card library · ~~feedback~~ · about. **Four as of 2026-08-19** — see below.
 
 **Migration 23 adds a `settings` key/value table.** Key/value rather than a column per preference,
 which would cost a migration every time a checkbox is added to a table whose contents are optional by
@@ -1071,6 +1151,35 @@ nothing to assess. **Owner's decision, and it stands for telemetry, crash report
 alike.** The report is a category and what the user typed. There is no backend yet, so the button
 copies rather than sends, and the card says so; a Send button that quietly did nothing would be the
 one dishonest control in the app.
+
+##### The feedback card was removed on 2026-08-19
+
+**Owner's decision.** The test group is small enough to reach the owner directly, so a real
+destination was never the bottleneck — and the card as built was a control whose whole function was
+*"copy this, then go find me yourself"*. That is a step, not a feature. **A form comes back with
+the backend**, where a report can actually go somewhere.
+
+Four routes were weighed before the removal, and the fork that decided it is worth keeping, because
+it is the same fork any future version faces:
+
+| | |
+| --- | --- |
+| **The app hands off** — opens a mail app, a browser, or a share sheet, and the *user* presses send | The app still transmits nothing, so *"the app collects nothing"* stays true and all three [store documents](STORE.md) are untouched. The user also sees the whole message before it goes, which turns "nothing about your device is attached" from a promise into something they can check |
+| **The app sends** — posts to a server | The app now collects user content. The Apple manifest's empty `NSPrivacyCollectedDataTypes`, the Play Data Safety answers and the privacy policy all change, and it needs a public write endpoint that does not exist before M8 |
+
+`mailto:` was the recommendation and removal was the answer, which is the better one while the
+group is this small: **a route that exists and is unused costs more than no route**, because it has
+to be described accurately in three store documents and kept true.
+
+**What survives the removal is the constraint, not the control.** Whatever replaces it attaches
+nothing about the device — no version, no platform, no OS, no locale, no row counts. That was never
+about the form; it is the standing rule that also governs
+[crash reporting](#f--failure-behaviour) and analytics. The insert-only Supabase shape is recorded
+for M8 in [`STORE.md` §7](STORE.md#7--what-m8-inherits).
+
+Ten catalogue keys went with it, in all three languages — the first time the key count has gone
+down. `SelectField` and `OptionRow` had no other caller on the screen and left with it; the
+clipboard and toast imports too.
 
 **The version in About is read from `app.json`** rather than hand-typed. A hand-written `v0.1.0` is
 the same shape of mistake as the `M1` label that sat there for five milestones: a fact about the
@@ -1357,54 +1466,211 @@ after the server exists means auditing twice.
 secret ships in the bundle that is not designed to be public, and every place untrusted input enters
 the app has a named owner and a test.
 
-**Status: batch 1 done (2026-08-16) — §D, §E, §F complete.** §A (store paperwork), §B (bundle and
-transport) and §C (data at rest) remain, and all three are decisions to record rather than code to
-write. Findings are in [T1 batch 1 — done](#t1-batch-1--done-2026-08-16) at the end of this section.
+**Status: complete as of 2026-08-20.** §A through §F are closed. The two Riot items that kept §A
+open moved to [R1](#r1--riot-api-and-compliance) — they were never code, and a milestone should not
+stay amber waiting on someone else's reply.
+
+**Original status, kept:** batch 4 done (2026-08-19) — §B through §F complete, §A down to two
+owner-side items.
+Batch 1 was the code half, batch 2 the decisions half, batch 3 the store-facing documents (now in
+[`docs/STORE.md`](STORE.md)), batch 4 the two copy items the decision batches deferred.
+
+**Everything T1 can close from inside the repo is closed.** What remains is two items only Riot can
+answer: **registration**, which the Riftbound developer policy makes mandatory for any product that
+serves players, and the **asset-sourcing clause** that restricts card assets to those *"provided by
+the Riot API"* when the app's data path is a community API. Findings are in
+[batch 1](#t1-batch-1--done-2026-08-16), [batch 2](#t1-batch-2--done-2026-08-19),
+[batch 3](#t1-batch-3--done-2026-08-19) and [batch 4](#t1-batch-4--done-2026-08-19).
 
 ### A · Store and platform requirements
 
-- [ ] **Apple privacy manifest** (`PrivacyInfo.xcprivacy`). Required since 2024, and required for the
-      *dependencies* too — Expo modules declare their own. It must list every "required reason" API
-      the app touches (file timestamps, user defaults, disk space) and every data type collected.
-      **The app collects nothing**, which makes this short to write and important to get exactly
-      right: a manifest that over-declares invites questions that have no answer.
-- [ ] **Google Play Data Safety form.** Same content, different form. Both must agree with each other
-      and with the privacy policy, or review flags the mismatch.
-- [ ] **Account deletion.** Apple requires an in-app path to delete an account for any app that
-      creates one. M8 creates one, so this is a T1 rule that M8 must build to rather than a thing to
-      bolt on afterwards.
-- [ ] **Attribution and non-commercial compliance.** Card art and names are Riot's, used under the
-      Legal Jibber Jabber policy for fan content. The About card carries the disclaimer; T1 confirms
-      it satisfies the actual policy text rather than a paraphrase of it.
-- [ ] **Age rating and content declaration**, consistent across both stores.
+All three store-facing documents live in **[`docs/STORE.md`](STORE.md)**, written together on
+2026-08-19 rather than separately, because they describe the same facts and the failure mode is that
+they drift apart and a reviewer notices first.
+
+- [x] **Apple privacy manifest — written and applied 2026-08-19.** Declared through
+      `app.json` → `ios.privacyManifests` (this is CNG, so `ios/` is generated), and it resolves:
+      `npx expo config` shows it. **One required-reason API, `FileTimestamp` / `C617.1`**, because
+      three linked modules use it and **none ships its own manifest** — `expo-modules-core`'s
+      `PersistentFileLog`, `expo-sqlite` `stat`-ing the database, `expo-image`'s cache expiry.
+      `DiskSpace`, `UserDefaults` and `SystemBootTime` are **deliberately not declared**: every module
+      that uses them ships its own manifest, and claiming them at app level would invite a question
+      with no answer. `NSPrivacyCollectedDataTypes` is genuinely empty.
+      [Reasoning, and the four not-declared categories](STORE.md#2--apple-privacy-manifest).
+- [x] **Google Play Data Safety answers — settled 2026-08-19.** No collection, no sharing, encrypted
+      in transit, deletion by uninstall because there is no server copy.
+      [The answers, and the two a reviewer might push back on](STORE.md#3--play-data-safety-answers).
+      The privacy policy is written to match, and needs a public URL before either listing can be
+      submitted — one more argument for building the web platform early.
+- [x] **Account deletion — recorded as an M8 build constraint, not as built work.** The T1 job was to
+      set the rule before the account exists; the build item lives once, in
+      [M8's checklist](#what-gets-built).
+- [x] **Attribution — ~~the answer is *no*~~ closed 2026-08-19.** Checked in batch 3 and it failed:
+      the About screen stated the substance in the app's own words, and Riot specifies the notice as
+      **wording**. Batch 4 added both required notices verbatim —
+      `profile.about.riotFan` (Legal Jibber Jabber, what the app ships under) and
+      `profile.about.riotDev` (the registered-product boilerplate, carried early so registration is
+      not also a copy change). The plain-language strings stay above them: those are what a player
+      understands, these are the compliance artefact.
+
+      **They are the same string in all three catalogues, and a test holds that.** Riot's sentence
+      rendered in German is no longer Riot's sentence, so `i18n.test.ts` fails if any locale
+      diverges — the failure mode is a translator being helpful, and it would otherwise ship
+      silently because the result reads as correct.
+      [Policy text and why both](STORE.md#5--riot-attribution-and-the-riftbound-developer-policy).
+- [x] **~~Register the app with Riot~~ · ~~Resolve the asset-sourcing clause~~ — moved to
+      [R1](#r1--riot-api-and-compliance) on 2026-08-20.** Both are conversations with Riot rather
+      than work in this repo, and they were the only two items holding a finished milestone open.
+      The reorder puts Riot at the end, so they now sit where they are actually done.
+- [x] **Age rating — settled 2026-08-19, consistent across both stores.** Apple **9+**; IARC ESRB
+      **E10+** · PEGI **7** · USK **6**. Consistency means the *questionnaire answers* match — the
+      labels differ because the systems do. [The answer set](STORE.md#6--age-rating).
 
 ### B · Secrets, transport, and what ships in the bundle
 
-- [ ] **Establish the rule that the JS bundle is public.** Anything in it can be read by anyone who
-      installs the app. Today that is fine because the app has **no credential of any kind**
-      ([H1 audit](#h1--the-key-audited-2026-08-16)). M8 changes that, and the rule has to be written
-      down before it does.
-- [ ] **The Supabase anon key is designed to be public — but only if RLS is correct.** This is the
-      single most consequential line in T1. It converts row-level security from a convenience into
-      *the* authorization boundary, which is why M8's policies are a T1 deliverable and not an M8
-      one.
-- [ ] **HTTPS everywhere, no ATS exceptions.** The only host today is `api.riftcodex.com`; confirm
-      no plaintext fallback and no `NSAllowsArbitraryLoads`.
-- [ ] **Card images are hotlinked from Riot's Sanity CDN.** Confirm that stays HTTPS and carries no
-      identifying query parameters.
+- [x] **The JS bundle is public — the rule, settled 2026-08-19.**
+
+      > **Anything in the bundle can be read by anyone who installs the app.** There is no such
+      > thing as a secret shipped to a client. A value either is designed to be public, or it does
+      > not go in.
+
+      The rule is written down now, while nothing weighs on it. Re-verified 2026-08-19: the app has
+      **no credential of any kind** — no `process.env` read, no `EXPO_PUBLIC_*`, no `.env` file, no
+      `Authorization` header, and one unauthenticated host
+      ([H1 audit](#h1--the-key-audited-2026-08-16)). M8 is what gives the rule something to govern,
+      which is why it is settled before M8 rather than during it.
+
+- [x] **RLS is the authorization boundary, not a convenience — settled 2026-08-19.** The Supabase
+      anon key is *designed* to be public: it is a JWT naming the project and the `anon` role, and
+      it authorises nothing by itself. Three consequences, and M8 is bound by all three.
+
+      **RLS is the only boundary, not defence in depth.** Nothing sits in front of it. Treating the
+      anon key as a secret is the mistake that makes people relax the policies, because it invents a
+      second layer that does not exist.
+
+      **Default-deny, with `auth.uid() = user_id` on all four verbs.** Enable RLS on every table and
+      write `select`, `insert`, `update` **and** `delete` policies explicitly. A policy set that
+      covers `select` and forgets `delete` is the exact shape this fails in — and it fails quietly,
+      because reads keep looking correct while anyone can erase anyone's rows.
+
+      **The `service_role` key must never reach the app, the web app, or any client bundle.** It
+      bypasses RLS by design. This is the failure most likely to happen by accident during M8: it
+      sits one environment-variable name away from the anon key, and a build that picks up the wrong
+      one is not visibly broken.
+
+      **The web platform sharpens this rather than adding a case.** Same key, same policies, and a
+      bundle that is *more* trivially readable than the app's — served as JavaScript to a browser
+      with devtools open. There is no second security model to design for web; there is one
+      boundary and a second client that makes ignoring it harder to get away with.
+
+      The policies themselves are M8's work. **The rules they must satisfy are T1's**, which is the
+      whole reason T1 sits before M8.
+
+- [x] **HTTPS everywhere, no ATS exceptions — confirmed 2026-08-19.** Zero occurrences of `http://`
+      in `src/`, `app/`, `scripts/` or `app.json`. Two hosts, both `https:` — `api.riftcodex.com`
+      and `cmsassets.rgpub.io`. `app.json` sets no `ios.infoPlist`, so Expo's template applies:
+      `NSAllowsArbitraryLoads` **false**, with `NSAllowsLocalNetworking` true so Metro works in
+      development. On Android `usesCleartextTraffic="true"` appears **only in the `debug` and
+      `debugOptimized` manifests**, never in `main` — a release build has no cleartext path.
+
+- [x] **Card images: HTTPS, and the parameters are not identifying** — 2026-08-19, with the
+      residual recorded alongside the claim.
+
+      The literal answer is that there *is* a parameter. 1436 of the 1451 seed URLs arrive from the
+      API already carrying `?accountingTag=RB` (the other 15 carry no query at all) — Riot's own
+      constant, identical on every card, naming the product rather than a person. `src/lib/cdn.ts`
+      appends `w`, `fm`, `q`, and `blur` for the placeholder. Nothing else. All 1451 are
+      `https://cmsassets.rgpub.io`.
+
+      **The residual, which the claim alone hides:** the *request* still discloses the user's IP
+      address and which cards they are looking at to Riot's CDN. No parameter carries that — the
+      connection does. It is inherent to hotlinking, it was an accepted trade in the original plan,
+      and `src/lib/cdn.ts` exists as the single indirection precisely so a proxy could take it away
+      later. **"No identifying query parameters" is true, and it is not the same sentence as "no
+      privacy exposure."**
 
 ### C · Data at rest on the device
 
-- [ ] **Decide whether the SQLite file needs encryption, and record the answer either way.** It holds
-      decks, match history and a display name — no credentials, no contact data, nothing a stranger
-      gains from. On a locked phone it already sits inside the OS sandbox and full-disk encryption.
-      SQLCipher costs a native dependency and a migration; the likely honest answer is *no*, and the
-      point of the item is that it becomes a decision rather than an omission.
-- [ ] **Auth tokens are a different question and get a different answer.** When M8 introduces a
-      session, it belongs in `expo-secure-store` (Keychain / Keystore), never in the SQLite file or
-      `AsyncStorage`.
-- [ ] **Confirm nothing sensitive reaches logs.** `sync_meta.last_error` now holds raw exception text
-      by design; check it cannot capture anything but transport and schema detail.
+- [x] **The SQLite file is not encrypted, and that is the decision — settled 2026-08-19.**
+
+      > **No SQLCipher.** The database holds decks, versions, match history, binders and a
+      > 40-character display name. Every field in it is content a player would put in a deck-list
+      > post.
+
+      **What the OS already gives us.** On iOS the file sits in the app sandbox under Data
+      Protection, whose class key is derived from the passcode — on a locked device it is not
+      readable at all. On Android it sits in the app's private data directory under File-Based
+      Encryption, with the credential-encrypted store unlocked only after first unlock. Neither is
+      something the app turns on: both are the platform default, and both are already in force.
+
+      **What SQLCipher would cost.** It is not in `expo-sqlite` — no `PRAGMA key`, no codec, nothing
+      in the module to enable. Adding it means a config plugin, leaving the managed prebuild for a
+      custom native build, and a rekey migration on top of the existing 23.
+
+      **What an attacker actually gains, which is what makes this a clean no.** The key would live
+      in `expo-secure-store` **on the same device**, and `src/db/client.ts` opens the database at
+      *module load* — before any screen renders and before any user interaction. So the key has to
+      be readable at cold start with nobody present to authorise it. **Encryption of this kind
+      defends a stolen file, not a stolen device.** The two ways the file leaves the sandbox on a
+      device — rooted or jailbroken, or unlocked in someone else's hands — are both cases where the
+      key is available too.
+
+      The third way out is an OS backup, and there encryption is actively worse. `expo-secure-store`
+      is backed by the Keychain and the Android Keystore, neither of which restores to a new device
+      the way app data does. A restored backup would hand the user an encrypted database and no key.
+      **SQLCipher would not protect the backup path; it would destroy it.** See
+      [T1 batch 2](#t1-batch-2--done-2026-08-19) for what the backup check found.
+
+      **The tripwire — the condition that reverses this.** Recorded as a rule rather than a caveat,
+      because it is what makes a "no" safe to write down:
+
+      > **The moment the schema gains a token, an email address, a password, another person's
+      > contact details, or anything a user would not post publicly, this decision is void** and is
+      > made again from the start.
+
+      Concretely, any of these trips it: an auth or refresh token landing in `settings`; `user_id`
+      becoming an email rather than an opaque uuid; a free-text column repurposed to hold someone
+      else's identity. **That last one has a precedent in this schema** — `games.opp_label` was a
+      free-text field for typing an opponent's name, and migration 22 removed it. It is exactly the
+      shape the tripwire watches for, and it was already here once.
+
+      Watched, not tripped: `events.location` is user-typed and unconstrained, so a player *can* put
+      a personal address in it. It is their own, they were never asked for it, and no other column
+      in the app holds a second person's anything.
+
+- [x] **Auth tokens get the other answer, and it is already written down.** See
+      [Auth constraints, set by T1](#auth-constraints-set-by-t1-2026-08-16) under M8 —
+      `expo-secure-store`, never SQLite, never `AsyncStorage`. Deliberately not restated here:
+      batch 1 had to delete a triplicated "in-app account deletion", and a rule that lives in two
+      places is a rule that can disagree with itself. `expo-secure-store` is **not yet a
+      dependency**, which is correct — M8 has not started.
+
+- [x] **Nothing sensitive reaches logs — checked 2026-08-19.** Every `console.*` call in `src/` and
+      `app/` is `__DEV__`-guarded — eleven sites, four of which (three in `useLocale.ts`, one in
+      `ErrorBoundary.tsx`) use the `typeof __DEV__ !== 'undefined'` form so `lib/`'s Node tests can
+      still load them. None logs user content: ids, counts and millisecond timings only — no deck
+      name, no display name, no notes. `sync_meta.last_error` holds an HTTP status and a Riftcodex
+      endpoint path, or up to three Zod issue paths and messages: card-shaped server data, never
+      anything a player typed.
+      ~~**Residual: nothing enforces this.**~~ **Closed 2026-08-19** by
+      `src/lib/console-guard.test.ts`, an allowlist of the call sites in the shape of
+      `sql-injection.test.ts`'s. It deliberately does **not** try to verify the guard or judge the
+      argument — both need a parser or a mind reader. It notices that the *set of sites changed*,
+      which is the one thing a machine does better than a person, and hands the judgement back at
+      the moment someone is writing the line. See [batch 4](#t1-batch-4--done-2026-08-19).
+
+- [x] **OS backup: the welcome copy said something false, and the copy changed — closed 2026-08-19.**
+      Batch 2 found the database is copied to Google Drive on Android and iCloud on iOS while
+      `onboarding.wip.body` told the user *"Your decks and games live only on this device."* The
+      decision was that the **backup stays and the sentence changes**, because until M8 ships sync
+      it is the only thing that survives a phone replacement.
+
+      Rewritten in all three languages to *"Your decks and games stay on this device — nothing is
+      sent anywhere, though your own device backup may include them."* Two clauses because two
+      things are true and only one of them was being said: **the app sends nothing**, which is the
+      part that matters and stays absolute, and **the device backup is the user's own**, which is
+      the part that was missing. German and French are marked for the owner's proofread in
+      [batch 4](#t1-batch-4--done-2026-08-19).
 
 ### D · Untrusted input
 
@@ -1483,8 +1749,9 @@ write. Findings are in [T1 batch 1 — done](#t1-batch-1--done-2026-08-16) at th
 
 ### T1 batch 1 — done (2026-08-16)
 
-**§D, §E and §F are complete.** §A (store paperwork), §B (bundle and transport) and §C (data at
-rest) remain, and all three are decisions to record rather than code to write.
+**§D, §E and §F are complete.** ~~§A (store paperwork), §B (bundle and transport) and §C (data at
+rest) remain~~ — **§B and §C closed in [batch 2](#t1-batch-2--done-2026-08-19) on 2026-08-19; §A
+alone remains.**
 
 Four recorded claims were disproven by measuring them. Each had been written down as fact, and each
 was measured with a method that could not see what it claimed to rule out — the same shape as the
@@ -1555,9 +1822,361 @@ how "none in the release bundle" became a recorded fact while `nanoid` shipped.
 scanner 0 across 99 files, `expo-doctor` 21/21, bundle rebuilt and re-audited — `nanoid` still the
 only advisory root present, `/_sitemap` now resolving to `app/_sitemap.tsx`.
 
+
+### T1 batch 2 — done (2026-08-19)
+
+**§B and §C are complete. T1 is closed except for §A.** This batch wrote no code, which is what §B
+and §C always were: decisions to record, and the point of recording them is that they stop being
+omissions. Seven checklist items ticked, one new item opened.
+
+Batch 1 found four recorded claims that measurement disproved. Batch 2 found something quieter and
+worse — **two claims that are true as written and misleading as read**, and **one sentence of
+shipped user-facing copy that is simply false**.
+
+| Recorded | Actual |
+| --- | --- |
+| §B: card images "carry no identifying query parameters" | True, and incomplete. There **is** a parameter — `accountingTag=RB`, Riot's own, on 1436 of 1451 — and the real exposure is the request, not the query |
+| §C: "on a locked phone it already sits inside the OS sandbox" | True, and it also sits in the user's **Google Drive or iCloud backup** |
+| Onboarding `wip.body`: *"Your decks and games live only on this device."* | **False on both platforms** — and it is on the first screen a user ever sees |
+
+#### The database leaves the device, and the app tells users it does not
+
+This was the addition to the brief, and it is the finding of the batch. ADB and cloud backup are the
+one path that extracts the database without root, so they are the threat the sandbox argument does
+not cover.
+
+**Android: the effective value is `allowBackup="true"`, and reading the template says the
+opposite.** `app.json` sets no `android.allowBackup`, so the framework default applies — and naming
+that default
+takes two steps that disagree with each other. Expo's prebuild template ships
+`android:allowBackup="false"` in `android/app/src/main/AndroidManifest.xml`. But `withAllowBackup`
+is registered in `withDefaultPlugins` and rewrites the attribute on every prebuild from
+`config.android?.allowBackup ?? true` (`@expo/config-plugins/build/android/AllowBackup.js:25`). The
+plugin runs last, so **the manifest in the repo template is not the manifest that ships.** Reading
+the template alone would have produced a confident wrong answer — the same class of mistake as
+batch 1's grep of a minified bundle: a method that cannot see the step that decides.
+
+Consequence: Android Auto Backup copies the app's data directory, `riftbound.db` included, to the
+user's Google Drive.
+
+**iOS: included, and nothing excludes it.** `expo-sqlite`'s `defaultDatabaseDirectory` is
+`<Documents>/SQLite` (`SQLiteModule.swift:28`) and `src/db/client.ts` passes no directory override.
+`Documents/` is in iCloud backup by default, and nothing in the app sets
+`NSURLIsExcludedFromBackupKey`. The same file goes to iCloud.
+
+**Is the framework default the right answer? For the config, yes. For the copy, no.**
+
+Turning backup off is one line in `app.json` for Android and a startup exclusion call for iOS. It
+was **declined**, and the reason is the app's own premise: until M8 ships sync, a user replacing a
+phone would lose their entire match history — in an app whose whole value is that the history is
+longitudinal. OS backup is the only continuity that exists today, and both platforms encrypt it:
+Android's is end-to-end encrypted with the device lock screen since Android 9, and iCloud's is bound
+to the user's Apple account.
+
+So the config stays and **the sentence changes.** `onboarding.wip.body` ends *"Your decks and games
+live only on this device."* That is a promise, it is on the first screen, and it is not true. Three
+strings, one per language. It is [tracked unticked in §C](#c--data-at-rest-on-the-device) rather
+than fixed here, because this batch wrote no code.
+
+**This does not reopen the encryption question — it settles it harder.** The key would live in
+`expo-secure-store`; the Keychain and the Android Keystore do not restore across devices the way app
+data does; an encrypted database in a restored backup is a database nobody can open. Encryption
+would not defend the backup path. It would break it.
+
+#### Encryption: no, and the reason is where the key would have to live
+
+The full argument is in [§C](#c--data-at-rest-on-the-device). The one line worth repeating here is
+the one that decides it: `src/db/client.ts` opens the database at **module load**, before any screen
+renders and before any user interaction, so the key has to be readable at cold start with nobody
+present to authorise it. **That defends a stolen file, not a stolen device** — and every realistic
+on-device path to the file is a stolen-device path.
+
+Against that: SQLCipher is not in `expo-sqlite` at all. It would cost a config plugin, leaving the
+managed prebuild for a custom native build, and a rekey migration on top of the existing 23. What it
+would protect is deck lists, match history, binders and a 40-character display name.
+
+**The tripwire is the part that makes the "no" safe to record**, and it is written as a rule rather
+than a caveat: the moment the schema gains a token, an email address, a password, another person's
+contact details, or anything a user would not post publicly, the decision is void and gets made
+again. It is not hypothetical — `games.opp_label` was a free-text field for typing an opponent's
+name, and migration 22 removed it. The exact shape the tripwire watches for has already been in this
+schema once.
+
+#### RLS is a T1 deliverable, and it is the rules rather than the policies
+
+The three sharpenings are in [§B](#b--secrets-transport-and-what-ships-in-the-bundle) and none of
+them is new information; what is new is that they are now binding on M8 rather than advice to it.
+The one most likely to be got wrong in practice is the third: `service_role` bypasses RLS entirely
+and sits one environment-variable name away from the anon key, so the failure mode is a build that
+picks up the wrong name and is **not visibly broken**.
+
+The web platform sharpens this rather than adding a case — same key, same policies, and a bundle
+served as JavaScript to a browser with devtools open.
+
+#### Transport and logs, both verified rather than assumed
+
+No `http://` anywhere in `src/`, `app/`, `scripts/` or `app.json`; two hosts, both HTTPS. Expo's
+Info.plist template sets `NSAllowsArbitraryLoads` false, and `app.json` adds no `ios.infoPlist` to
+override it. On Android `usesCleartextTraffic="true"` exists **only in the `debug` and
+`debugOptimized` manifests** — a release build has no cleartext path at all.
+
+Every `console.*` call in `src/` and `app/` is `__DEV__`-guarded, and none logs user content.
+`sync_meta.last_error` carries an HTTP status and an endpoint path, or Zod issue paths — server
+data, never anything a player typed. **Recorded residual: nothing enforces either of these.** They
+were read, not tested, and the next unguarded `console.log` of a deck name would pass the gate.
+
+#### What remains in T1
+
+**§A only** — five items of store paperwork, and every one of them needs artefacts that do not exist
+yet. The privacy manifest and the Data Safety form have to agree with each other and with a privacy
+policy; the attribution check needs the actual Legal Jibber Jabber text rather than a paraphrase;
+the age rating needs a store listing. None is hard and none can be finished before there is a build
+to submit, which puts §A next to M9's missing `eas.json` rather than next to the work above.
+
+**Gate:** typecheck clean, lint clean, **755 tests / 42 files**, scanner 0 across 99 files. No
+bundle rebuild: nothing in `src/` or `app/` changed — the only file this batch touched is this one.
+
+
+### T1 batch 3 — done (2026-08-19)
+
+**§A is written and did not close.** The three store-facing documents — Apple privacy manifest, Play
+Data Safety answers, privacy policy — are in [`docs/STORE.md`](STORE.md), written together because
+they describe the same facts and drift apart when written separately. Four items ticked, three
+opened. The manifest is applied to `app.json`; everything else in the batch is documents.
+
+**§A was scoped as paperwork. It is not paperwork.** The item said *"T1 confirms it satisfies the
+actual policy text rather than a paraphrase of it"* — so the batch read the actual policy text, and
+three things came back that no paraphrase contains.
+
+| Assumed | Actual |
+| --- | --- |
+| Attribution is a topic to cover | Riot specifies it as **wording**. The About screen states the substance in its own words, which is a paraphrase |
+| A fan project just needs a disclaimer | *"If your product serves players, you must register it with us regardless of whether or not your product uses official documented APIs."* **Not done** |
+| Card sources are our choice | *"Your App may only use Riftbound assets (including cards) provided by the Riot API. No external or unofficial materials."* Card data comes from **Riftcodex**, a community API |
+| The app's analytics are uncontroversial | Publishing *"metagame-defining data"* — play rates, win rates, matchup percentages — is an **unapproved use case**. The phone app is clear; **M8's web platform is the described case** |
+
+#### The one that reaches the architecture
+
+Clause 2 is the one worth sitting with. The **images** are Riot's own — hotlinked from
+`cmsassets.rgpub.io`, which is as official as a source gets. The **data** — names, text, types,
+domains, collector numbers — comes from Riftcodex, and the clause names external and unofficial
+materials specifically. That was a founding decision of this project (M1 exists because the API
+"cannot filter by type, domain, rarity, energy, or tag", so a local mirror was mandatory), and it is
+now a question to put to Riot at registration rather than one to answer here.
+
+#### The one that lands on M8
+
+*"Cannot publish metagame-defining data like play rates, win rates, or matchup win percentages for
+cards/decks."* Every rate this app computes comes from **the user's own logged games**, is shown only
+to them, and is never pooled. That is not what the clause describes.
+
+**A web platform that aggregates match data across accounts and shows "decks led by this Legend win
+58%" is what the clause describes, almost word for word.** M5 built the analytics; M8 would be the
+thing that publishes them. Recorded in [`STORE.md` §7](STORE.md#7--what-m8-inherits) alongside
+account deletion, the user-generated-content gate, and the requirement that all three documents be
+re-answered before M8 ships rather than after.
+
+#### The manifest is short because it was measured
+
+Every Expo module in the tree was checked for a shipped `PrivacyInfo.xcprivacy`. Four have one —
+`expo-constants`, `expo-file-system`, `expo-localization` and `react-native` — and they cover
+`UserDefaults`, `DiskSpace` and `SystemBootTime` for themselves. **So the app declares none of those**,
+and declares exactly one category it can demonstrate: `FileTimestamp` / `C617.1`, used by
+`expo-modules-core`'s `PersistentFileLog`, by `expo-sqlite` opening the database, and by
+`expo-image`'s disk cache — none of which ships a manifest.
+
+That is the item working as written. **A manifest that over-declares invites questions that have no
+answer:** claiming `UserDefaults` would invite "which preferences do you keep there?", and the honest
+answer is none — the language choice is a row in SQLite.
+
+`NSPrivacyCollectedDataTypes` is **empty, and true**. Apple's *collect* means transmitted off the
+device; nothing the user creates ever is. The feedback form copies to the clipboard, verified again
+here. **OS backup is not developer collection** — it is the user's own iCloud — but batch 2's finding
+is disclosed in the privacy policy anyway, because "we collect nothing" and "nothing leaves your
+device" are different sentences and only the first is true.
+
+**What the manifest cannot prove yet:** CocoaPods resolved at `pod install` — SDWebImage behind
+`expo-image` is the one that matters — are not in `node_modules` and were not inspected. Xcode's
+*Generate Privacy Report* on the first archive aggregates every embedded manifest and settles it.
+That belongs with M9's first real build, next to [D2](#where-things-stand--2026-08-16).
+
+#### Confidence, stated rather than assumed
+
+Riot's clauses were read through a fetching tool's summarizer rather than from the rendered page.
+Two independent fetches of the Riftbound policy returned the same sentences, which is good evidence
+and is not the same as having read it. `STORE.md` §5 links the three primary sources and says
+plainly that the owner should read them before acting on clause 2. This is the same discipline as
+batch 1's source-map rule: **name the method, and say what it cannot see.**
+
+One aside, because it vindicates work already done: the same policy says *"Your API key may not be
+included in your code, especially if you plan on distributing a binary."* That is
+[H1](#h1--the-key-audited-2026-08-16) and [§B](#b--secrets-transport-and-what-ships-in-the-bundle),
+in Riot's words.
+
+#### Age rating, settled by answering rather than by labelling
+
+Apple **9+**; IARC ESRB **E10+** · PEGI **7** · USK **6**. The labels differ because the systems do —
+what has to match is the *questionnaire answers*, and those are one table in
+[`STORE.md` §6](STORE.md#6--age-rating). Mild fantasy violence (1,451 cards of static combat
+illustration), nothing else, and **no user-generated content** — which is *No* today only because
+nothing is shared, and is the second thing M8 flips.
+
+#### What batch 3 did not settle
+
+- **Registration with Riot has not been started.** Owner-side, and it gates submission.
+- **The asset-sourcing clause is unresolved**, and could reach the architecture.
+- ~~**The About screen still carries the paraphrase.**~~ **Closed in
+  [batch 4](#t1-batch-4--done-2026-08-19) on 2026-08-19** — both notices now render verbatim.
+- **The privacy policy has no controller name, contact, or URL.** All three are owner-supplied.
+
+**Gate:** typecheck clean, lint clean, **755 tests / 42 files**, scanner 0 across 99 files.
+`npx expo config` resolves the new `ios.privacyManifests` block. No bundle rebuild: `app.json` needs
+a `prebuild` to take effect, not a bundle, and no JS changed.
+
+
+### T1 batch 4 — done (2026-08-19)
+
+**The two copy items the decision batches deferred, and one residual closed.** Batch 3 found the
+attribution failed and left it, because it produced documents. Batch 2 decided the onboarding
+sentence had to change and left it, because it wrote no code. This batch wrote the code.
+
+§A's attribution item and §C's backup item are ticked. **T1 now has nothing left that can be closed
+from inside the repo** — the two open items are Riot's to answer.
+
+#### The i18n gate had the mechanism, and it was the wrong one
+
+A verbatim legal notice must not be translated, and `npm run i18n:scan` fails the build on
+untranslated English prose. The scanner does have an escape hatch — `// i18n-ignore`, including a
+comment-only form that covers the line beneath, built for exactly this shape of problem.
+
+**It is the wrong tool here, and reaching for it would have been the silent workaround.** The pragma
+suppresses a finding in *scanned code*; the scanner's roots are `app`, `src/components`,
+`src/features`, `src/lib` and `src/api`, and it never reads `src/i18n`. Riot's notices are copy.
+Copy lives in the catalogue. **Put in the catalogue, they need no escape hatch at all** — they are
+three catalogue entries that happen to hold identical text, which is what "the same in every
+language" looks like when the catalogue is the mechanism.
+
+That is not a new idea in this codebase: the scanner's own `NEVER_TRANSLATED` set already holds
+`English`, `Deutsch`, `Français`, `Riftbound` and `Riot Games` for the same reason.
+
+**What it costs is that the scanner can no longer see them**, and the guard has to come from
+somewhere else. So `i18n.test.ts` gained one: the three catalogues must hold `profile.about.riotFan`
+and `profile.about.riotDev` byte-identical, and a non-vacuity check that the keys exist and mention
+Riot Games. Proved by translating the German copy — it failed, naming the key.
+
+**The failure mode is a translator being helpful**, and it is the nastiest kind: a German rendering
+of Riot's sentence reads *better* than the English one sitting in a German app, so nothing about the
+result looks wrong. It just stops satisfying the policy.
+
+#### Both notices, and why the second one ships now
+
+`.riotFan` is the Legal Jibber Jabber notice, required of the app as it exists today. `.riotDev` is
+the developer-portal boilerplate required of a **registered** product — the footing the app moves to
+if [registration](#a--store-and-platform-requirements) produces an API key.
+
+Carrying both now costs two lines and one style rule. Carrying only the first would mean that on the
+day registration lands, the compliance change is also a copy change in three languages and a new
+release — which is exactly the shape of thing that gets forgotten because it is small.
+
+They render below the existing plain-language pair, in `caption` rather than the meta face: three
+lines of tracked 9.5-point capitals stop being readable about where the sentence gets interesting,
+and the one thing on that card that must survive being read is the notice. Faint, not hidden — both
+policies use the word *conspicuous*.
+
+#### The onboarding sentence, and what "true without being alarming" required
+
+Old: *"Your decks and games live only on this device."* One clause, and false on both platforms.
+
+New: *"Your decks and games stay on this device — nothing is sent anywhere, though your own device
+backup may include them."*
+
+Two clauses, because two things are true and the old sentence said only one. **The app sends
+nothing** is the part that matters, it is absolute, and it comes first. **The device backup is the
+user's own** is the part that was missing, and the word doing the work is *your own* — the sentence
+that would alarm is one implying something was taken, and nothing was.
+
+**German and French are the owner's to proofread.** Both were written to match the register of the
+strings around them rather than translated literally.
+
+- **German** — `dein eigenes Geräte-Backup kann sie aber enthalten`. *Geräte-Backup* is the loanword
+  German actually uses in this context (*iCloud-Backup*, *Google-Backup*), and it is the word I am
+  least sure of. *Die Sicherung deines Geräts* is more properly German and reads heavier; if the
+  file's voice prefers it, it is a one-line swap.
+- **French** — `mais la sauvegarde de votre appareil peut les inclure`. *Sauvegarde* is the standard
+  term and reads naturally. Typographic apostrophes matched to the file (`rien n'est envoyé`).
+
+Nothing in the suite asserted the old string — checked before changing it, because a test asserting
+copy is exactly the thing that turns a copy fix into a failing build for no reason.
+
+#### The log residual, closed with an allowlist rather than an analysis
+
+§C recorded that every `console.*` was `__DEV__`-guarded and free of user content, and that
+**nothing enforced it** — read, not tested. `src/lib/console-guard.test.ts` closes it in the shape
+of `sql-injection.test.ts`'s structural half.
+
+**It was worth building, and the reason is what it does not do.** Two properties were on the table:
+
+1. *Is the guard present?* A guard is an enclosing `if (__DEV__)`, or an early
+   `if (!__DEV__ || …) return;` at the top of the function, or the
+   `typeof __DEV__ !== 'undefined'` form the Node-reachable modules use. Deciding which covers a
+   given line needs the enclosing function, which needs a parser. A regex that guessed would be a
+   second thing that can be wrong about the file it is checking.
+2. *Is the argument user content?* `\`[stats] deck=${active}\`` is an id and `deck.name` is a name.
+   Nothing structural separates them, and any rule strict enough to catch the second would flag
+   the first.
+
+Both are judgements a person has to make, so the test does not attempt either. It **notices that the
+set of call sites changed** — the one thing a machine does better than a person — and hands the
+judgement back at the moment someone is writing the line. Adding a `console.log` is a two-line diff
+in the allowlist, and writing that line is where someone has to say what is being logged.
+
+That is the same trade `sql-injection.test.ts` made, accepted for the same reason: **the allowlist
+does not prove the code is safe, it proves nobody added a site without looking.** Proved non-vacuous
+by planting an unguarded `console.log` in `format.ts` — it failed, naming file and line.
+
+**Six entries, eleven calls.** The allowlist is keyed `file:method`, so the three warnings in
+`useLocale.ts` are one entry. The scanner strips comments first, which matters more than it sounds:
+several files discuss their own logging in prose, and a scanner that read those would report sites
+that do not exist and then pass against an allowlist built from them. There is a test for that too.
+
+#### Corrected in place
+
+The M7A entry describing the development disclaimer explained its reasoning as *"the data is local,
+so the only backup is the one they make"* — right reasoning, and it produced a sentence the OS
+breaks by default. Marked with the correction rather than rewritten, per the convention.
+
+#### What is still open in T1
+
+Two items, both §A, both Riot's to answer rather than ours:
+
+- **Registration.** *"If your product serves players, you must register it with us."* Not started,
+  owner-side, gates submission.
+- **The asset-sourcing clause.** Card data comes from Riftcodex; the clause restricts assets to
+  those *"provided by the Riot API"*. An architectural question, and the most likely reason a
+  registration review comes back with conditions.
+
+Also unchanged and owner-supplied: the privacy policy's controller name, contact and public URL.
+
+**Gate:** typecheck clean, lint clean, **761 tests / 43 files** (755 / 42 before this batch),
+scanner 0 across 99 files — the notices are catalogue entries, so the count is unchanged and that is
+the point. Both new tests proved non-vacuous by mutation, and both mutations reverted.
+
 ---
 
 ## M8 — Cloud and the web platform
+
+> **Superseded 2026-08-20 — split into [B1 — Backend](#b1--backend) and
+> [W1 — Web platform](#w1--web-platform).** Kept whole rather than deleted, because most of it
+> survived the split: the sync protocol, last-write-wins, the shared-package argument, the
+> not-Expo-Web argument and the auth constraints are all still the plan and are still read from
+> here.
+>
+> **What changed is the hosting and, with it, the shape.** M8 assumed managed Supabase with both
+> clients querying Postgres directly, which made RLS the authorization boundary. B1 is self-hosted,
+> so the first question became surface area rather than convenience — and *"No custom API server"*
+> below is the one decision that did not survive. [B1 argues it out](#the-decision-that-changed-and-why)
+> rather than waving it away; the M8 reasoning was good and lost on grounds that did not exist when
+> it was written.
 
 Two interfaces onto one account: **the phone for the table, the web for the desk.** You log a match
 between rounds on your phone; you sit down at home and rebuild the deck on a screen with room for it.
@@ -1584,7 +2203,9 @@ of that, not a second backend.
                      └──────────────────────────┘
 ```
 
-**No custom API server.** Supabase is Postgres with auth and row-level security in front of it, and
+**~~No custom API server.~~ Overturned 2026-08-20 — see [B1](#the-decision-that-changed-and-why).**
+The argument below is still the right argument *for managed hosting*; self-hosting changed what it
+weighs against. Supabase is Postgres with auth and row-level security in front of it, and
 both clients speak to it with the same library. Writing an API server instead would mean
 re-implementing authorization in application code — the layer most likely to have a hole, replacing
 one the database enforces. Given [T1](#t1--security-hardening) makes RLS *the* authorization
@@ -1614,7 +2235,11 @@ and Expo Web would deliver a phone in a browser window. Share the logic, not the
 - [ ] RLS `auth.uid() = user_id` on every one of them, written and tested **before** any client
       trusts it (a T1 rule)
 - [ ] Auth: email, Sign in with Apple, Google
-- [ ] **In-app account deletion**, because Apple requires it of any app that creates an account
+- [ ] **In-app account deletion**, because Apple requires it of any app that creates an account.
+      A control **inside the app** — not an email address, not a web form — and built with sign-up
+      rather than after it, because shipping sign-up without it ships a known rejection. This is the
+      one home for the item; [T1 §A](#a--store-and-platform-requirements) sets the rule and
+      [`STORE.md` §7](STORE.md#7--what-m8-inherits) lists it among what M8 inherits
 - [ ] The card catalogue server-side: one job syncs Riftcodex into Postgres so the web app has cards
       to read without every browser paging a hobby API
 
@@ -1693,6 +2318,477 @@ the **single** exception, and the constraints above are what keep it narrow — 
 *this device started*, proves that with a verifier that never left the device, and consumes the code
 immediately. A second acting link would be a new exception needing the same argument made again, and
 the answer should be no.
+
+
+---
+
+## S1 — Stability on real devices
+
+**The app is feature-complete and has barely been used on a phone.** Two navigation bugs turned up
+within minutes of the first release build reaching a device on 2026-08-20, and both had been in the
+tree since M7A. Neither was subtle once seen; nothing in the repo could have seen them, because the
+suite runs in Node with no renderer and no navigator.
+
+That is the gap S1 closes. Not more features — **confidence that what exists works on hardware.**
+
+**Done when:** a release APK survives a full session on a real phone — onboarding, build a deck,
+import a deck, log ten games, read the stats, change language, force-quit and reopen — with no dead
+control and no stuck screen.
+
+- [ ] **A device pass over every flow**, written down as a checklist so the next build can be
+      re-run against it rather than re-remembered.
+- [ ] **[D2](#where-things-stand--2026-08-16) — 60 fps and airplane mode**, postponed 2026-08-14
+      because Metro is the connection airplane mode cuts. **A release APK now exists**, so the thing
+      that blocked it is gone.
+- [ ] **The first-push transition** after onboarding hands off to the Decks tab — the deck list may
+      flash for a frame before import slides over it. Cosmetic, and only visible on a device.
+- [ ] **A real signing keystore**, generated once and backed up somewhere that survives this
+      machine. The current APK is signed with the Android debug key, which installs fine and can
+      never be updated on a store listing. **Losing this file later means never shipping an update
+      to the same listing.**
+- [ ] **App icon and splash.** The current splash is `assets/placeholder/splash.png`, a solid
+      `#0A0B0F` square generated to unblock the build — the missing asset did not make the app
+      plain, it made it fail at resource linking. Real art replaces it.
+- [ ] **iOS has never run.** No Mac, so no build — [the reasons and the price
+      are recorded](#ios-was-asked-for-and-not-built-2026-08-20). Until one exists, **every
+      iOS-specific T1 decision is reasoned and unobserved**: Data Protection, the privacy
+      manifest, iCloud backup, ATS. The device pass above is Android's, and only Android's.
+- [ ] **`expo-system-ui` is missing**, so `app.json`'s `"userInterfaceStyle": "dark"` is inert on
+      Android. The app paints its own surfaces so nothing looks wrong; the setting is a lie until
+      the package is installed.
+
+
+---
+
+## T2 — OWASP hardening
+
+**"OWASP Top 10" is three different lists, and picking the wrong one produces theatre.** The famous
+one is written for web applications. Applied to a React Native app it spends half its attention on
+risks that cannot exist there — while the things that actually threaten a mobile app are not on it.
+So this milestone runs three lists against three surfaces:
+
+| Surface | List | Edition |
+| --- | --- | --- |
+| The app | [OWASP **Mobile** Top 10](https://owasp.org/www-project-mobile-top-10/2023-risks/) | **2024** — first update since 2016 |
+| The web platform | [OWASP **Top 10**](https://owasp.org/Top10/2025/) | **2025** — released Nov 2025 |
+| The backend | [OWASP **API Security** Top 10](https://owasp.org/API-Security/editions/2023/en/0x11-t10/) | **2023** |
+
+**Editions verified 2026-08-20, and one of them corrected a wrong assumption.** The web list was
+believed to be 2021; the 2025 edition replaced it, moved Security Misconfiguration to second, split
+supply chain into its own category, and added a tenth that did not previously exist. Working from
+the remembered list would have meant hardening against a five-year-old consensus — the same failure
+as paraphrasing Riot's policy instead of reading it.
+
+> **Naming hazard.** The Mobile list numbers its items **M1–M10**, and this roadmap numbers
+> milestones **M0–M9**. They are unrelated. Every reference below writes *Mobile M7*, never *M7*.
+
+### T2 sits here for the same reason T1 did
+
+Half of it is about what the app already does, and half sets the rules the backend and the web
+platform have to be built to. **The API list is not an audit to run after B1** — it is a set of
+constraints B1 builds to, or it is a retrofit. That was T1's argument for sitting before M8 and it
+did not stop being true.
+
+### Most of this is already done, and it was done without the name
+
+T1 covered a large share of the web list before anyone called it OWASP. Recording the mapping is the
+point of doing so now: **it prevents re-doing finished work, and it makes the real gaps visible.**
+
+| 2025 category | Where it already stands |
+| --- | --- |
+| A01 Broken Access Control | **Nothing yet — there is no server.** [B1's scoping helper](#what-replaces-rls) is the whole answer. Gates B1 |
+| A02 Security Misconfiguration | [§A](#a--store-and-platform-requirements) privacy manifest · `allowBackup` measured · `/_sitemap` overridden · ATS and cleartext verified |
+| A03 Software Supply Chain Failures | [§E](#e--supply-chain) · `npm run audit:bundle` · advisories measured by source map, not grep |
+| A04 Cryptographic Failures | [§B](#b--secrets-transport-and-what-ships-in-the-bundle) HTTPS-only · [§C](#c--data-at-rest-on-the-device) data at rest, decided with a tripwire |
+| A05 Injection | [§D](#d--untrusted-input) · fifteen SQL sites with an allowlist test · deck-code parser fuzzed |
+| A06 Insecure Design | [§D](#d--untrusted-input) deep-link rule — *navigation only, never commands* · the version-lock rule |
+| A07 Authentication Failures | [Auth constraints](#auth-constraints-set-by-t1-2026-08-16) — PKCE, verified links, tokens in secure-store. Gates B1 |
+| A08 Software or Data Integrity Failures | `seed-shape.test.ts` · Zod at the Riftcodex boundary · B1 adds the schema parity test |
+| A09 Security Logging and Alerting Failures | **A deliberate gap on the app, and an open question on the server.** See below |
+| A10 Mishandling of Exceptional Conditions | **New in 2025, and [§F](#f--failure-behaviour) already did it** — an error boundary that holds nothing, a parser that always throws rather than hanging, diagnostics separated from user-facing text |
+
+**So T2 is smaller than it sounds.** What is genuinely open is A01 and A07 (which do not exist until
+B1), A09 (below), and the mobile items nothing has looked at.
+
+### A09, and the tension worth naming
+
+The app has **no logging, no crash reporting, no analytics, and no monitoring**, by standing owner
+decision. Against the web list that is an A09 failure. On the app it is defensible and stays:
+there is nothing to monitor, no server to attack, and the alternative reintroduces exactly the
+device-data collection the project refused.
+
+**On the backend it stops being defensible.** A server with accounts that cannot tell you someone is
+brute-forcing logins is not privacy-preserving, it is blind.
+
+> **The resolution: logging about the *service* is not telemetry about the *user*.** Failed logins,
+> rate-limit trips, 5xx rates and sync errors are operational facts about a machine the owner runs.
+> None of it requires a device profile, an advertising id, or anything the app was refused
+> permission to collect. **The no-telemetry rule survives intact; it was never a rule against
+> knowing whether your own server is on fire.**
+
+- [ ] **Server-side operational logging**, with a written list of what is recorded and what is
+      never recorded. IP addresses are the hard case — needed for rate limiting, and personal data
+      under the GDPR. Decide retention explicitly rather than by default.
+
+### The app — Mobile Top 10 (2024)
+
+- [ ] **Audit and record the ten**, most of which map onto closed T1 items: Mobile M1 improper
+      credentials → [H1](#h1--the-key-audited-2026-08-16) and §B · M2 supply chain → §E · M4
+      input validation → §D · M5 communication → §B · M6 privacy → [`STORE.md`](STORE.md) ·
+      M9 data storage → §C · M10 cryptography → §C. **Mobile M3 auth is B1's.**
+- [ ] **Mobile M8 misconfiguration on the generated manifest.** `allowBackup` is measured and
+      decided; exported components and any debug flags in a release build are not. The native
+      project is regenerated by `prebuild`, so this is a check against the *output*, not the config.
+- [ ] **Mobile M7 — Insufficient Binary Protections. The recommendation is a deliberate *no*.**
+
+      > No obfuscation, no root or jailbreak detection, no anti-tamper.
+
+      Binary protection protects secrets inside a binary, and
+      [§B](#b--secrets-transport-and-what-ships-in-the-bundle) already establishes there are none — verified again 2026-08-19: no `process.env`, no
+      `EXPO_PUBLIC_*`, no `.env`, no `Authorization` header. Nothing is gated client-side, so there
+      is no check worth defeating. Adding it would obscure a bundle containing nothing, and cost
+      real debuggability.
+
+      **Tripwire, in the shape §C used:** the moment the app holds a secret, performs a client-side
+      entitlement or licence check, or gains anything a user could profit by tampering with, this
+      decision is void and gets made again.
+
+### The backend — API Security Top 10 (2023), as B1 build constraints
+
+These are requirements on [B1](#b1--backend), not an audit after it.
+
+- [ ] **API1 · Broken Object Level Authorization — the number-one API risk and the one this design
+      is most exposed to.** Answered by [the scoping helper](#what-replaces-rls) and its structural
+      test: no route composes its own `where` against a user table.
+- [ ] **API3 · Broken Object Property Level Authorization — the sharpest item for a sync endpoint,
+      and it deserves naming precisely.** The endpoint accepts *rows from the client*. If it trusts
+      the `user_id` on an incoming row, **any user can write rows owned by anyone.**
+
+      > `user_id` is derived from the session and never read from the payload. A request that
+      > carries one is rejected, not corrected.
+
+      The mirror of it: a response must never carry another user's columns.
+- [ ] **API4 · Unrestricted Resource Consumption.** A sync endpoint that accepts an unbounded batch
+      is a denial of service with extra steps. Caps on batch size, body size and request rate —
+      **and this project has already learned this exact lesson once**: the deck-code parser
+      allocated ~20× its input before rejecting it, and *"rejecting after allocating is not
+      rejecting"* ([batch 1](#t1-batch-1--done-2026-08-16)).
+- [ ] **API2 · Broken Authentication.** better-auth handles the mechanism; session lifetime,
+      rotation, and lockout after repeated failures are still decisions.
+- [ ] **API6 · Unrestricted Access to Sensitive Business Flows.** Account creation is the one that
+      matters on a self-hosted box — unthrottled signup is how a small server becomes someone
+      else's spam relay.
+- [ ] **API7 · SSRF.** The card-catalogue job is the only server-side fetch. Its URLs come from
+      code, never from user input, and that must stay true when the source becomes Riot's API in
+      [R1](#r1--riot-api-and-compliance).
+- [ ] **API8 · Security Misconfiguration.** Postgres unreachable from outside, TLS at the edge,
+      no default credentials — already in [B1's self-hosting section](#self-hosting-concretely).
+- [ ] **API9 · Improper Inventory Management.** Self-hosting now and rented hosting later means two
+      environments will exist at once. **A forgotten dev instance with real data is the classic way
+      this goes wrong.**
+- [ ] **API10 · Unsafe Consumption of APIs.** Already the pattern — Zod validates Riftcodex at the
+      boundary and the app keeps its last-known-good mirror on drift.
+
+### The web platform — Top 10 (2025), as W1 build constraints
+
+The app is native and skips the browser risks entirely. [W1](#w1--web-platform) does not.
+
+- [ ] **A03 supply chain widens.** A browser bundle pulls a different dependency tree, and
+      `audit:bundle` measures the *mobile* bundle. The web build needs the same treatment or the
+      answer is only true for one client.
+- [ ] **XSS on card text.** Card data includes `text_rich`, which is **HTML from an upstream API**.
+      The app renders `textPlain` and never the rich field; a web client that innerHTMLs
+      `text_rich` has an injection path from a third party straight into the DOM. Sanitise or keep
+      rendering the plain field.
+- [ ] **CSRF and cookie policy**, if sessions are cookie-based. SameSite, Secure, HttpOnly.
+- [ ] **Standard response headers** — CSP, HSTS, `X-Content-Type-Options`, frame ancestors.
+- [ ] **A01 again, from a second client.** The web app must go through the same scoping helper. Two
+      clients reaching data by two different paths is how one of them ends up wrong.
+
+**Done when:** each of the three lists has every item either satisfied or recorded as a deliberate
+decision with a tripwire — the [§C](#c--data-at-rest-on-the-device) standard, where *"no"* is an
+answer and *"we did not look"* is not.
+
+---
+
+## B1 — Backend
+
+**Where user data lives once it is not only on one phone.** Accounts, decks, collection, games —
+the same eight tables the device already carries, on a server the owner runs.
+
+**Self-hosted first, deliberately.** The stated plan is to run this on hardware already paid for
+move it to rented hardware when there is money to rent it with. That is a real constraint and it
+shapes the architecture more than any preference would: **everything here has to be a thing you can
+pick up and put down somewhere else.**
+
+### The shape
+
+```
+   phone ─ SQLite ──┐                        ┌── web browser
+   (offline-first)  │                        │   (online-only)
+    sync engine     ▼                        ▼
+                  ┌────────────────────────────┐
+                  │  API — Hono on Node        │   the only thing on the internet
+                  │  better-auth · Drizzle     │
+                  └─────────────┬──────────────┘
+                                │  private network, never exposed
+                  ┌─────────────▼──────────────┐
+                  │  Postgres                  │
+                  └────────────────────────────┘
+                                ▲
+                    ┌───────────┴──────────────┐
+                    │  packages/core           │  shared verbatim by all three
+                    │  legality · deck-diff    │
+                    │  deck-code · analytics   │
+                    └──────────────────────────┘
+```
+
+### The decision that changed, and why
+
+[M8](#m8--cloud-and-the-web-platform) recorded **"No custom API server"**, and the argument was
+good: Supabase is Postgres with auth and row-level security in front of it, both clients speak to it
+directly, and writing an API instead means re-implementing authorization in application code — the
+layer most likely to have a hole, replacing one the database enforces.
+
+**Self-hosting does not by itself overturn that** — Supabase runs self-hosted, and taking it would
+preserve every T1 decision unchanged. It was weighed and it lost on three grounds:
+
+**1 · Home hosting makes surface area the first question, not the third.** The Supabase shape puts a
+database endpoint on the internet and relies on RLS being correct to keep it safe. That is a
+defensible trade on managed infrastructure with someone else's security team. On a home connection
+it means ten containers exposed where one process would do. **In the API shape Postgres never faces
+the internet at all** — it listens on a private Docker network and nothing routes to it.
+
+**2 · Local-first means the API is a sync endpoint, not a CRUD API.** This is the part most
+missed. The device already owns its data and already reconciles; the server needs *push changes*,
+*pull changes since*, and auth. That is a surface small enough to hold in your head — which is
+exactly the condition under which "authorization in application code" stops being the scary option.
+
+**3 · The web client goes through the API too**, so there is no direct-database client anywhere.
+RLS was load-bearing in the M8 design *because* browsers queried Postgres. Remove that and the
+reason for it goes with it.
+
+**What it costs, stated plainly:** authorization becomes code the project owns rather than a
+guarantee the database makes, and T1's RLS-specific decisions need rewriting. See
+[what replaces RLS](#what-replaces-rls) below — the answer is not "be careful".
+
+### Stack
+
+| Layer | Choice | Why this one |
+| --- | --- | --- |
+| Runtime | **Node 24** | Already the toolchain. No second runtime to learn or pin |
+| API | **Hono** | Tiny, TS-first, and runs unchanged on Node, Bun, Deno and Workers — which *is* the portability requirement, not a nice-to-have |
+| Database | **Postgres 17** | The one piece with no realistic alternative. Every hosting story ends at managed Postgres |
+| ORM | **Drizzle** | Already used on the device. `pg-core` and `node-postgres` are in the installed package today |
+| Auth | **better-auth** | TS-native, has a Drizzle adapter, covers email/password, OAuth and sessions. Verify it is still the healthy choice before committing — this was written 2026-08-20 |
+| Validation | **Zod** | Already the boundary tool for Riftcodex. Same job, same library |
+| Container | **Docker Compose** | Two services. The whole thing must come up with one command or it will not be reproducible on the machine it moves to |
+
+**Rejected:** self-hosted Supabase (above); PocketBase and Appwrite (neither aligns with Drizzle,
+and the alignment is the point); a serverless platform (the stated plan is a machine you own).
+
+### The data layer, and one honest limitation
+
+The device defines eight user tables in Drizzle. The server needs the same eight in Postgres. **The
+obvious hope — one definition, two dialects — does not work.** Drizzle's table builders are
+dialect-specific: `sqliteTable` and `pgTable` are different functions producing different types.
+There is no supported way to declare a table once and materialise it in both.
+
+So the shape is **two definitions and one parity test**, which is this project's existing idiom —
+`seed-shape.test.ts` holds the seed at 29 columns for 29 for exactly the same reason. The test
+asserts that every table has the same column names, that nullability agrees, and that the sync
+columns are present on both sides. **Drift between device and server is the defect class most likely
+to cost real user data, and it is the one a type system cannot catch across a network boundary.**
+
+`packages/schema` holds both definitions side by side so the diff is visible in one file rather than
+across two repositories.
+
+**The sync columns were built for this and have been waiting since M2** — `user_id`, `updated_at`,
+`deleted_at`, `dirty`, `updated_by_device` are already on every user table. Soft deletes are why
+deletion can propagate at all.
+
+### What replaces RLS
+
+Not vigilance. Three things, in the order they fail:
+
+- [ ] **One scoping helper, and every user-table query goes through it.** No route composes its own
+      `where` clause against a user table. The helper takes the session and returns a scoped
+      builder; there is no way to ask for rows without saying whose.
+- [ ] **A structural test that fails on any query bypassing it** — the shape of
+      `sql-injection.test.ts`'s allowlist, which already guards fifteen interpolation sites the same
+      way. It does not prove the queries are correct. It proves nobody added one without being seen.
+- [ ] **Postgres is not reachable from outside.** Private network, no published port. If the
+      application layer is wrong, the blast radius is still one process.
+- [ ] **The service credential never leaves the server.** The mobile and web bundles are public
+      ([T1 §B](#b--secrets-transport-and-what-ships-in-the-bundle)); the database password lives in
+      the server's environment and is not a value any client has ever seen.
+
+### The sync protocol
+
+Already decided in M8 and unchanged: **pull-then-push, last-write-wins per row on `updated_at`,
+soft deletes propagate.** Versions are immutable once played and games are append-mostly, so genuine
+conflicts are rare — [why last-write-wins is enough](#why-last-write-wins-is-enough) still holds.
+
+**Signing in claims local rows rather than replacing them.** The app is fully usable signed out; the
+first sign-in stamps `user_id` onto what is already there and uploads it. A player who used the app
+for a month before making an account must not lose that month.
+
+### Self-hosting, concretely
+
+- [ ] **Docker Compose with two services**, Postgres and the API, and a named volume for the data.
+- [ ] **TLS at the edge** — Caddy or a tunnel. A password crossing the internet in the clear is the
+      one failure that is unrecoverable for the user rather than for the project.
+- [ ] **Backups, and a restore that has actually been run.** This is the item most likely to be
+      skipped and the only one whose absence is catastrophic: the moment sync exists, some players
+      will have data that exists *only* on this machine. An untested backup is not a backup.
+- [ ] **A domain**, which the web platform needs anyway and which
+      [T1's auth constraints](#auth-constraints-set-by-t1-2026-08-16) already argued for — verified
+      App Links are close to free once one exists.
+
+### The T1 §C tripwire fires here
+
+[T1 §C](#c--data-at-rest-on-the-device) decided the device database needs no encryption, and
+recorded the condition that voids it: *the moment the schema gains a token, an email address, a
+password, or anything a user would not post publicly.* **B1 is that moment**, and this is the first
+time the tripwire has been reached.
+
+What it obliges, none of it optional:
+
+- [ ] **Re-make the encryption decision** rather than inherit it. The device answer may well stay
+      the same — session tokens belong in `expo-secure-store`, never in SQLite, which was already
+      recorded — but it gets made again with the new schema in front of it.
+- [ ] **All three store documents are re-answered before anything ships.** The Apple manifest's
+      `NSPrivacyCollectedDataTypes` stops being empty; the Play Data Safety answers change from "no
+      collection" to email and user content; the privacy policy gains a controller processing
+      personal data, and with it the rights that attach. All three are in
+      [`docs/STORE.md`](STORE.md), written to be re-answered in one edit.
+- [ ] **The privacy policy's own promise comes due.** It says a version introducing accounts will
+      update the policy **before** shipping. That sentence was written as a commitment.
+- [ ] **In-app account deletion, built with sign-up and not after it.** Apple requires it of any app
+      that creates an account. The build item lives in [M8's checklist](#what-gets-built).
+- [ ] **A German-operated public service needs an *Impressum*** under DDG §5, separate from the
+      privacy policy.
+
+### The repository becomes a monorepo
+
+Three consumers of the same logic is one too many for a single app directory.
+
+```
+riftbound-tracker/
+├── apps/
+│   ├── mobile/            the Expo app, moved wholesale
+│   ├── server/            Hono · Drizzle · better-auth
+│   └── web/               W1
+├── packages/
+│   ├── core/              was src/lib — legality, deck-diff, deck-code, analytics
+│   ├── schema/            both Drizzle definitions + the parity test
+│   └── contract/          Zod request and response types, shared by all three
+├── infra/                 docker-compose.yml, Caddyfile, backup script
+└── docs/
+```
+
+**`src/lib/` can make this move, and that is not luck.** It is pure TypeScript with zero React
+Native imports — a property defended repeatedly, most recently when the i18n layer had to stay
+Node-loadable. One file has a seam: `id.ts` lazily `require`s `expo-crypto`, which becomes a
+platform-injected dependency rather than an import.
+
+**This is the riskiest step in B1 and it is first.** It touches every import path in a working app —
+the `@/` alias, `tsconfig`, `vitest.config.ts`, the ESLint config, Metro. It is gated on the full
+suite passing **unchanged**: same test count, same scanner result, no new failures. A restructure
+that "mostly works" is worse than no restructure.
+
+**Not done on 2026-08-20, deliberately.** The app was mid device-testing with a release APK in the
+owner's hands, and destabilising the import graph while bugs are being reported against a build
+would make both jobs harder. It is B1's first task, not a prerequisite to planning it.
+
+### What gets built
+
+- [ ] Monorepo restructure, gated on the suite passing unchanged
+- [ ] `packages/schema` — Postgres definitions for the eight user tables, plus the parity test
+- [ ] Postgres + drizzle-kit migrations, versioned like the device's 23
+- [ ] better-auth: email/password first, OAuth after — one working path beats three half-wired ones
+- [ ] The scoping helper and its structural test, **before** the first route that reads user data
+- [ ] **[T2](#t2--owasp-hardening)'s API constraints are build requirements here, not an audit
+      after.** They are not restated in this checklist — BOLA, the `user_id`-from-session rule, and
+      the batch-size caps live in one place, and a rule in two places is a rule that can disagree
+      with itself
+- [ ] `POST /sync` and `GET /sync?since=` — the whole data API
+- [ ] The card catalogue server-side: one job syncs the library into Postgres so the web app has
+      cards to read without every browser paging a hobby API
+- [ ] Docker Compose, TLS, backups with a rehearsed restore
+- [ ] The phone's sync engine, claiming local rows on first sign-in
+
+**Done when:** two devices converge after concurrent offline edits · a signed-out user who signs in
+keeps every deck and game they already had · Postgres is unreachable from outside the host · a
+backup has been restored onto a clean machine and the data is all there.
+
+---
+
+## W1 — Web platform
+
+**The phone for the table, the web for the desk.** Log a game between rounds on your phone; sit down
+at home and rebuild the deck on a screen with room for it.
+
+**Not Expo Web**, and the M8 reasoning holds unchanged: the app compiles to web, and it would
+deliver a phone in a browser window. A web platform for the desk wants width, a keyboard and
+multiple columns. **Share the logic, not the screens** — `packages/core` is what crosses, not the components.
+
+**No sync engine here.** The web client is online by definition and holds no local copy. It reads
+and writes through the same API the phone syncs against. Half the hard work only has to exist once.
+
+**[T2](#t2--owasp-hardening) sets the web security constraints**, and one of them shapes a screen
+rather than a config file: card `text_rich` is **HTML from an upstream API**, and a web client that
+renders it directly has an injection path from a third party into the DOM. The app sidesteps this by
+rendering `textPlain`; the web platform has to decide deliberately.
+
+### Two decisions still open
+
+Both were raised before and neither has an answer. They are the first thing W1 has to settle,
+because everything else follows from them.
+
+- [ ] **Scope of v1 — read-only, or full parity?** A read-only web view (browse decks, read stats)
+      is a fraction of the work and answers most of what a desk is wanted for. Full parity means the
+      deck builder, the log form and the collection all exist twice.
+- [ ] **The card catalogue in the browser** — served from the API per request, or synced into the
+      browser once and held? The device holds all 1,451 cards precisely because the Riftcodex API
+      cannot filter by type, domain, rarity or tag. **A browser that queries per keystroke inherits
+      that limitation**; one that downloads the catalogue inherits the phone's design instead.
+
+---
+
+## R1 — Riot API and compliance
+
+**Deliberately last of the build milestones.** Registration puts the project in front of Riot with
+something finished to show, rather than asking permission for a plan. Nothing before this point
+depends on Riot saying yes — the app has run on Riftcodex data since M1.
+
+Moved here from [T1 §A](#a--store-and-platform-requirements) on 2026-08-20, where they were the only
+two items keeping a finished milestone open. They were never code; they were always a conversation
+with someone else, and they were blocking a status rather than a task.
+
+- [ ] **Register the app with Riot.** *"If your product serves players, you must register it with us
+      regardless of whether or not your product uses official documented APIs."* Owner-side, gates
+      store submission, and has a lead time nobody controls.
+- [ ] **Resolve the asset-sourcing clause.** *"Your App may only use Riftbound assets (including
+      cards) provided by the Riot API. No external or unofficial materials."* Card **data** comes
+      from Riftcodex, a community API; card **images** are hotlinked from Riot's own CDN. This is an
+      architectural question, not paperwork, and the most likely reason a registration review comes
+      back with conditions.
+- [ ] **Migrate the catalogue to Riot's API if required.** `src/api/riftcodex/` is one boundary with
+      Zod validation at the edge and a mapper behind it — the shape that makes a source swap a
+      rewrite of one directory rather than of the app. That was not designed for this and it is what
+      makes it survivable.
+- [ ] **Keep card text in Riot's words.** *"All Riftbound cards must display the official English
+      text or — if available via the API — Riot's official translation."* The app already renders
+      `textPlain` verbatim and translates no card text, which M7B chose for a different reason and
+      which is now a compliance requirement.
+- [ ] **Aggregated win rates stay off the table.** Publishing *"metagame-defining data"* — play
+      rates, win rates, matchup percentages — is an unapproved use case. Per-user rates over a
+      player's own games are the product and are fine. **W1 is where this could be crossed by
+      accident**, and it must not be.
+
+**Done when:** the project is registered, the asset-sourcing answer is written down, and the
+attribution on the About card matches the footing the app is actually on.
 
 ---
 
@@ -2902,6 +3998,94 @@ The change is seven lines, one keyword each. No reordering, no renaming, nothing
 
 **A clean typecheck is the proof, not a formality** — an unexported name with an outside importer
 does not compile. Gate: typecheck clean, lint clean, 592 tests / 37 files.
+
+## Two navigation bugs from the first release build (2026-08-20)
+
+**The first time the app ran as a release APK on a real phone, two bugs surfaced within minutes.**
+Both had been in the tree since M7A. Both were one line.
+
+Reported as two problems:
+
+1. After choosing **Import Deck** in onboarding, the Decks tab was stuck on the paste screen —
+   every return to the tab landed there again.
+2. After importing, opening the deck left the back control dead. It rendered, and pressing it did
+   nothing.
+
+**One cause.** `onboarding.tsx` handed over with `router.replace('/deck/import')`, and
+`replace` swaps the *current* screen rather than pushing onto it. So the import route became the
+**root of the Decks stack** and the deck list was never in it. The first symptom is that root
+restoring itself on every visit; the second is `import.tsx` then replacing import with the new
+deck, leaving a stack one screen deep with nothing to pop.
+
+**The second report is what made the first diagnosable.** "Stuck on import" alone has a dozen
+plausible causes. "And back does nothing afterwards" says the stack itself is wrong, not the
+routing — two symptoms triangulating one fault, which is worth more than either alone.
+
+**The fix is not the obvious two-liner.** Chaining `replace('/')` then `push('/deck/import')` looks
+equivalent and is not: expo-router queues both actions and resolves each one's target at drain
+time (`routingQueue.run`), so the push can be computed against state the replace has not applied
+yet. That is a race, and it would have been a race that usually worked.
+
+The choice travels in `useOnboardingDraft.handoff` instead, and the Decks tab pushes it once
+**mounted** — which is the ordering guarantee that was missing. Five tests hold it; the one that
+matters asserts `takeHandoff` clears as it reads, because the navigator remounts on every
+language change (`<Stack key={locale}>`) and a surviving handoff would push a screen nobody asked
+for, months later. Proved non-vacuous by removing the clear.
+
+**Typecheck caught what 766 tests did not.** The first version called
+`useOnboardingDraft.getState()` inside the store's own initializer, which makes the type circular
+and silently infers `any`. Every test passed. `tsc` did not. It now uses zustand's `get`.
+
+**Nothing in the repo could have caught either bug.** The suite runs in Node with no renderer and
+no navigator, which is a deliberate trade — it is why 766 tests run in under four seconds — and
+this is the class of defect it pays for. [S1](#s1--stability-on-real-devices) exists because of
+that gap: the answer is a device pass, not a heavier test runner.
+
+
+---
+
+## iOS was asked for and not built (2026-08-20)
+
+**The build request was "Android and iOS, so I can install them." One of the two exists.**
+`android/app/build/outputs/apk/release/app-release.apk` is real and installed on a phone. There is
+no iOS build, and the reason is a platform rule rather than a difficulty worth pushing through.
+
+**Compiling an iOS binary requires Xcode, and Xcode runs only on macOS.** This machine is Windows.
+The trap is that `expo prebuild --platform ios` *succeeds* on Windows — it is a file generator, not
+a compiler — so it is possible to produce an `ios/` directory and mistake it for progress. Verified
+here: there is no `ios/` directory and no `eas.json`.
+
+**The cloud path exists, and it has a price that is worth knowing before it is needed.** EAS Build
+runs macOS workers, so no Mac has to be bought. But an iOS build that installs on a phone is
+*ad-hoc distribution*, and Expo's own documentation is explicit about what that costs — checked
+2026-08-21 rather than recalled:
+
+- a **paid Apple Developer Program membership** is required;
+- every test device's **UDID must be registered** (`eas device:create`) before it can install;
+- the method is capped at **100 devices per year**.
+
+The free alternative is a **simulator** build, which needs a Mac to run — so it does not answer
+"install it on my phone" either. Android's side of this is the contrast worth naming: an APK
+installs on any phone that will accept an unreviewed app, with no account and no registration.
+
+### The part that matters is not the missing file
+
+**Every iOS-specific thing T1 decided has been reasoned and never observed.** Data Protection keyed
+to the passcode ([§C](#c--data-at-rest-on-the-device)), the privacy manifest
+([§A](#a--store-and-platform-requirements) and [`STORE.md`](STORE.md)), iCloud backup including the
+database, ATS with no exceptions — all of it read from documentation, none of it run on an iPhone.
+The decisions are still the right ones; what is missing is confirmation that the app they describe
+behaves that way on the device.
+
+**§C's standard was that *"no"* is an answer and *"we did not look"* is not.** This is the second
+kind, so it is written down rather than left to be assumed closed.
+[S1](#s1--stability-on-real-devices) carries it as an item.
+
+**What it does not block.** Android is the whole device pass for now, and the reordering already
+moved the store release to the end. The membership becomes necessary at [M9](#m9--ship) regardless —
+an App Store listing requires it — so the open question is *when* it gets paid for, not whether.
+
+---
 
 ## Known gaps
 

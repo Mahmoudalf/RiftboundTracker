@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { DeckCard } from '@/components/decks/DeckCard';
@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import { listDecks, type DeckSummary } from '@/db/queries/decks';
+import { useOnboardingDraft } from '@/features/onboarding/useOnboardingDraft';
 import { useT } from '@/i18n';
 import { color, radius, space } from '@/theme/tokens';
 import { text } from '@/theme/typography';
@@ -16,6 +17,26 @@ export default function DecksScreen() {
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [archived, setArchived] = useState<DeckSummary[]>([]);
   const [showArchived, setShowArchived] = useState(false);
+  const takeHandoff = useOnboardingDraft((s) => s.takeHandoff);
+
+  /*
+   * Onboarding's deck choice, opened from here rather than navigated to.
+   *
+   * The flow used to `replace` itself with `/deck/import`, which made import the
+   * root of this stack — so this screen was never underneath it, returning to
+   * the tab always showed the paste form, and the imported deck had nothing to
+   * go back to. Now onboarding lands here and leaves the choice in the store.
+   *
+   * `takeHandoff` clears as it reads, which is what makes this safe to run on
+   * mount: the navigator remounts whenever the language changes
+   * (`<Stack key={locale}>`), and a value that survived would push a screen the
+   * player never asked for, months later.
+   */
+  useEffect(() => {
+    const choice = takeHandoff();
+    if (choice === 'import') router.push('/deck/import');
+    else if (choice === 'new') router.push('/deck/new');
+  }, [takeHandoff]);
 
   // Re-read on focus rather than subscribing: the editor and the create flow
   // both return here after writing, and a deck list is a handful of rows.

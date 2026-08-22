@@ -192,3 +192,53 @@ describe('choosing a language mid-flow', () => {
     expect(setupRevealed(useOnboardingDraft.getState())).toBe(true);
   });
 });
+
+/**
+ * The deck handoff — the fix for a navigation bug with two faces.
+ *
+ * `finish()` used to hand over with `router.replace('/deck/import')`. `replace`
+ * swaps the current screen, so import became the **root** of the Decks stack
+ * and the deck list was never in it. That produced two reports at once: the
+ * Decks tab always came back to the paste form, and the deck opened after
+ * importing had nothing beneath it, so the back control did nothing.
+ *
+ * The choice now travels here and the Decks tab pushes it once mounted. These
+ * tests hold the two properties that make that safe.
+ */
+describe('the deck handoff', () => {
+  beforeEach(() => useOnboardingDraft.getState().reset());
+
+  it('is read exactly once, so a remount cannot navigate again', () => {
+    useOnboardingDraft.getState().setHandoff('import');
+
+    expect(useOnboardingDraft.getState().takeHandoff()).toBe('import');
+    // The navigator remounts on every language change. A handoff that survived
+    // would push a screen nobody asked for, long after onboarding ended.
+    expect(useOnboardingDraft.getState().takeHandoff()).toBeNull();
+    expect(useOnboardingDraft.getState().takeHandoff()).toBeNull();
+  });
+
+  it('is cleared by reset, so an abandoned run leaves nothing armed', () => {
+    useOnboardingDraft.getState().setHandoff('new');
+    useOnboardingDraft.getState().reset();
+    expect(useOnboardingDraft.getState().takeHandoff()).toBeNull();
+  });
+
+  it('is cleared by a replay, which is a fresh run and not a resumed one', () => {
+    useOnboardingDraft.getState().setHandoff('import');
+    useOnboardingDraft.getState().beginReplay('Linus');
+    expect(useOnboardingDraft.getState().takeHandoff()).toBeNull();
+  });
+
+  it('survives a language change, because that is when it is most likely set', () => {
+    // Onboarding's whole reason for living in module scope: the locale keys the
+    // navigator. A handoff set before the last language tap must still arrive.
+    useOnboardingDraft.getState().setHandoff('import');
+    for (const l of ['de', 'fr', 'en'] as const) useLocale.getState().setLocale(l);
+    expect(useOnboardingDraft.getState().takeHandoff()).toBe('import');
+  });
+
+  it('starts empty, so nothing fires for a player who skipped the choice', () => {
+    expect(useOnboardingDraft.getState().takeHandoff()).toBeNull();
+  });
+});

@@ -62,6 +62,30 @@ describe('catalogue completeness', () => {
       expect(blank, `${name} has blank values`).toEqual([]);
     }
   });
+
+  /*
+   * The two keys that must **not** be translated.
+   *
+   * Riot specifies its attribution notices as wording rather than as a topic,
+   * so a German rendering of Riot's sentence is no longer Riot's sentence and
+   * stops satisfying the policy (T1 §A, `docs/STORE.md` §5). Every other test
+   * in this file pushes towards translating everything, which is exactly why
+   * these two need one pushing back: the failure mode is a translator being
+   * helpful, and it would ship silently because the result reads as correct.
+   */
+  const VERBATIM: Key[] = ['profile.about.riotFan', 'profile.about.riotDev'];
+
+  it.each(LOCALES)('%s keeps Riot’s required notices in Riot’s words', (_name, catalogue) => {
+    const changed = VERBATIM.filter((key) => catalogue[key] !== en[key]);
+    expect(changed, 'these are legal notices, not copy — see the note in en.ts').toEqual([]);
+  });
+
+  it('checks notices that actually exist — a silent zero is not a pass', () => {
+    for (const key of VERBATIM) {
+      expect(en[key], `${key} missing from the catalogue`).toBeTruthy();
+      expect(en[key]).toContain('Riot Games');
+    }
+  });
 });
 
 describe('pseudo-locale', () => {

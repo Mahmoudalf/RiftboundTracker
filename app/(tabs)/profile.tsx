@@ -1,18 +1,16 @@
-import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { ChoiceRow, OptionRow, SectionLabel, SelectField } from '@/components/ui/Field';
+import { ChoiceRow, SectionLabel } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
 import { Pressable } from '@/components/ui/Pressable';
 import { Screen } from '@/components/ui/Screen';
 import { DISPLAY_NAME_MAX, displayName, setDisplayName } from '@/db/queries/settings';
-import { TOAST_CONFIRM_MS, useToast } from '@/features/games/useToast';
 import { useOnboardingDraft } from '@/features/onboarding/useOnboardingDraft';
 import { useCardSync } from '@/features/sync/useCardSync';
-import { LOCALES, useLocale, useT, type Key, type RuntimeLocale } from '@/i18n';
+import { LOCALES, useLocale, useT, type RuntimeLocale } from '@/i18n';
 import { localeNumber } from '@/lib/format';
 import { color, radius, space } from '@/theme/tokens';
 import { metaLine, text } from '@/theme/typography';
@@ -47,26 +45,14 @@ const LANGUAGE_NAMES: Record<RuntimeLocale, string> = {
  */
 const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
 
-/** What a report is. Keys, translated at render. */
-const REPORT_KINDS = [
-  { key: 'bug', label: 'profile.report.kind.bug' },
-  { key: 'feature', label: 'profile.report.kind.feature' },
-] as const satisfies readonly { key: string; label: Key }[];
-
-type ReportKind = (typeof REPORT_KINDS)[number]['key'];
-
 export default function SettingsScreen() {
   const { cardCount, isSyncing, progress, refresh } = useCardSync();
   const t = useT();
   const locale = useLocale((s) => s.locale);
   const setLocale = useLocale((s) => s.setLocale);
-  const showToast = useToast((s) => s.show);
   const beginReplay = useOnboardingDraft((s) => s.beginReplay);
 
   const [name, setName] = useState<string | null>(null);
-  const [report, setReport] = useState('');
-  const [kind, setKind] = useState<ReportKind>('bug');
-  const [kindOpen, setKindOpen] = useState(false);
 
   /** So tapping anywhere in the name field — including the pencil — focuses it. */
   const nameField = useRef<TextInput>(null);
@@ -85,30 +71,6 @@ export default function SettingsScreen() {
    * offer a player a broken app as a choice.
    */
   const options: RuntimeLocale[] = __DEV__ ? [...LOCALES, 'pseudo'] : [...LOCALES];
-
-  const kindLabel = REPORT_KINDS.find((r) => r.key === kind)!.label;
-
-  /**
-   * The single seam for sending a report.
-   *
-   * There is no backend yet, so the honest whole of "send" is putting the text
-   * where the user can paste it. When one exists this function is what changes;
-   * the form above it does not.
-   *
-   * **Nothing is gathered here, and nothing may be added later.** An earlier
-   * draft attached the app version, the platform and OS version, the language,
-   * and row counts for cards, decks and games. Device and OS details are
-   * personal data under the GDPR, so collecting them would oblige the project
-   * to run a data protection impact assessment — for a fan app that otherwise
-   * has nothing to assess. The report is what the user typed and the category
-   * they chose. That is the whole of it, by decision rather than by omission.
-   */
-  const onCopyReport = () => {
-    const body = report.trim();
-    if (body.length === 0) return;
-    void Clipboard.setStringAsync(`[${t(kindLabel)}] ${body}`);
-    showToast(t('profile.report.copied'), { durationMs: TOAST_CONFIRM_MS });
-  };
 
   /*
    * No milestone number in the header, for the same reason the About card below
@@ -210,66 +172,17 @@ export default function SettingsScreen() {
         </View>
 
         {/*
-          Feedback: a category and a text field. Nothing else.
+          The feedback card stood here — a category picker, a text field, and a
+          button that copied to the clipboard because there was nowhere to send.
 
-          The destination is not built yet, so the button copies rather than
-          sends and the card says so in as many words. A Send button that
-          quietly did nothing would be the one dishonest control in the app.
+          **Removed 2026-08-19, on the owner's call.** The test group is small
+          enough to reach the owner directly, and a form whose whole function is
+          "copy this, then find me yourself" was a control pretending to be a
+          feature. A real one comes with the backend, where a report can
+          actually go somewhere. The decision and the four routes weighed are in
+          `docs/ROADMAP.md`; the constraint that survives is that whatever
+          replaces it attaches nothing about the device.
         */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{t('profile.report')}</Text>
-          <Text style={styles.cardBody}>{t('profile.report.body')}</Text>
-
-          {/* Before the field, so the category frames what the user writes
-              rather than reclassifying it afterwards. */}
-          <SelectField
-            placeholder={t('profile.report.kind')}
-            value={t(kindLabel)}
-            open={kindOpen}
-            onToggle={() => setKindOpen((open) => !open)}
-            compact
-          >
-            {REPORT_KINDS.map((option) => (
-              <OptionRow
-                key={option.key}
-                label={t(option.label)}
-                selected={option.key === kind}
-                onPress={() => {
-                  setKind(option.key);
-                  setKindOpen(false);
-                }}
-              />
-            ))}
-          </SelectField>
-
-          <TextInput
-            value={report}
-            onChangeText={setReport}
-            placeholder={t('profile.report.placeholder')}
-            placeholderTextColor={color.textFaint}
-            style={styles.reportInput}
-            multiline
-            textAlignVertical="top"
-            accessibilityLabel={t('profile.report.a11y')}
-          />
-
-          <Pressable
-            onPress={onCopyReport}
-            // Nothing to copy is not an error worth explaining — the button
-            // simply is not available until there is something to send.
-            disabled={report.trim().length === 0}
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.button,
-              pressed && styles.pressed,
-              report.trim().length === 0 && styles.disabled,
-            ]}
-          >
-            <Text style={styles.buttonLabel}>{t('profile.report.copy')}</Text>
-          </Pressable>
-
-          <Text style={styles.footerMeta}>{t('profile.report.noBackend')}</Text>
-        </View>
 
         {/*
           The welcome flow, reopenable.
@@ -300,6 +213,19 @@ export default function SettingsScreen() {
           <Text style={styles.cardTitle}>{t('profile.about')}</Text>
           <Text style={styles.cardBody}>{t('profile.about.unofficial')}</Text>
           <Text style={styles.cardBody}>{t('profile.about.attribution')}</Text>
+          {/*
+            Riot's required notices, verbatim and in English in every language.
+            They sit *below* the two strings above rather than replacing them:
+            the plain-language pair is what a player reads and understands, and
+            these are the compliance artefact — Riot specifies the notice as
+            wording, so a paraphrase does not satisfy it. Set faint and small
+            because that is what a legal notice looks like, not because it is
+            being hidden; both policies ask only that it be conspicuous, and a
+            legible line on the About card is the conventional place. See
+            `docs/STORE.md` §5 for the policy text and why both are carried.
+          */}
+          <Text style={styles.legal}>{t('profile.about.riotFan')}</Text>
+          <Text style={styles.legal}>{t('profile.about.riotDev')}</Text>
           {/* No milestone here. It read "M1" for five milestones because a
               hand-written stage label has nothing keeping it true. */}
           <Text style={styles.footerMeta}>
@@ -343,27 +269,6 @@ const styles = StyleSheet.create({
   },
   nameInput: { ...text.body, color: color.text, flex: 1, padding: 0 },
 
-  /** Taller than a name field, because a bug report is prose. */
-  reportInput: {
-    ...text.small,
-    color: color.text,
-    minHeight: 88,
-    padding: space[3],
-    borderRadius: radius.lg,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-  },
-  /*
-   * `diagnostics` lived here — a mono block listing the app version, platform,
-   * OS version, language and row counts, copied along with every report.
-   *
-   * Removed on the owner's call. Device and OS details are personal data under
-   * the GDPR; attaching them to a report would put a data protection impact
-   * assessment in front of shipping, for a fan app with nothing else to assess.
-   * The report carries what the user typed and nothing more.
-   */
-
   button: {
     marginTop: space[2],
     height: 44,
@@ -377,4 +282,17 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.75 },
   disabled: { opacity: 0.5 },
   footerMeta: { ...text.microMeta, color: color.textFaint, paddingTop: space[2] },
+  /*
+   * Riot's required notices.
+   *
+   * `caption`, not `microMeta`: the meta face is uppercase mono at 9.5 drawn
+   * for two-word labels, and three lines of tracked capitals at that size stop
+   * being readable about where the sentence gets interesting. These are the one
+   * thing on the card that must survive being read.
+   *
+   * Faint, but not disabled. Both policies use the word *conspicuous*, which
+   * rules out hiding it and does not require it to outrank the plain-language
+   * copy above.
+   */
+  legal: { ...text.caption, color: color.textFaint, paddingTop: space[2] },
 });

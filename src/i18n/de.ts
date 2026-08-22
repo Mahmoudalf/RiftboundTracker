@@ -688,7 +688,7 @@ export const de: Translation = {
     'Verfolge deine Decks, erfasse deine Partien und sieh, welche Änderungen wirklich geholfen haben — alles auf deinem Gerät.',
   'onboarding.wip': 'In Entwicklung',
   'onboarding.wip.body':
-    'Ein unfertiges Projekt, offen entwickelt — zwischen Updates kann sich einiges ändern oder kaputtgehen. Deine Decks und Partien liegen nur auf diesem Gerät.',
+    'Ein unfertiges Projekt, offen entwickelt — zwischen Updates kann sich einiges ändern oder kaputtgehen. Deine Decks und Partien bleiben auf diesem Gerät — nichts wird versendet, dein eigenes Geräte-Backup kann sie aber enthalten.',
   'onboarding.library.downloading': 'Kartenbibliothek wird geladen — bisher {count} Karten.',
   'onboarding.library.starting': 'Kartenbibliothek wird geladen.',
   'onboarding.library.updating':
@@ -725,19 +725,6 @@ export const de: Translation = {
   'profile.nameHelp':
     'Wird vorerst nur auf diesem Gerät verwendet. Sobald die Cloud-Synchronisierung kommt, ist es der Name deines Kontos.',
 
-  'profile.report': 'Rückmeldung',
-  'profile.report.body':
-    'Fehler gefunden oder einen Wunsch? Es geht nur mit, was du hier schreibst — Angaben zu deinem Gerät werden nicht erfasst.',
-  'profile.report.kind': 'Worum geht es?',
-  'profile.report.kind.bug': 'Fehler',
-  'profile.report.kind.feature': 'Wunsch',
-  'profile.report.placeholder': 'Was passiert ist oder was du dir wünschst',
-  'profile.report.a11y': 'Deine Rückmeldung',
-  'profile.report.copy': 'Kopieren',
-  'profile.report.copied': 'Kopiert — füge sie dort ein, wo du sie hinschickst',
-  'profile.report.noBackend':
-    'Aus der App heraus lässt sich das noch nirgendwohin senden. Kopieren ist vorerst alles.',
-
   'profile.library': 'Kartenbibliothek',
   'profile.library.stored':
     '{count} Karten auf diesem Gerät gespeichert. Stöbern, Suchen und Deckbau funktionieren ohne Verbindung.',
@@ -749,6 +736,15 @@ export const de: Translation = {
     'Riftbound Tracker ist ein inoffizielles Fan-Projekt. Es steht in keiner Verbindung zu Riot Games und wird weder unterstützt noch gesponsert.',
   'profile.about.attribution':
     'Die Kartendaten stammen von Riftcodex. Kartenbilder, Namen und Spieltexte sind Eigentum von Riot Games und werden gemäß Riots „Legal Jibber Jabber“-Richtlinie für nicht-kommerzielle Fan-Inhalte verwendet.',
+  /*
+   * English on purpose — Riot's wording, reproduced exactly. See the note in
+   * `en.ts`; `i18n.test.ts` asserts these stay identical across all three
+   * catalogues. Do not translate these two, however wrong they look here.
+   */
+  'profile.about.riotFan':
+    'Riftbound Tracker was created under Riot Games\' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project.',
+  'profile.about.riotDev':
+    "Riftbound Tracker isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.",
 
   'card.notFound': 'Karte nicht gefunden',
   'card.notFound.body':

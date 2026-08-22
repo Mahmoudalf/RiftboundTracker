@@ -9,7 +9,18 @@
     "backgroundColor": "#0A0B0F",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.riftboundtracker.app"
+      "bundleIdentifier": "com.riftboundtracker.app",
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": [],
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+          }
+        ]
+      }
     },
     "android": {
       "package": "com.riftboundtracker.app",
@@ -24,6 +35,7 @@
       [
         "expo-splash-screen",
         {
+          "image": "./assets/placeholder/splash.png",
           "backgroundColor": "#0A0B0F",
           "resizeMode": "contain"
         }
