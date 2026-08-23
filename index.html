@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rifthall — deck and match tracker for Riftbound</title>
+<meta name="description" content="A deck and match tracker for physical Riftbound play. Every game is bound to the exact decklist that played it, so you can see whether a change actually made the deck better.">
+<link rel="icon" href="site/favicon.png" type="image/png">
+<meta property="og:title" content="Rifthall">
+<meta property="og:description" content="Deck and match tracker for physical Riftbound play.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --ground: #141416;
+    --surface: #1B1B1E;
+    --raised: #232326;
+    --hair: rgba(255,255,255,0.09);
+    --hair-2: rgba(255,255,255,0.14);
+    --ink: #F5F5F6;
+    --ink-2: #C9C9CD;
+    --ink-3: #9C9CA1;
+    --ink-4: #67676B;
+    --accent: #FF4B4B;
+    --accent-soft: rgba(255,75,75,0.11);
+    --accent-line: rgba(255,75,75,0.40);
+    --ok: #46C77E;
+    --shadow: 0 18px 44px rgba(0,0,0,0.45);
+    --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --ground: #F6F5F3;
+      --surface: #FFFFFF;
+      --raised: #EDECEA;
+      --hair: rgba(20,20,22,0.10);
+      --hair-2: rgba(20,20,22,0.16);
+      --ink: #17171A;
+      --ink-2: #46464C;
+      --ink-3: #6E6E76;
+      --ink-4: #9A9AA2;
+      --accent: #C7433D;
+      --accent-soft: rgba(199,67,61,0.08);
+      --accent-line: rgba(199,67,61,0.30);
+      --ok: #1F8A55;
+      --shadow: 0 16px 40px rgba(20,20,22,0.14);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--display);
+    font-size: 16.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 0 clamp(1.1rem, 4vw, 2.5rem);
+  }
+  .narrow { max-width: 42rem; }
+
+  /* ---------- hero ---------- */
+  .hero {
+    padding: clamp(3.5rem, 9vw, 6.5rem) 0 clamp(2.5rem, 6vw, 4rem);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: clamp(1.5rem, 5vw, 3.5rem);
+    align-items: center;
+  }
+  @media (max-width: 46rem) { .hero { grid-template-columns: 1fr; } .hero-mark { display: none; } }
+  .hero-mark { width: clamp(6rem, 14vw, 9.5rem); height: auto; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem; font-weight: 500;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 0.9rem;
+  }
+  h1 {
+    font-size: clamp(2.6rem, 8vw, 4.2rem);
+    font-weight: 700; letter-spacing: -0.04em;
+    line-height: 1; margin: 0 0 1.1rem; text-wrap: balance;
+  }
+  .rule { height: 2px; width: 3.5rem; background: var(--accent); border-radius: 2px; margin-bottom: 1.4rem; }
+  .standfirst { font-size: clamp(1.08rem, 2.2vw, 1.28rem); color: var(--ink-2); margin: 0; max-width: 34rem; text-wrap: pretty; }
+
+  /* ---------- generic section ---------- */
+  section { padding: clamp(2.5rem, 6vw, 4rem) 0; }
+  section + section { border-top: 1px solid var(--hair); }
+  h2 {
+    font-size: clamp(1.5rem, 3.2vw, 1.95rem);
+    font-weight: 600; letter-spacing: -0.025em;
+    margin: 0 0 0.9rem; text-wrap: balance;
+  }
+  h3 { font-size: 1.02rem; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  p { margin: 0 0 1rem; max-width: 40rem; text-wrap: pretty; }
+  p:last-child { margin-bottom: 0; }
+  .lede { color: var(--ink-2); font-size: 1.06rem; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+  strong { font-weight: 600; }
+
+  .pull {
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px;
+    padding: 1.15rem 1.35rem;
+    color: var(--ink-2);
+    font-size: 1.02rem;
+    line-height: 1.6;
+    max-width: 42rem;
+  }
+
+  /* ---------- screenshot features ---------- */
+  /*
+   * Phone screenshots are 2.17:1. Beside a two-line caption they leave the row
+   * mostly empty, so each screen is a card with its caption underneath instead.
+   */
+  .shots {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+    gap: clamp(1.1rem, 2.5vw, 1.8rem);
+    margin-top: 2.5rem;
+    align-items: start;
+  }
+  .shot {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: 14px;
+    padding: 1rem 1rem 1.25rem;
+  }
+  .shot-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 9px;
+    border: 1px solid var(--hair-2);
+    background: var(--raised);
+  }
+  .shot-zoom { display: block; position: relative; border-radius: 9px; line-height: 0; }
+  .shot-zoom::after {
+    content: "View full size";
+    position: absolute; inset: auto 0 0 0;
+    font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.1em;
+    text-transform: uppercase; text-align: center;
+    padding: 0.55rem 0; color: var(--ink);
+    background: linear-gradient(to top, rgba(0,0,0,0.72), rgba(0,0,0,0));
+    border-radius: 0 0 9px 9px;
+    opacity: 0; transition: opacity 140ms ease;
+  }
+  .shot-zoom:hover::after, .shot-zoom:focus-visible::after { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .shot-zoom::after { transition: none; } }
+  .shot-body { display: flex; flex-direction: column; gap: 0.45rem; padding: 0 0.15rem; }
+  .shot-body h3 { font-size: 1.06rem; }
+  .shot-body p { font-size: 0.93rem; color: var(--ink-2); margin: 0; max-width: none; }
+  .tag {
+    font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
+    letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--accent); background: var(--accent-soft);
+    border-radius: 4px; padding: 0.24rem 0.5rem;
+    align-self: flex-start;
+  }
+
+  /* ---------- lists ---------- */
+  ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.5rem; max-width: 40rem; }
+  li { color: var(--ink-2); }
+  li::marker { color: var(--ink-4); }
+  li strong { color: var(--ink); }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1px; background: var(--hair);
+    border: 1px solid var(--hair); border-radius: 10px;
+    overflow: hidden; margin-top: 1.6rem;
+  }
+  .fact { background: var(--surface); padding: 0.95rem 1.05rem; }
+  .fact dt {
+    font-family: var(--mono); font-size: 0.62rem;
+    letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--ink-4); margin: 0 0 0.28rem;
+  }
+  .fact dd { margin: 0; font-size: 0.93rem; font-weight: 500; line-height: 1.35; }
+
+  .status {
+    display: inline-flex; align-items: center; gap: 0.55rem;
+    font-family: var(--mono); font-size: 0.72rem;
+    letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-3);
+    margin-bottom: 0.9rem;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+
+  .attrib {
+    font-family: var(--mono); font-size: 0.78rem; line-height: 1.65;
+    color: var(--ink-3); background: var(--raised);
+    border: 1px solid var(--hair); border-radius: 8px;
+    padding: 0.9rem 1.05rem; max-width: 42rem;
+  }
+  footer {
+    border-top: 1px solid var(--hair);
+    padding: 2rem 0 3.5rem;
+    font-size: 0.87rem; color: var(--ink-3);
+    display: flex; flex-direction: column; gap: 0.7rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Unofficial fan project &middot; Riftbound</p>
+      <h1>Rifthall</h1>
+      <div class="rule"></div>
+      <p class="standfirst">
+        A deck and match tracker for Riftbound played with physical cards — built around the one
+        question a card database can't answer.
+      </p>
+    </div>
+    <img class="hero-mark" src="site/logo.png" alt="" width="210" height="240">
+  </header>
+
+  <section>
+    <h2>The question it exists to answer</h2>
+    <p class="lede narrow">
+      You play thirty games with a deck. You swap four cards. You play forty more.
+      <strong>Did the swap actually help?</strong>
+    </p>
+    <p class="pull">
+      Rifthall treats a deck as a living object with a version history. Every game is bound to the
+      exact decklist that played it — so the app can show a deck's whole record, each version's own
+      record, and the precise card diff between them.
+    </p>
+  </section>
+
+  <section>
+    <h2>How it works</h2>
+    <p class="lede narrow">
+      A tracker for tabletop play. You build a deck, you play in person, you record what happened —
+      and the app keeps each result attached to the list that produced it.
+    </p>
+
+    <div class="shots">
+
+      <article class="shot">
+        <a class="shot-zoom" href="site/decks.jpg" target="_blank" rel="noopener">
+          <img class="shot-img" src="site/decks.jpg" alt="The Decks screen listing two decks, each showing its Legend art, current version and record." loading="lazy" width="620" height="1344">
+        </a>
+        <div class="shot-body">
+          <span class="tag">Your decks</span>
+          <h3>Every deck, with its record attached</h3>
+          <p>
+            Each deck shows its Legend, its current version and how it has actually performed. A deck
+            is not a static list here — it accumulates a history.
+          </p>
+        </div>
+      </article>
+
+      <article class="shot">
+        <a class="shot-zoom" href="site/versions.jpg" target="_blank" rel="noopener">
+          <img class="shot-img" src="site/versions.jpg" alt="The Versions tab showing version 2 expanded with two card changes and five matches, and an option to fork a new version." loading="lazy" width="620" height="1344">
+        </a>
+        <div class="shot-body">
+          <span class="tag">Version history</span>
+          <h3>A version locks the moment it is played</h3>
+          <p>
+            Log a game against a version and that list is frozen. Editing forks a new version and
+            shows exactly what changed — here, one card swapped for another across five matches.
+            Past results always belong to the list that actually played them.
+          </p>
+        </div>
+      </article>
+
+      <article class="shot">
+        <a class="shot-zoom" href="site/deck-stats.jpg" target="_blank" rel="noopener">
+          <img class="shot-img" src="site/deck-stats.jpg" alt="A deck's Stats tab showing the overall record across all versions, then a breakdown by version." loading="lazy" width="620" height="1344">
+        </a>
+        <div class="shot-body">
+          <span class="tag">Per-version record</span>
+          <h3>The whole deck, and each revision of it</h3>
+          <p>
+            One record for the deck overall, and one for every version underneath. This is the
+            comparison the app is for — and it only means anything because results were never
+            allowed to drift off the list that earned them.
+          </p>
+        </div>
+      </article>
+
+      <article class="shot">
+        <a class="shot-zoom" href="site/log-match.jpg" target="_blank" rel="noopener">
+          <img class="shot-img" src="site/log-match.jpg" alt="The log-a-match sheet with opponent Legend and Champion pickers and large Win, Loss and Draw buttons." loading="lazy" width="620" height="1344">
+        </a>
+        <div class="shot-body">
+          <span class="tag">Logging</span>
+          <h3>Two taps between games</h3>
+          <p>
+            The result is the only thing required. Opponent Legend, play or draw, battlefields,
+            per-game detail, event and notes are all optional. It is built to take under ten seconds,
+            because a tracker nobody fills in is worthless.
+          </p>
+        </div>
+      </article>
+
+      <article class="shot">
+        <a class="shot-zoom" href="site/analytics.jpg" target="_blank" rel="noopener">
+          <img class="shot-img" src="site/analytics.jpg" alt="An analytics screen showing win rate with confidence intervals, on-the-play splits, and a matchup breakdown by opposing Legend." loading="lazy" width="620" height="1344">
+        </a>
+        <div class="shot-body">
+          <span class="tag">Honest statistics</span>
+          <h3>Every number carries its own uncertainty</h3>
+          <p>
+            Win rates come with sample size and a confidence interval, and small samples are marked
+            provisional. When two versions can't yet be told apart the app says so in plain words
+            rather than declaring a winner. All of it is one player's own record of their own games.
+          </p>
+        </div>
+      </article>
+
+      <article class="shot">
+        <a class="shot-zoom" href="site/gallery.jpg" target="_blank" rel="noopener">
+          <img class="shot-img" src="site/gallery.jpg" alt="The card gallery showing a searchable, filterable grid of cards with domain and set filters." loading="lazy" width="620" height="1344">
+        </a>
+        <div class="shot-body">
+          <span class="tag">Card gallery</span>
+          <h3>The full catalogue, offline</h3>
+          <p>
+            Every card, searchable by name and rules text, filterable by set, domain, type, rarity
+            and cost. It works with no connection at all — which matters at a table in a shop.
+          </p>
+        </div>
+      </article>
+
+      <article class="shot">
+        <a class="shot-zoom" href="site/collection.jpg" target="_blank" rel="noopener">
+          <img class="shot-img" src="site/collection.jpg" alt="The collection screen showing owned cards with domain filters and an owned-versus-library count." loading="lazy" width="620" height="1344">
+        </a>
+        <div class="shot-body">
+          <span class="tag">Collection</span>
+          <h3>What you own, against what a deck needs</h3>
+          <p>
+            Track your collection and see what a decklist is missing before you build it — not to
+            buy anything through the app, which sells nothing, but to know what is actually
+            playable.
+          </p>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>What it deliberately is not</h2>
+    <ul>
+      <li><strong>It does not play Riftbound.</strong> No board, no turns, no opponent, no rule
+        enforcement during play. Games happen with physical cards; the app records the outcome
+        afterwards.</li>
+      <li><strong>It publishes nothing.</strong> No server, no account, no sharing of results. A
+        player's matches exist only on their own device.</li>
+      <li><strong>It aggregates nothing across players.</strong> No play rates, no population win
+        rates, no metagame data — every figure is one player's own record of their own games.</li>
+      <li><strong>No rank, ladder or matchmaking</strong> of any kind.</li>
+      <li><strong>No tracking.</strong> No analytics, no crash reporting, no advertising identifiers,
+        no location.</li>
+      <li><strong>No monetisation.</strong> Free, with no advertising, no purchases and no
+        subscription.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Card data and card art</h2>
+    <p class="narrow">
+      Card images are Riot's own files, served unmodified from Riot's content delivery network. Card
+      text is displayed verbatim in official English and is never translated, in any of the app's
+      languages.
+    </p>
+    <p class="narrow">
+      Catalogue data currently comes from a community-run source, and is being migrated onto Riot's
+      official Riftbound Content API.
+    </p>
+  </section>
+
+  <section>
+    <h2>Status</h2>
+    <p class="status"><span class="dot"></span> Feature complete &middot; preparing for release</p>
+    <p class="narrow">
+      Every feature shown above is built and running as a signed release build, verified on real
+      hardware. What remains before launch is the store listing, the release pipeline, and the
+      catalogue migration.
+    </p>
+    <dl class="facts">
+      <div class="fact"><dt>Platform</dt><dd>Android<br>Web &amp; iOS planned</dd></div>
+      <div class="fact"><dt>Price</dt><dd>Free<br>No ads or purchases</dd></div>
+      <div class="fact"><dt>Account</dt><dd>None<br>Works offline</dd></div>
+      <div class="fact"><dt>Languages</dt><dd>English<br>German, French</dd></div>
+      <div class="fact"><dt>Cards</dt><dd>1,451<br>Bundled offline</dd></div>
+      <div class="fact"><dt>Source</dt><dd><a href="https://github.com/Mahmoudalf/RiftboundTracker">On GitHub</a><br>Open</dd></div>
+    </dl>
+  </section>
+
+  <footer>
+    <p class="attrib">Rifthall was created under Riot Games' "Legal Jibber Jabber" policy using
+      assets owned by Riot Games. Riot Games does not endorse or sponsor this project.</p>
+    <p>Riftbound and all related assets are the property of Riot Games, Inc. This project is
+      unofficial, non-commercial and free to use.</p>
+  </footer>
+
+</div>
+</body>
+</html>
