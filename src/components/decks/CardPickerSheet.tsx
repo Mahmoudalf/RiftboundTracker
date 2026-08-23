@@ -1,6 +1,7 @@
 import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
-import { Modal, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Modal, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DomainBadge } from '@/components/cards/DomainBadge';
@@ -49,6 +50,14 @@ interface CardPickerSheetProps {
 const COLUMNS = 3;
 
 /**
+ * Show the search field from this many cards up.
+ *
+ * Three columns, so this is four rows — roughly the point at which the pool
+ * stops fitting on one screen and scrolling starts costing more than typing.
+ */
+const SEARCH_FROM = 12;
+
+/**
  * Full-screen picker for the one-of-a-kind slots.
  *
  * Originally the Legend and the Champion — neither is a stepper card, so the
@@ -76,6 +85,40 @@ export function CardPickerSheet({
   const t = useT();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
+
+  /*
+   * Filter by name, above a threshold.
+   *
+   * Reported from use: picking an opponent's Legend or Battlefield meant
+   * scrolling a grid of a few hundred tiles. Short pools do not have that
+   * problem — a four-card mulligan is four tiles — and a search box over four
+   * cards is noise, so the field only appears once scrolling is the slower
+   * option.
+   *
+   * Name only, deliberately. The gallery searches rules text through FTS5
+   * because you go there to *find* a card; here you already know which one you
+   * are looking for and are only trying to reach it.
+   */
+  const [query, setQuery] = useState('');
+  const searchable = cards.length >= SEARCH_FROM;
+
+  /*
+   * Clear the filter on the way out, not on the way in.
+   *
+   * Every exit routes through here, so a filter cannot survive to the next
+   * visit and silently hide most of the pool. Doing it in an effect on
+   * `visible` would be a cascading render, and React says so.
+   */
+  const close = () => {
+    setQuery('');
+    onClose();
+  };
+
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || !searchable) return cards;
+    return cards.filter((card) => baseName(card.name).toLowerCase().includes(q));
+  }, [cards, query, searchable]);
 
   /*
    * The frame's real pixel size, needed because rotating art means swapping
@@ -120,7 +163,7 @@ export function CardPickerSheet({
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={onClose}
+      onRequestClose={close}
     >
       <View style={[styles.root, { paddingTop: insets.top + space[3] }]}>
         <View style={styles.header}>
@@ -139,18 +182,36 @@ export function CardPickerSheet({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={multi ? t('action.done') : t('ui.close')}
-            onPress={onClose}
+            onPress={close}
             style={({ pressed }) => [styles.close, pressed && styles.pressed]}
           >
             <Text style={styles.closeLabel}>{t('action.done')}</Text>
           </Pressable>
         </View>
 
-        {cards.length === 0 ? (
-          <Text style={styles.empty}>{emptyMessage ?? t('picker.nothingToChoose')}</Text>
+        {searchable ? (
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('picker.search')}
+            placeholderTextColor={color.textFaint}
+            style={styles.search}
+            autoCorrect={false}
+            autoCapitalize="none"
+            clearButtonMode="while-editing"
+            accessibilityLabel={t('picker.search')}
+          />
+        ) : null}
+
+        {shown.length === 0 ? (
+          <Text style={styles.empty}>
+            {cards.length === 0
+              ? (emptyMessage ?? t('picker.nothingToChoose'))
+              : t('picker.noMatch', { query: query.trim() })}
+          </Text>
         ) : (
           <FlashList
-            data={cards}
+            data={shown}
             numColumns={COLUMNS}
             keyExtractor={(card) => card.id}
             contentContainerStyle={styles.grid}
@@ -184,7 +245,7 @@ export function CardPickerSheet({
                       return;
                     }
                     onSelect?.(item);
-                    onClose();
+                    close();
                   }}
                   style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
                 >
@@ -281,6 +342,18 @@ const styles = StyleSheet.create({
   },
   artSelected: { borderColor: color.text },
   name: { ...text.microMeta, color: color.textSecondary },
+  search: {
+    ...text.small,
+    color: color.text,
+    backgroundColor: color.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: color.border,
+    paddingHorizontal: space[3],
+    minHeight: 40,
+    marginHorizontal: space[4],
+    marginBottom: space[2],
+  },
   empty: { ...text.body, color: color.textMuted, paddingTop: space[6] },
   pressed: { opacity: 0.75 },
 });

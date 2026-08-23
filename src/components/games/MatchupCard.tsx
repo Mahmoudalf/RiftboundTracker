@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Pressable } from '@/components/ui/Pressable';
 import { t } from '@/i18n';
 import { cardImage } from '@/lib/cdn';
 import { color, radius, space } from '@/theme/tokens';
@@ -27,13 +28,41 @@ interface MatchupCardProps {
   title: string;
   subtitle: string | null;
   imageUrl: string | null;
+  /** Makes the whole card a button. Omitted, it stays a display. */
+  onPress?: () => void;
+  /** What the button does, for a screen reader. Required when `onPress` is set. */
+  actionLabel?: string;
 }
 
-export function MatchupCard({ side, title, subtitle, imageUrl }: MatchupCardProps) {
+export function MatchupCard({
+  side,
+  title,
+  subtitle,
+  imageUrl,
+  onPress,
+  actionLabel,
+}: MatchupCardProps) {
   const mine = side === 'you';
 
+  /*
+   * A button only when it has somewhere to go.
+   *
+   * The same card renders on the saved-game screen, where it is a record of
+   * what happened and nothing to press. Wrapping unconditionally would give
+   * that one a pressed state and a screen-reader role it cannot honour.
+   */
+  const Root = onPress ? Pressable : View;
+  const rootProps = onPress
+    ? {
+        onPress,
+        accessibilityRole: 'button' as const,
+        accessibilityLabel: [actionLabel, title, subtitle].filter(Boolean).join(', '),
+        style: ({ pressed }: { pressed: boolean }) => [styles.root, pressed && styles.pressed],
+      }
+    : { style: styles.root };
+
   return (
-    <View style={styles.root}>
+    <Root {...rootProps}>
       {imageUrl ? (
         <Image
           source={cardImage(imageUrl, 'card')}
@@ -76,7 +105,7 @@ export function MatchupCard({ side, title, subtitle, imageUrl }: MatchupCardProp
           </Text>
         ) : null}
       </View>
-    </View>
+    </Root>
   );
 }
 
@@ -92,6 +121,7 @@ export function MatchupDivider() {
 }
 
 const styles = StyleSheet.create({
+  pressed: { opacity: 0.75 },
   root: {
     height: CARD_HEIGHT,
     borderRadius: radius.card,

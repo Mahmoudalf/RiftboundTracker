@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { router, useNavigation } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CardPickerSheet } from '@/components/decks/CardPickerSheet';
 import { MatchCard } from '@/components/games/MatchCard';
@@ -150,7 +151,15 @@ function dedupe(cards: CardRow[]): CardRow[] {
 }
 
 type Picker =
-  | { kind: 'legend' | 'champion' }
+  /**
+   * `chain` continues into the Champion once a Legend is chosen.
+   *
+   * Set only when the matchup card opened the picker. The labelled fields
+   * below it stay one field, one answer — someone who taps "Champion"
+   * directly is answering that question and nothing else.
+   */
+  | { kind: 'legend'; chain?: boolean }
+  | { kind: 'champion' }
   | { kind: 'theirField'; match: number }
   /**
    * One of the three hand rows, picked whole.
@@ -219,6 +228,18 @@ export default function LogMatchScreen() {
   const [oppChampion, setOppChampion] = useState<CardRow | null>(null);
   const [notes, setNotes] = useState('');
   const [picker, setPicker] = useState<Picker | null>(null);
+  /*
+   * The picker calls `onSelect` and then `onClose` in the same tick, so
+   * opening the next picker from `onSelect` would be undone immediately.
+   * The hand-off is recorded here and acted on when the first one closes.
+   */
+  const chainToChampion = useRef(false);
+  /*
+   * Continue is the last thing in the scroll, so on Android the system
+   * navigation bar sits over the end of it. Same fix as `Sheet`: the design's
+   * own bottom padding plus whatever the system claims.
+   */
+  const insets = useSafeAreaInsets();
   /**
    * The tournament's name, as typed.
    *
@@ -333,11 +354,24 @@ export default function LogMatchScreen() {
    * an unmemoized one would hit SQLite on every keystroke in the note field.
    */
   const poolVersionId = selected?.deck.currentVersionId ?? null;
+  /*
+   * The sideboard is in the pool, and that is not a convenience.
+   *
+   * A Bo3 is played with a sideboard between games, so a card that was never in
+   * the main deck can legitimately be in an opening hand for game 2 or 3.
+   * Excluding it made those hands unrecordable — reported from a real Bo3.
+   *
+   * The *mulligan* row is deliberately not widened: it draws from
+   * `dealtCards()`, because a card can only be sent back if it was dealt, and
+   * offering a wider pool there would let the two rows describe different hands.
+   */
   const deckPool = ((): CardRow[] => {
     if (!poolVersionId) return [];
     const seen = new Set<string>();
     const pool = loadDeckList(poolVersionId)
-      .slots.filter((slot) => slot.zone === 'main' || slot.zone === 'champion')
+      .slots.filter(
+        (slot) => slot.zone === 'main' || slot.zone === 'champion' || slot.zone === 'sideboard'
+      )
       .map((slot) => slot.card)
       .filter((card) => {
         const key = cardKey(card);
@@ -592,7 +626,7 @@ export default function LogMatchScreen() {
       }
     >
       <ScrollView
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + space[16] }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -624,8 +658,18 @@ export default function LogMatchScreen() {
             imageUrl={selected?.legendImageUrl ?? null}
           />
           <MatchupDivider />
+          {/*
+            Tapping the opponent asks both questions in a row.
+
+            The labelled fields further down are still there and still work;
+            this is the shortcut for the common case, where you know who you
+            played and want to say so without scrolling past the deck picker
+            and the Bo-count to reach a pair of dropdowns.
+          */}
           <MatchupCard
             side="them"
+            onPress={() => setPicker({ kind: 'legend', chain: true })}
+            actionLabel={opponent ? t('log.legend') : t('log.chooseLegend')}
             title={opponent ? baseName(opponent.name) : t('log.opponentNotRecorded')}
             subtitle={
               oppChampion
@@ -745,35 +789,18 @@ export default function LogMatchScreen() {
         </View>
 
         {/*
-          Their Legend and Champion, each labelled and nothing above them.
+          Their Legend and Champion used to be two labelled fields here.
 
-          The quick-select rail of recently-faced Legends is gone with the
-          design's third change. It was a real shortcut for logging a
+          Removed once the matchup card at the head of the screen started asking
+          both questions in one tap — the same two answers, above the fold, on
+          the thing that already shows them. Two ways to set one value is a way
+          for them to disagree.
+
+          (The quick-select rail of recently-faced Legends went earlier, with
+          the design's third change. It was a real shortcut for logging a
           tournament's rounds back to back, and it cost a row of chips in the
-          middle of the form to buy it.
+          middle of the form to buy it.)
         */}
-        <View style={styles.fields}>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>{t('log.legend')}</Text>
-            <SelectField
-              placeholder={t('log.chooseLegend')}
-              value={opponent ? baseName(opponent.name) : null}
-              open={false}
-              onToggle={() => setPicker({ kind: 'legend' })}
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>{t('log.chosenChampion')}</Text>
-            <SelectField
-              placeholder={opponent ? t('log.chooseChampion') : t('log.legendFirst')}
-              value={oppChampion ? baseName(oppChampion.name) : null}
-              open={false}
-              onToggle={() => setPicker({ kind: 'champion' })}
-              disabled={!opponent}
-            />
-          </View>
-        </View>
 
         {/*
           The matches, one card at a time.
@@ -1098,8 +1125,16 @@ export default function LogMatchScreen() {
         }
         onSelect={(card) => {
           if (picker?.kind === 'legend') {
+            /*
+             * Re-picking the same Legend keeps the Champion.
+             *
+             * Clearing unconditionally meant tapping the card to check who you
+             * had chosen, backing out with the same answer, and losing the
+             * Champion for it.
+             */
+            if (card.id !== opponent?.id) setOppChampion(null);
             setOpponent(card);
-            setOppChampion(null);
+            if (picker.chain) chainToChampion.current = true;
           } else if (picker?.kind === 'champion') {
             setOppChampion(card);
           } else if (picker?.kind === 'theirField') {
@@ -1123,7 +1158,14 @@ export default function LogMatchScreen() {
               }
             : undefined
         }
-        onClose={() => setPicker(null)}
+        onClose={() => {
+          if (chainToChampion.current) {
+            chainToChampion.current = false;
+            setPicker({ kind: 'champion' });
+            return;
+          }
+          setPicker(null);
+        }}
       />
 
       {/*
@@ -1207,7 +1249,6 @@ const styles = StyleSheet.create({
   /** A titled section — `THE MATCHUP`, `BEST OF`. */
   block: { gap: space[2] },
   /** One labelled control. Between them the design leaves 18px. */
-  fields: { gap: 18 },
   field: { gap: space[2] },
   fieldLabel: { ...text.fieldLabel, color: color.textFaint },
   /** The sentence under a field explaining what it does. */

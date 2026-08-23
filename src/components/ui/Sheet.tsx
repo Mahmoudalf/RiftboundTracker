@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Pressable } from '@/components/ui/Pressable';
 import { useT } from '@/i18n';
@@ -28,6 +29,15 @@ interface SheetProps {
 
 export function Sheet({ visible, title, subtitle, onClose, children, actions }: SheetProps) {
   const t = useT();
+  /*
+   * The action row sits at the very bottom of the screen, which on Android is
+   * where the system navigation bar is. A fixed padding is not enough: with
+   * three-button navigation the inset is around 48dp and the buttons were
+   * rendering underneath it, reported on a device. Same pattern as
+   * `SaveVersionSheet` — the design's own spacing *plus* whatever the system
+   * claims, so the gap below the button is the designed one either way.
+   */
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable
@@ -52,7 +62,11 @@ export function Sheet({ visible, title, subtitle, onClose, children, actions }: 
           {children}
         </ScrollView>
 
-        {actions ? <View style={styles.actions}>{actions}</View> : null}
+        {actions ? (
+          <View style={[styles.actions, { paddingBottom: insets.bottom + space[6] }]}>
+            {actions}
+          </View>
+        ) : null}
       </View>
     </Modal>
   );
