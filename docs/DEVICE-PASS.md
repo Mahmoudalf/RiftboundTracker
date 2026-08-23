@@ -15,7 +15,7 @@ are holding the phone.
 | | Meaning |
 |---|---|
 | **✅** | Passed on real hardware, on the date given |
-| **⚠️** | Failed on hardware once, fixed in config, and **not re-run since** — the fix is unproven |
+| **⚠️** | Not trustworthy for the current build — either it failed once and the fix is unproven, or it passed on a build that has since been superseded in a way that touches it |
 | **🖥** | Verified only by measurement or rendering on a build machine. **Never seen on a device** |
 | **⬜** | Never checked by any means |
 
@@ -25,6 +25,10 @@ are holding the phone.
 >
 > Build `rifthall-0.1.0-2026-08-23.apk`, signed `CN=Rifthall`, on the owner's device. First run in
 > which every item was exercised on hardware; the previous pass (2026-08-22) covered four.
+>
+> **Re-confirmed on `rifthall-0.1.0-2026-08-23-m8.apk`.** Removing `SYSTEM_ALERT_WINDOW` touched
+> `expo-image`, haptics and offline behaviour, so D1–D3 were re-run on that build and passed. The
+> other 27 were unaffected by a permission that was never granted or used.
 >
 > **Both outstanding ⚠️ items cleared** — A1 (the launcher name) and E2 (uninstall retention) were
 > the two failures from 2026-08-22, and both fixes are now proven rather than assumed. **E4 was
@@ -95,9 +99,9 @@ To re-run: uninstall and reinstall. There is no reset control.
 
 | | Check | Expected | Status |
 |---|---|---|---|
-| D1 | Scroll the whole card gallery, all ~1,451 cards | Holds 60 fps. No blank tiles that never fill | **✅ 2026-08-22**, again 2026-08-23 |
-| D2 | Airplane mode on, then use the app | Gallery, deckbuilding and match logging all work fully. This is the original D2 item | **✅ 2026-08-22**, again 2026-08-23 |
-| D3 | Log a match, timed with a stopwatch | Under **10 seconds** from tab bar to toast. If it is over, the flow gets redesigned, not the target | **✅ 2026-08-23** |
+| D1 | Scroll the whole card gallery, all ~1,451 cards | Holds 60 fps. No blank tiles that never fill | **✅ 2026-08-23**, re-run on the M8 build |
+| D2 | Airplane mode on, then use the app | Gallery, deckbuilding and match logging all work fully. This is the original D2 item | **✅ 2026-08-23**, re-run on the M8 build |
+| D3 | Log a match, timed with a stopwatch | Under **10 seconds** from tab bar to toast. If it is over, the flow gets redesigned, not the target | **✅ 2026-08-23**, re-run on the M8 build |
 | D4 | Push from onboarding into the deck list | The deck list must **not** appear for a frame before import slides over it | **✅ 2026-08-22**, again 2026-08-23 |
 
 ## E · Data retention — the section that has failed before

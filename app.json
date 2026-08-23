@@ -48,7 +48,8 @@
       "expo-status-bar",
       "expo-localization",
       "./plugins/withReleaseSigning",
-      "./plugins/withDataExtractionRules"
+      "./plugins/withDataExtractionRules",
+      "./plugins/withTrimmedPermissions"
     ],
     "experiments": {
       "typedRoutes": true

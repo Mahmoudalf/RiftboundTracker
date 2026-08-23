@@ -16,11 +16,24 @@ individual version, alongside the concrete card diff that separates them.
 
 ## Status
 
-🚧 **Pre-alpha — M2 complete.** The card gallery works: all 1,451 cards, browsable, searchable, and
-filterable entirely offline. Decks can be built end to end — Legend → Champion → 40/12/3 — with live
-legality checking that names the exact problem. Versioning and game tracking are next (M3–M4).
+**Feature complete, preparing for release.** Every core milestone is built and the app runs as a
+signed release build on hardware, verified against a [30-point device checklist](docs/DEVICE-PASS.md).
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for milestones.
+| | |
+| --- | --- |
+| Card gallery | All 1,451 cards — browse, search and filter, fully offline |
+| Deck building | Legend → Champion → 40/12/3, with live legality that names the exact problem |
+| Version history | A version locks on its first game; editing forks, and the diff is shown |
+| Game tracking | Two-tap logging, opponent, play/draw, per-game detail, events |
+| Analytics | Per-deck and per-version win rate, every figure with its sample size and a Wilson interval |
+| Collection, import/export, hand practice | Deck codes, owned-card tracking, opening-hand draws |
+| Languages | English, German, French — card text always stays in official English |
+| Verification | 766 unit tests · security hardening pass · 30/30 on device |
+
+**What is left before release:** store listing and screenshots, the build pipeline, and migrating
+the card catalogue onto Riot's official Riftbound Content API — see below.
+
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full history and what remains.
 
 ---
 
@@ -103,8 +116,12 @@ installed SDK — a mismatched one targets a different Hermes and stops transpil
 Rifthall is an **unofficial fan project**. It is not affiliated with, endorsed by, or
 sponsored by Riot Games.
 
-Card data is provided by [Riftcodex](https://riftcodex.com), itself an unofficial fan project.
-Card images, names, and game text are the property of Riot Games and are used under Riot's
-["Legal Jibber Jabber"](https://www.riotgames.com/en/legal) policy for non-commercial fan content.
+Card **images** are Riot's own files, served unmodified from Riot's content delivery network.
+Card **data** currently comes from [Riftcodex](https://riftcodex.com), itself an unofficial fan
+project, and **is being migrated to Riot's official Riftbound Content API**. Card text is displayed
+verbatim in official English and is never translated.
+
+Rifthall was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot
+Games. Riot Games does not endorse or sponsor this project.
 
 League of Legends and Riftbound are trademarks of Riot Games, Inc.

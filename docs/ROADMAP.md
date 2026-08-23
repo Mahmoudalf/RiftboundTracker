@@ -146,7 +146,7 @@ never been run.
 
 | | |
 | --- | --- |
-| **H1** · **delete** the Piltover Archive key | **Repo side verified clean 2026-08-16 — the revocation itself is still open and only the owner can do it.** See [the audit](#h1--the-key-audited-2026-08-16). The feature that would have used it is dropped (see Backlog), so there is nothing to rotate *to*. Still worth doing: it was pasted into a chat log, and an unused key is not a safe key, only an unmonitored one |
+| **H1** · ~~**delete** the Piltover Archive key~~ **done 2026-08-23** | ~~**Repo side verified clean 2026-08-16 — the revocation itself is still open and only the owner can do it.**~~ **The key is no longer functional (owner, 2026-08-23); repo re-verified clean across all 24 commits.** [Detail](#h1--closed-2026-08-23). See [the audit](#h1--the-key-audited-2026-08-16). The feature that would have used it is dropped (see Backlog), so there is nothing to rotate *to*. Still worth doing: it was pasted into a chat log, and an unused key is not a safe key, only an unmonitored one |
 | **D2** · 60 fps and airplane mode | ~~**Postponed by owner, 2026-08-14.**~~ **Unblocked 2026-08-20 — a release APK exists.** Metro was the connection airplane mode cut, and a release build has no Metro. Now an [S1](#s1--stability-on-real-devices) item rather than a blocked one |
 | **B2 / analytics on device** | Both need real logged data before they show anything. Not defects; not yet observed either |
 
@@ -989,6 +989,18 @@ would weight long matches higher in precisely the breakdowns whose point is a tr
 
 ## M7 — Localization
 
+**Checklist corrected 2026-08-23.** All six boxes below were still unticked while the work had in
+fact shipped in [M7A](#m7a--what-shipped-2026-08-16) and
+[M7B](#m7b--finished-and-enforced-2026-08-16) back in August. Verified before ticking rather than
+assumed: the scanner reports *"No untranslated prose. 99 files scanned"*, `i18n.test.ts` fails the
+build on a missing **or** extra key in any catalogue, and Profile carries the language override.
+
+Two of them are worth a word because the implementation reads differently from the wording:
+`localeNumber` and `gameDate` call `toLocaleString` / `toLocaleDateString`, which **are** the
+`Intl` API — a grep for `Intl.` finds nothing and proves nothing. And `gameDate` was kept rather
+than replaced: it delegates to `Intl` for the absolute form and uses catalogue strings for
+"Today" / "Yesterday", which `Intl.DateTimeFormat` does not do at all.
+
 Two halves that share one job: **making the app legible to somebody who did not build it.** A first
 run that explains itself, and an interface that speaks the language of the person holding the phone.
 
@@ -1016,15 +1028,15 @@ being told anything out of band.
 
 ### M7B — German and French
 
-- [ ] An i18n layer and a locale store — device locale by default, overridable in Profile
-- [ ] Every string in the app extracted. There is no string table today: copy is written inline, and
+- [x] An i18n layer and a locale store — device locale by default, overridable in Profile
+- [x] Every string in the app extracted. There is no string table today: copy is written inline, and
       much of it is deliberately voiced prose rather than labels, which is what makes this a real
       piece of work rather than a find-and-replace
-- [ ] **de** and **fr** translations, English as the fallback for anything missing
-- [ ] Plurals and number formatting through `Intl` — records, percentages and confidence intervals
+- [x] **de** and **fr** translations, English as the fallback for anything missing
+- [x] Plurals and number formatting through `Intl` — records, percentages and confidence intervals
       all render numbers, and a German decimal comma is not a cosmetic difference
-- [ ] Dates via `Intl.DateTimeFormat` rather than the hand-rolled `gameDate`
-- [ ] **Card data stays in the language the API returns.** Riftcodex serves English card names and
+- [x] Dates via `Intl.DateTimeFormat` rather than the hand-rolled `gameDate`
+- [x] **Card data stays in the language the API returns.** Riftcodex serves English card names and
       rules text; translating them locally would invent names that do not appear on the card in the
       player's hand, and a deck list that disagrees with the cards on the table is worse than an
       English one. Only *app* copy is translated
@@ -2625,7 +2637,8 @@ action here — recorded so the figure does not read as a regression when M9 fir
 **Two S1 items were deferred by the owner, not dropped:** ~~the app icon and splash come later~~
 (**delivered 2026-08-23** — the owner produced the mark the next day), and
 iOS moves behind the Android *and* web releases — so the order is now
-**S1 → T2 → B1 → W1 → R1 → M9 → iOS.**
+~~**S1 → T2 → B1 → W1 → R1 → M9 → iOS.**~~ **Reordered 2026-08-23** to
+**S1 → T2 → M9 → B1 → W1 → R1 → iOS**, behind a Store Ready gate. [Detail](#store-ready-and-three-owner-decisions--2026-08-23).
 
 
 ### The logo — 2026-08-23
@@ -2875,7 +2888,8 @@ catch a regression in the extraction rules. The pass says the release is sound; 
 app is finished.
 
 **S1 closes here**, bar iOS, which the owner deferred behind the Android and web releases. The
-order stands: **S1 → T2 → B1 → W1 → R1 → M9 → iOS.**
+order was ~~**S1 → T2 → B1 → W1 → R1 → M9 → iOS**~~ and is
+**S1 → T2 → M9 → B1 → W1 → R1 → iOS** from 2026-08-23. [Detail](#store-ready-and-three-owner-decisions--2026-08-23).
 
 ---
 
@@ -2955,12 +2969,16 @@ brute-forcing logins is not privacy-preserving, it is blind.
       credentials → [H1](#h1--the-key-audited-2026-08-16) and §B · M2 supply chain → §E · M4
       input validation → §D · M5 communication → §B · M6 privacy → [`STORE.md`](STORE.md) ·
       M9 data storage → §C · M10 cryptography → §C. **Mobile M3 auth is B1's.**
-- [ ] **Mobile M8 misconfiguration on the generated manifest.** `allowBackup` is measured and
-      decided — and **re-decided 2026-08-22 to `false`**, with device-to-device transfer
-      ~~still open~~ [closed 2026-08-23](#device-to-device-transfer--2026-08-23); exported components
-      and any debug flags in a release build are not. The native
-      project is regenerated by `prebuild`, so this is a check against the *output*, not the config.
-- [ ] **Mobile M7 — Insufficient Binary Protections. The recommendation is a deliberate *no*.**
+- [x] **Mobile M8 misconfiguration on the generated manifest — done 2026-08-23.** `allowBackup` is
+      measured and decided — and **re-decided 2026-08-22 to `false`**, with device-to-device
+      transfer ~~still open~~ [closed 2026-08-23](#device-to-device-transfer--2026-08-23);
+      ~~exported components and any debug flags in a release build are not.~~ Both are now, along
+      with the permission set: **one permission removed, six kept with written reasons, two exported
+      components accepted, no debug flags present.** Checked against the *output*, and kept there by
+      `npm run audit:permissions`. [Detail](#mobile-m8--the-generated-manifest--2026-08-23).
+- [x] **Mobile M7 — Insufficient Binary Protections. The recommendation is a deliberate *no*** —
+      **recorded 2026-08-23** alongside M8, with the tripwire restated.
+      [Detail](#mobile-m8--the-generated-manifest--2026-08-23).
 
       > No obfuscation, no root or jailbreak detection, no anti-tamper.
 
@@ -3029,6 +3047,195 @@ The app is native and skips the browser risks entirely. [W1](#w1--web-platform) 
 **Done when:** each of the three lists has every item either satisfied or recorded as a deliberate
 decision with a tripwire — the [§C](#c--data-at-rest-on-the-device) standard, where *"no"* is an
 answer and *"we did not look"* is not.
+
+### Mobile M8 — the generated manifest — 2026-08-23
+
+**The finding was real and the diagnosis was wrong, in that order.**
+
+The release APK declared `SYSTEM_ALERT_WINDOW` — draw over other apps, the permission
+screen-overlay malware wants — and nothing in this app has an overlay. Grepping `node_modules` for
+it found exactly one `AndroidManifest.xml` declaring it, in
+`react-native/ReactAndroid/src/debug/`. That reads as debug material leaking into a release
+artifact, which would have been a much larger finding than one spurious permission: if variant
+linkage were broken, other debug-only material would be riding along too.
+
+**It was not that.** AGP writes a merger blame report, and it names contributors exactly:
+
+```
+uses-permission#android.permission.SYSTEM_ALERT_WINDOW
+ADDED from .../android/app/src/main/AndroidManifest.xml:4:3-75
+```
+
+Our own generated main manifest — and the release merge report contains **zero** references to any
+`src/debug` manifest. The permission comes from the bare-minimum template that `expo prebuild`
+writes, whose own comment reads `<!-- OPTIONAL PERMISSIONS, REMOVE WHATEVER YOU DO NOT NEED -->`.
+Scaffolding doing what it says on the tin. Nobody ever pruned it because `android/` is regenerated
+on every prebuild, so the instruction is addressed to a project that keeps its native folder and
+this one does not.
+
+**The variant machinery was checked rather than cleared by assumption**, because "the permissions
+are identical in debug and release" is exactly what a leak would also look like. Comparing the two
+merged manifests:
+
+| | Release | Debug |
+|---|---|---|
+| Permissions | 7 | 7 — identical |
+| Components | 5 | 5 — identical |
+| `debuggable` | absent | **`true`** |
+| `usesCleartextTraffic` | absent | **`true`** |
+
+The flags are the proof. Debug-only material *is* confined to debug; the permission sets match
+because they come from sources common to both variants. Nothing is misconfigured, so removal is
+clean rather than a patch over a deeper fault.
+
+**All seven were decided explicitly, and only one was removed.**
+
+| Permission | Source | Decision |
+|---|---|---|
+| `INTERNET` | template + `expo-image` | Keep — card sync and card art |
+| `VIBRATE` | template + `expo-haptics` | Keep — result taps, legality changes |
+| `ACCESS_NETWORK_STATE` | `expo-image` (Glide) | Keep — restarts failed image loads on reconnect |
+| `READ_EXTERNAL_STORAGE` | template, `expo-image`, `expo-file-system` | **Keep**, see below |
+| `WRITE_EXTERNAL_STORAGE` | template, `expo-file-system` | **Keep**, see below |
+| `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | AndroidX | Keep — signature-level, self-granted |
+| `SYSTEM_ALERT_WINDOW` | template | **Removed** |
+
+**The two storage permissions are kept deliberately, and that is the interesting decision.** Both
+carry `maxSdkVersion="32"`, so they are inert on Android 13 and above. Glide, inside `expo-image`,
+declares the read one for its local cache path — removing it risks a subtle image-caching
+regression on API 24–32 that **could only be disproved on a device nobody here has.** Low reward
+against unprovable safety. They also carry `tools:replace="android:maxSdkVersion"` markers from the
+template that any removal would have to reason about. One-permission change, which is the size the
+evidence supports.
+
+**Two exported components, both accepted, both recorded so this is not re-opened:**
+
+- **`MainActivity` is exported and must be.** It carries the `LAUNCHER` intent filter and the
+  `riftbound://` deep-link filter. An unexported launcher activity is an app that cannot be opened.
+  The deep-link surface itself is not new attack surface here — [T1 §D](#d--untrusted-input) already
+  established the rule that links navigate and never command.
+- **`ProfileInstallReceiver` is exported and guarded.** AndroidX baseline-profile machinery, with
+  `android:permission="android.permission.DUMP"` — a privileged permission, so only shell and system
+  can reach it. Exported-with-a-signature-guard is not the same risk as exported.
+
+**Debug flags in the release artifact: none.** No `debuggable`, no `usesCleartextTraffic`, no
+`testOnly`, no `networkSecurityConfig`. Read from the shipped APK.
+
+**Mobile M7 — binary protections — stays a deliberate no.** Unchanged by any of this and recorded
+here because M8 is where someone would think to revisit it:
+[§B](#b--secrets-transport-and-what-ships-in-the-bundle) established there are no secrets in the
+bundle, nothing is gated client-side, and so there is no check worth defeating. The tripwire stands:
+the moment the app holds a secret or performs a client-side entitlement check, the decision is void.
+
+### The part that makes it durable
+
+`plugins/withTrimmedPermissions.js` adds `tools:node="remove"` to the one permission — the marker
+rather than deleting the element, so the removal also strips any contribution merged in from a
+library and does not depend on who declares it. It asserts `xmlns:tools` is present (without the
+namespace the attribute is inert and the permission would quietly still ship) and **fails prebuild
+if the permission is absent**, so an upstream fix cannot turn this plugin into dead code nobody
+notices. Proven by pointing it at a permission that does not exist and watching prebuild stop.
+
+**A one-time audit does not survive a dependency bump, and this permission set is a function of the
+dependency tree.** `npm run audit:permissions` reads the shipped APK with `aapt2` — or the merged
+manifest with `--manifest`, when no build exists — and holds an allowlist with a written reason per
+entry. Anything new fails until someone justifies it; anything deliberately removed that comes back
+is reported as a regression against the decision that removed it, not merely as unknown. Same move
+that made the signing pipeline trustworthy: assert the property on every build rather than
+establish it once.
+
+It was written red-first. Run against the pre-fix APK it failed on exactly one permission, naming
+it and the reason it had been removed; against the rebuilt APK, **6 permissions, all accounted
+for.** `aapt2 dump badging` confirms what a store listing would surface: label `Rifthall`,
+`targetSdkVersion 36`, six permissions, no overlay.
+
+**Not verified: that removal changed nothing at runtime.** The build succeeds, the signature is
+still `CN=Rifthall`, the extraction rules still link, and all five components are unchanged — but
+`expo-image`, haptics and offline behaviour touch the affected subsystems and want a device. That
+is D1, D2 and D3 of [the device pass](DEVICE-PASS.md), three checks rather than thirty, and they
+are unrun.
+
+### Store Ready, and three owner decisions — 2026-08-23
+
+**The plan gains a gate between the app and the remaining milestones**, on the owner's call:
+
+> **App → Store Ready → remaining milestones.**
+> *Store Ready* means no major bugs, gaps, issues or security points remain open and need fixing.
+
+That reorders things. The order was **S1 → T2 → B1 → W1 → R1 → M9 → iOS**, with M9 (Ship) last
+because a store listing was assumed to want the backend behind it. It does not. The app is
+local-first and fully functional signed-out — B1 adds sync to something that already works rather
+than completing it. So the new order is:
+
+**S1 → T2 → M9 → B1 → W1 → R1 → iOS**
+
+The consequence, stated plainly because it is the thing to be sure about: **v1 ships with no cloud
+sync and no safety net.** A user who loses their phone loses their history. That was already true
+and already accepted when `allowBackup` was turned off; shipping before B1 makes it true *for real
+users* rather than for the owner's test device. The privacy policy already says so in as many words.
+
+The privacy policy's controller name, contact and public URL fold into this gate too — they are
+release paperwork, not app work, and Play will not accept a listing without them.
+
+### Accessibility is not required here, and the checking mattered
+
+The M9 accessibility pass was described as the largest remaining gap. The owner asked the right
+question — *is this necessary, does every app do this?* — and the answer is **no, on two
+independent grounds.**
+
+**The law does not reach this app.** Germany's Barrierefreiheitsstärkungsgesetz (BFSG) took effect
+28 June 2025 and does cover mobile apps, but only within the service categories listed in
+§ 1 Abs. 3: *Telekommunikationsdienste · E-Books · Dienstleistungen auf Mobilgeräten im
+überregionalen Personenverkehr · Bankdienstleistungen · Dienstleistungen im elektronischen
+Geschäftsverkehr · Personenbeförderungsdienste*. A free deck tracker that sells nothing is none of
+them. **And independently**, the Bundesfachstelle Barrierefreiheit states that
+*"Kleinstunternehmen (weniger als zehn Beschäftigte und höchstens 2 Millionen Euro Jahresumsatz),
+die Dienstleistungen anbieten oder erbringen, [sind] vom BFSG ausgenommen"* — a one-person hobby
+project is comfortably inside that. Either ground alone is sufficient.
+
+**Neither store blocks on it.** Searching Play's policies for accessibility surfaces the
+`AccessibilityService` API rules — declaration forms, prominent disclosure, suspension for
+undeclared use. **That is a different subject entirely**: it governs apps that *use* the
+accessibility service to read other apps' screens, which this app does not. Nothing found requires
+an app to *be* accessible as a condition of approval. Worth writing down, because the search results
+read as relevant and are not.
+
+> **Tripwire, in the shape §C and Mobile M7 used.** Both grounds are conditional. The moment the app
+> **sells anything** — a paid tier, in-app purchases, a shop — it becomes a *Dienstleistung im
+> elektronischen Geschäftsverkehr* and the category exemption is gone, leaving only the
+> micro-enterprise one, which itself lapses if the project ever grows past ten people or €2M. At
+> that point this decision is void and gets made again, on legal advice rather than on a roadmap.
+
+**What is being kept anyway, because it is not charity.** Some of the pass is already done or
+nearly free, and improves the app for everyone: contrast is measured in `tokens.ts` and recorded
+against `surface`, reduce-motion is honoured on the onboarding reveals and the version timeline,
+and touch-target sizing is a design property rather than an accessibility feature bolted on. What is
+deferred is the expensive half — screen-reader labels across every screen, and Dynamic Type. Card
+art already carries `accessibility_text` from the API that nothing reads yet; that is the cheapest
+future win and where a later pass should start.
+
+### Empty states — declined, 2026-08-23
+
+The plan called for every screen to have a designed empty state. **The owner declined:** *"there is
+no need for bloated text just to fill the whitespace."*
+
+Reasonable, and smaller than it sounded. The one that actually carried weight — the first-run Decks
+screen — was already built as an onboarding surface rather than a blank list, which is the case
+where an empty screen leaves someone stuck with no next action. The rest are screens a user reaches
+*after* having data, where the emptiness is self-explanatory and a paragraph explaining it is
+noise. Revisit only if a real user reports being stranded on one.
+
+### H1 — closed, 2026-08-23
+
+The Piltover Archive key **is no longer functional**, per the owner. The repository side was already
+clean and was re-verified against all **24** commits (the audit ran at 17): `git grep` for the
+`ak_` pattern and for any `api_key` / `secret` / `token` assignment carrying a 20-character-plus
+literal both exit 1 across every blob in history. No `.env` exists on disk.
+
+**Nothing was removed, because there was nothing to remove.** The only surviving occurrences of the
+name are `@piltoverarchive/riftbound-deck-codes` — the offline Apache-2.0 deck-code package, which
+must stay — and prose in this file describing the decision. Card names like *Vi - Piltover
+Enforcer* in `assets/seed/cards.json` are game data and match on the word alone.
 
 ---
 
@@ -3294,11 +3501,18 @@ with someone else, and they were blocking a status rather than a task.
       cards) provided by the Riot API. No external or unofficial materials."* Card **data** comes
       from Riftcodex, a community API; card **images** are hotlinked from Riot's own CDN. This is an
       architectural question, not paperwork, and the most likely reason a registration review comes
-      back with conditions.
+      back with conditions. **2026-08-23: the answer exists and is a field rename** — Riot's
+      `CardArtDTO` carries `thumbnailURL` and `fullURL`, its own asset URLs.
+      [Detail](#riftbound-content-v1--read-and-not-reachable-yet--2026-08-23).
 - [ ] **Migrate the catalogue to Riot's API if required.** `src/api/riftcodex/` is one boundary with
       Zod validation at the edge and a mapper behind it — the shape that makes a source swap a
       rewrite of one directory rather than of the app. That was not designed for this and it is what
-      makes it survivable.
+      makes it survivable. **Blocked 2026-08-23, and not on us:** the endpoint is *"not available in
+      your policy"* until the registration above is approved. The schema has been read from the
+      portal and costed — **two serious gaps, `faction` versus dual `domains` and a missing
+      `supertype`** — and the runtime sync has to become a build-time seed regardless, since a key
+      cannot ship in a client.
+      [Detail](#riftbound-content-v1--read-and-not-reachable-yet--2026-08-23).
 - [ ] **Keep card text in Riot's words.** *"All Riftbound cards must display the official English
       text or — if available via the API — Riot's official translation."* The app already renders
       `textPlain` verbatim and translates no card text, which M7B chose for a different reason and
@@ -3311,16 +3525,105 @@ with someone else, and they were blocking a status rather than a task.
 **Done when:** the project is registered, the asset-sourcing answer is written down, and the
 attribution on the About card matches the footing the app is actually on.
 
+### Riftbound Content v1 — read, and not reachable yet — 2026-08-23
+
+**Riot's portal answers the access question outright.** With the owner logged in and a freshly
+generated development key, the endpoint's execute panel says, in red:
+
+> **CANNOT EXECUTE. THIS API ENDPOINT IS NOT AVAILABLE IN YOUR POLICY**
+
+So `riftbound-content-v1` is **not** open to a personal development key. Access comes with an
+approved product policy — which is [R1's registration item](#r1--riot-api-and-compliance), the
+thing the migration was going to happen *before*. **The order is forced the other way: register,
+get the policy, then migrate.** That is not a delay so much as a correction; R1 already said
+registration *"gates store submission"* and *"has a lead time nobody controls."*
+
+**Probing could never have found this**, and the reason is worth recording. Riot's edge returns
+`403 Forbidden` for everything a key lacks entitlement to — including
+`/nonsense/v9/doesnotexist`, which was run as a control. A wrong path and a right-but-forbidden path
+are indistinguishable from outside. The path guessed here was in fact **correct**
+(`GET /riftbound/content/v1/contents`, region `AMERICAS`); the 403 said nothing either way. Two
+readings were offered at the time — wrong path, or no entitlement — and it was the second.
+
+**One earlier claim here was wrong and is corrected:** the first key was reported as probably
+expired. It was not. Riot answers `401 "Unknown apikey"` for a key it does not know and `403` for
+one it knows but forbids; both keys got `403`. The regeneration was unnecessary. (The new key did
+show `401` for about a minute before propagating, which is its own small trap.)
+
+### The shape, and what it costs
+
+One endpoint returns the entire catalogue nested — no pagination, unlike Riftcodex's 15 pages of
+100:
+
+```
+RiftboundContentDTO   game · version · lastUpdated · sets[]
+  SetDTO              id · name · cards[]
+    CardDTO           id · collectorNumber · set · name · description · type · rarity ·
+                      faction · stats(CardStatsDTO) · keywords[] · art(CardArtDTO) ·
+                      flavorText · tags[]
+      CardArtDTO      thumbnailURL · fullURL · artist
+```
+
+`locale` is the only query parameter, defaults to `en`, and **"during beta only en available"** —
+so the API is in beta, which is worth weighing before a shipped app depends on it.
+
+**Three things this gives us that Riftcodex could not:**
+
+- **`art.thumbnailURL` and `art.fullURL` are Riot's own asset URLs.** That is a direct answer to
+  R1's asset-sourcing clause — *"Your App may only use Riftbound assets (including cards) provided
+  by the Riot API"* — which was flagged as *"the most likely reason a registration review comes back
+  with conditions."* It stops being an architectural question and becomes a field rename.
+- **`version` and `lastUpdated` at the top level** are a real sync signal. The current design polls
+  `/sets` and compares `card_count`, which is inference; this is the server telling us.
+- **English-only card text is now enforced by the source**, matching what M7B chose independently
+  and what R1 requires.
+
+**And four gaps, two of them potentially serious.** Measured against `cards` in
+[the data model](DATA-MODEL.md), not guessed:
+
+| App field | Riot `CardDTO` | Risk |
+|---|---|---|
+| `domains` — an **array**; dual-domain cards are normal | `faction`, a **single string** | **High.** Deck legality checks that every main and rune card falls inside the Legend's two domains, and the whole colour system keys off it. If `faction` cannot express *Fury + Order*, `legality.ts` and `domains.ts` both need rethinking |
+| `supertype` — `Champion` · `Signature` · `Basic` · `Token` | **absent** | **High.** It carries the Champion-Unit rule, the 3-Signature limit, and the rune `Basic` exemption. It may hide in `keywords` or `tags`; that has to be checked against real data, not assumed |
+| `orientation` | **absent** | Medium. Battlefields render landscape (`DeckSlotRow`); without it every card draws portrait |
+| `alternateArt` · `overnumbered` · `riftboundId` · `tcgplayerId` | **absent** | Low. `tcgplayerId` is stored but no feature reads it — price tracking is Backlog only |
+
+**`CardStatsDTO` has not been seen** — the screenshot cut off at its header. `energy`, `might` and
+`power` presumably live there, and until that is confirmed the gap list is incomplete.
+
+**What does *not* break, and it is the part that was designed for this.** `cardKey()` derives
+identity from the **card name**, not from the API's id — so deck codes, the 3-copy limit and
+collection matching all survive an id-scheme change untouched. `deck_version_cards.card_id` does
+store the source id, so stored decks would need an id map or would be orphaned; **nothing has
+shipped, so the only data at risk is the owner's test decks.** This is the cheapest moment this
+migration will ever have.
+
+**The runtime sync has to go, whatever else happens.** A keyed API cannot be called from the client
+— a key in an APK is a public key, and today's Mobile M8 work is a demonstration of how readable an
+APK is. `/contents` returning everything in one call suits `scripts/generate-seed.ts` exactly:
+fetch on the build machine, ship the snapshot, and the key never enters the app. That also keeps
+airplane-mode working and needs no backend, so it does not disturb
+[the Store Ready order](#store-ready-and-three-owner-decisions--2026-08-23).
+
+
 ---
 
 ## M9 — Ship
 
 - [ ] Motion and haptics polish pass
-- [ ] All empty states designed and implemented
+- [x] ~~All empty states designed and implemented~~ — **declined by the owner 2026-08-23**,
+      *"no need for bloated text just to fill the whitespace."* The one that mattered, the first-run
+      Decks screen, is already an onboarding surface.
+      [Detail](#empty-states--declined-2026-08-23)
 - [x] ~~First-run onboarding~~ — **moved to M7A**, where it sits with the rest of the
       first-impression work rather than being one line on a release checklist
-- [ ] Accessibility pass — contrast, 44pt targets, screen reader labels (use `accessibility_text`
-      from the API for cards), Dynamic Type, reduce-motion
+- [x] ~~Accessibility pass — contrast, 44pt targets, screen reader labels (use `accessibility_text`
+      from the API for cards), Dynamic Type, reduce-motion~~ — **scoped down 2026-08-23, and not
+      because it was skipped.** The BFSG does not reach this app on two independent grounds, and
+      neither store blocks on it. Contrast, touch targets and reduce-motion are already done;
+      screen-reader labels and Dynamic Type move to the Backlog **with a tripwire — selling anything
+      voids the exemption.**
+      [Detail](#accessibility-is-not-required-here-and-the-checking-mattered)
 - [x] ~~Attribution / disclaimer screen~~ — the screen exists (Settings › About). Whether it is
       *sufficient* against Riot's actual policy text is a compliance question, and moved to
       [T1 §A](#a--store-and-platform-requirements)
@@ -4756,11 +5059,11 @@ Deliberately deferred — revisit after launch with real usage data.
   hexagon plate and the red rift have to collapse into one shape that still reads at 48dp. That is
   a design decision, not a generator flag — the same question iOS 18's dark and tinted icon
   variants ask, so answer it once for both
-- **Give the master logo a tracked home.** It lives in `app logo/Rifhthall Logo No BG.png` — an
-  untracked folder, outside `assets/`, with a typo in the filename. `scripts/make-logo-assets.js`
-  reads it by that exact path, so **nothing regenerates on a second machine** until it is committed.
-  Rename and move together with the script's constant, or leave it and commit as-is; either is
-  fine, but not doing one of them is a silent dependency on this laptop
+- ~~**Give the master logo a tracked home.**~~ **Done 2026-08-23** — committed as-is in `bf615c0`,
+  so `scripts/make-logo-assets.js` regenerates anywhere. The folder is still `app logo/`, outside
+  `assets/`, and the filename still reads `Rifhthall`; both were left alone deliberately, because
+  the script resolves that exact path and a rename buys tidiness at the cost of a working build.
+  Rename the file and the script's `SRC` constant together if it ever grates
 - **`<cross-platform-transfer>` in the data-extraction rules.** Android 16 QPR2 (API 36.1) added a
   third backup mode, for transfers to and from non-Android devices, and
   [the rules file omits it](#device-to-device-transfer--2026-08-23) — an absent section means that
@@ -4768,6 +5071,15 @@ Deliberately deferred — revisit after launch with real usage data.
   out because the docs do not say whether an API 31 parser ignores an unknown element, and an
   unparseable rules file would break the two modes that already work. Revisit when minSdk clears 36,
   or when someone can confirm the element is ignored rather than fatal on older releases
+- **Screen-reader labels and Dynamic Type.** The deferred half of the accessibility pass, moved
+  here 2026-08-23 after establishing that [neither the BFSG nor either
+  store](#accessibility-is-not-required-here-and-the-checking-mattered) requires it of this app.
+  **The cheapest starting point already exists:** every card carries `accessibility_text` from the
+  Riftcodex API — a written description of the card — and nothing reads it. The gallery and card
+  detail are where a screen reader is most useless today and where one field would fix it.
+  **Tripwire:** if the app ever sells anything it becomes a *Dienstleistung im elektronischen
+  Geschäftsverkehr* and the exemption is void; this stops being a backlog item and becomes a
+  requirement
 - Web export of the Expo codebase
 - Deck sharing between users
 - Sideboard / tech-card tracking as a first-class concept

@@ -15,6 +15,7 @@
     "i18n:scan": "tsx scripts/find-untranslated.ts",
     "seed": "tsx scripts/generate-seed.ts",
     "db:generate": "drizzle-kit generate",
+    "audit:permissions": "tsx scripts/audit-permissions.ts",
     "audit:bundle": "tsx scripts/audit-bundle.ts"
   },
   "dependencies": {
