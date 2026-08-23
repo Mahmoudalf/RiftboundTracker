@@ -229,7 +229,7 @@ export default function SettingsScreen() {
           {/* No milestone here. It read "M1" for five milestones because a
               hand-written stage label has nothing keeping it true. */}
           <Text style={styles.footerMeta}>
-            {metaLine('Riftbound Tracker', `v${APP_VERSION}`)}
+            {metaLine('Rifthall', `v${APP_VERSION}`)}
           </Text>
         </View>
       </ScrollView>

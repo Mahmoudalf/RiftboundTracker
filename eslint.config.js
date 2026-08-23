@@ -50,4 +50,18 @@ module.exports = [
     files: ['src/components/ui/Pressable.tsx'],
     rules: { 'no-restricted-imports': 'off' },
   },
+  {
+    /**
+     * Build-time code, not app code. Expo config plugins and repo scripts run
+     * in Node under CommonJS, so `__dirname`, `require` and `module` are real
+     * globals here — the app config treats them as undefined because a React
+     * Native bundle has no such thing.
+     */
+    files: ['plugins/**/*.js', 'scripts/**/*.js'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: { __dirname: 'readonly', require: 'readonly', module: 'writable' },
+    },
+    rules: { 'import/order': 'off' },
+  },
 ];

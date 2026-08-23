@@ -31,6 +31,16 @@ expo-env.d.ts
 *.mobileprovision
 *.orig.*
 
+# ---- Release signing ----
+# The upload keystore and its password file. `*.p12` above already covers the
+# keystore by extension; these rules cover the directory and the password file,
+# which no extension rule catches. Nothing in here may ever be committed:
+# the passwords are in it, and `credentials.json` below is EAS's own unrelated
+# file, not this.
+/credentials/
+keystore.properties
+*.keystore
+
 # ---- EAS ----
 .easignore
 credentials.json

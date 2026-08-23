@@ -81,13 +81,24 @@ rather than renumbered; M9 is still M9.
 between M7 and M8 on 2026-08-16 and is next.** ~~M8 is still unblocked and still follows.~~
 **Corrected again 2026-08-20: T1 is done, and M8 no longer exists as one milestone** — the plan was
 reordered around a self-hosted backend and M8 split into [B1](#b1--backend) and
-[W1](#w1--web-platform). The order is now **[S1](#s1--stability-on-real-devices) →
-[T2](#t2--owasp-hardening) → B1 → W1 → [R1](#r1--riot-api-and-compliance) → [M9](#m9--ship)**.
+[W1](#w1--web-platform). ~~The order is now **[S1](#s1--stability-on-real-devices) →
+[T2](#t2--owasp-hardening) → B1 → W1 → [R1](#r1--riot-api-and-compliance) → [M9](#m9--ship)**.~~
+**Corrected 2026-08-22: iOS moved to the end**, behind both the Android and the web releases, by
+the owner. The order is now **[S1](#s1--stability-on-real-devices) → [T2](#t2--owasp-hardening) →
+B1 → W1 → [R1](#r1--riot-api-and-compliance) → [M9](#m9--ship) →
+[iOS](#ios-was-asked-for-and-not-built-2026-08-20)**.
+
+**S1 is in progress.** The [first device pass](#s1--the-device-pass--2026-08-22) ran 2026-08-22:
+60 fps and airplane mode both hold, the onboarding hand-off does not flash, and two configuration
+bugs were found and fixed — the app did not uninstall its own data, and it installed under the
+working title instead of **Rifthall**. On 2026-08-23 the package id followed the name to
+`com.rifthall.app`, spending the one window in which that is free.
 
 **Shipped since 2026-08-14**
 
 | | |
 | --- | --- |
+| **S1** · the first device pass | 60 fps and airplane mode confirmed on hardware, no flash on the onboarding hand-off, Android Auto Backup turned off so an uninstall is a real uninstall, and the app renamed to **Rifthall** — package id included. [Detail](#s1--the-device-pass--2026-08-22) |
 | **M7A** · onboarding | Welcome + progressive setup, a development disclaimer on the first screen, library progress that never blocks, replayable from Settings. [Detail](#m7a--what-shipped-2026-08-16) |
 | **M7B** · finished and enforced | The last 137 strings, locale-aware number formatting, and a test that fails the build on untranslated prose. [Detail](#m7b--finished-and-enforced-2026-08-16) |
 | **The gate's roots gap** | The scanner had never looked at `src/features`, `src/lib` or `src/api` — 32 more strings, and a leak that showed German users Zod's English output. [Detail](#the-gates-own-roots-gap-2026-08-16) |
@@ -175,8 +186,11 @@ their data lives only on this device when both platforms back it up.
 
 **One item came out of batch 2 that is not a security fix.** The welcome screen tells users *"Your
 decks and games live only on this device."* Both platforms back the database up — Google Drive on
-Android, iCloud on iOS — so the sentence is false as shipped. The backup stays; the sentence
-changes. [Why](#t1-batch-2--done-2026-08-19).
+Android, iCloud on iOS — so the sentence is false as shipped. ~~The backup stays; the sentence
+changes.~~ [Why](#t1-batch-2--done-2026-08-19). **Reversed on Android 2026-08-22:** the owner
+uninstalled the app and its data came back, `android.allowBackup` is now `false`, and the
+sentence changed again — this time to say that uninstalling deletes everything. iOS still backs the
+database up to iCloud and does not have the fix. [Detail](#s1--the-device-pass--2026-08-22).
 
 **M9 — Ship has not started, and several of its items need lead time rather than effort.**
 `app.json` still carries the pre-retheme `#0A0B0F` for the splash and the Android adaptive icon
@@ -1031,12 +1045,17 @@ is enough however you leave.
 **Three deliberate departures from the mockup**, each because the design describes a picture and the
 app has to behave:
 
-- The design's product name is **Rifthall**, a naming exploration the app never adopted.
+- ~~The design's product name is **Rifthall**, a naming exploration the app never adopted.~~
+  **Adopted 2026-08-22.** The app installed on a phone as *Riftbound Tracker*, the working title,
+  and the owner named Rifthall as the real one. It is no longer a departure from the mockup —
+  the mockup was right first. [Detail](#s1--the-device-pass--2026-08-22).
 - Its name-field helper reads *"Shown on match history and shared decks"* — a promise the app cannot
   keep, since nothing reads a display name and ~~nothing leaves the device~~. It says what is true.
   **Corrected 2026-08-19:** nothing is *sent* anywhere by the app, which is what the helper is about,
   but the database — display name included — is copied to Google Drive or iCloud by OS backup. See
-  [T1 batch 2](#t1-batch-2--done-2026-08-19).
+  [T1 batch 2](#t1-batch-2--done-2026-08-19). **Corrected again 2026-08-22:** on Android it is no
+  longer copied anywhere — *nothing leaves the device* is now literally true there, and only there.
+  [Detail](#s1--the-device-pass--2026-08-22).
 - **Skip is always available.** The design fades *"I'll look around first"* in only once the deck
   section opens, which leaves the first thirty seconds of a brand-new app with no way out of a form
   nobody asked for.
@@ -1659,7 +1678,11 @@ they drift apart and a reviewer notices first.
       which is the one thing a machine does better than a person, and hands the judgement back at
       the moment someone is writing the line. See [batch 4](#t1-batch-4--done-2026-08-19).
 
-- [x] **OS backup: the welcome copy said something false, and the copy changed — closed 2026-08-19.**
+- [x] **OS backup: the welcome copy said something false, and the copy changed — closed 2026-08-19.
+      Reopened and settled the other way 2026-08-22** — see
+      [the device pass](#s1--the-device-pass--2026-08-22). The record below is what was decided
+      then, and the reasoning still holds; what it lacked was the observation that a deliberate
+      uninstall silently does not uninstall.
       Batch 2 found the database is copied to Google Drive on Android and iCloud on iOS while
       `onboarding.wip.body` told the user *"Your decks and games live only on this device."* The
       decision was that the **backup stays and the sentence changes**, because until M8 ships sync
@@ -1864,7 +1887,15 @@ user's Google Drive.
 `Documents/` is in iCloud backup by default, and nothing in the app sets
 `NSURLIsExcludedFromBackupKey`. The same file goes to iCloud.
 
-**Is the framework default the right answer? For the config, yes. For the copy, no.**
+**Is the framework default the right answer? ~~For the config, yes.~~ For the copy, no.**
+
+> **Overturned for Android on 2026-08-22, on evidence this section did not have.** The owner
+> uninstalled the app on a real phone and the data survived. `android.allowBackup` is now
+> `false`. The reasoning below is not retracted — it is still the correct account of what the
+> backup was buying, and the cost it names is now genuinely being paid. What it was missing is that
+> the same mechanism makes *uninstall* a lie, and that surprise costs more than the continuity was
+> worth two milestones before sync. iOS is untouched and still backs up.
+> [Detail](#s1--the-device-pass--2026-08-22).
 
 Turning backup off is one line in `app.json` for Android and a startup exclusion call for iOS. It
 was **declined**, and the reason is the app's own premise: until M8 ships sync, a user replacing a
@@ -1873,7 +1904,8 @@ longitudinal. OS backup is the only continuity that exists today, and both platf
 Android's is end-to-end encrypted with the device lock screen since Android 9, and iCloud's is bound
 to the user's Apple account.
 
-So the config stays and **the sentence changes.** `onboarding.wip.body` ends *"Your decks and games
+~~So the config stays and **the sentence changes.**~~ **2026-08-22: the config changed too, and
+the sentence changed a second time.** `onboarding.wip.body` ends *"Your decks and games
 live only on this device."* That is a promise, it is on the first screen, and it is not true. Three
 strings, one per language. It is [tracked unticked in §C](#c--data-at-rest-on-the-device) rather
 than fixed here, because this batch wrote no code.
@@ -2335,27 +2367,221 @@ That is the gap S1 closes. Not more features — **confidence that what exists w
 import a deck, log ten games, read the stats, change language, force-quit and reopen — with no dead
 control and no stuck screen.
 
+- [x] **[D2](#where-things-stand--2026-08-16) — 60 fps and airplane mode** — ~~postponed
+      2026-08-14 because Metro is the connection airplane mode cuts~~. **Both hold on hardware.
+      Closed 2026-08-22** on the [first device pass](#s1--the-device-pass--2026-08-22).
+- [x] **The first-push transition** after onboarding hands off to the Decks tab — ~~the deck list
+      may flash for a frame before import slides over it~~. **It does not. Closed 2026-08-22**; it
+      needed a person with a phone to answer, and that is the whole point of S1.
+- [x] **Uninstalling did not remove the app's data**, and reinstalling restored it — Android Auto
+      Backup, on by framework default. `app.json` now sets `android.allowBackup: false`. **Fixed
+      2026-08-22**, reversing a [T1 batch 2 decision](#t1-batch-2--done-2026-08-19) with its cost
+      stated: there is now no continuity on Android until [B1](#b1--backend) ships sync.
+- [x] **The app installed as "Riftbound Tracker".** `expo.name` held the working title. The
+      product is **Rifthall** — the design's own name, adopted 2026-08-22 — and it was renamed in
+      all 22 user-visible places. **Fixed 2026-08-22.**
 - [ ] **A device pass over every flow**, written down as a checklist so the next build can be
-      re-run against it rather than re-remembered.
-- [ ] **[D2](#where-things-stand--2026-08-16) — 60 fps and airplane mode**, postponed 2026-08-14
-      because Metro is the connection airplane mode cuts. **A release APK now exists**, so the thing
-      that blocked it is gone.
-- [ ] **The first-push transition** after onboarding hands off to the Decks tab — the deck list may
-      flash for a frame before import slides over it. Cosmetic, and only visible on a device.
-- [ ] **A real signing keystore**, generated once and backed up somewhere that survives this
-      machine. The current APK is signed with the Android debug key, which installs fine and can
-      never be updated on a store listing. **Losing this file later means never shipping an update
-      to the same listing.**
+      re-run against it rather than re-remembered. **The first pass ran 2026-08-22** and found the
+      two bugs above; the checklist itself is still unwritten, which is the part that makes the
+      next pass repeatable rather than remembered.
+- [ ] **A real signing keystore.** ~~The current APK is signed with the Android debug key, which
+      installs fine and can never be updated on a store listing.~~ **The pipeline is built and
+      proven; the key itself is not generated** — it needs a password, and a password typed into a
+      transcript is a leaked password. One command from the owner finishes it:
+      `bash scripts/make-upload-key.sh`. See
+      [the release signing pipeline](#the-release-signing-pipeline--2026-08-23).
+- [x] **`android.package` and `ios.bundleIdentifier` are `com.rifthall.app` — decided
+      2026-08-23.** ~~Both still read `com.riftboundtracker.app` after the rename.~~ Neither is
+      user-visible, and **neither could be changed once a listing exists** — Google Play package ids
+      are permanent. The owner named Rifthall the official project name and took the free window.
+      **The APK built on this id is a different app to Android**, so the 2026-08-22 build must be
+      uninstalled by hand rather than upgraded over.
+- [ ] **iOS has never run.** No Mac, so no build — [the reasons and the price
+      are recorded](#ios-was-asked-for-and-not-built-2026-08-20). **Deferred 2026-08-22 to behind
+      the Android and web releases**, so it now sits after M9 rather than inside S1. Until a build
+      exists, **every iOS-specific T1 decision is reasoned and unobserved**: Data Protection, the
+      privacy manifest, iCloud backup, ATS. Two of those are now *known* to be unfinished rather
+      than merely unobserved — the database is still in `Documents/` with no
+      `NSURLIsExcludedFromBackupKey`, so iOS does not have the fix Android just got. The device
+      pass above is Android's, and only Android's.
+- [ ] **Android device-to-device transfer is still open.** `allowBackup="false"` shuts cloud
+      backup but, per Android's own docs, not necessarily D2D transfer on Android 12+. Closing it
+      needs an `android:dataExtractionRules` file with an empty `<device-transfer>`, which
+      `@expo/config-plugins` cannot express — it would take a custom config plugin. Not the bug
+      that was reported; recorded so it is not mistaken for covered.
 - [ ] **App icon and splash.** The current splash is `assets/placeholder/splash.png`, a solid
       `#0A0B0F` square generated to unblock the build — the missing asset did not make the app
-      plain, it made it fail at resource linking. Real art replaces it.
-- [ ] **iOS has never run.** No Mac, so no build — [the reasons and the price
-      are recorded](#ios-was-asked-for-and-not-built-2026-08-20). Until one exists, **every
-      iOS-specific T1 decision is reasoned and unobserved**: Data Protection, the privacy
-      manifest, iCloud backup, ATS. The device pass above is Android's, and only Android's.
+      plain, it made it fail at resource linking. Real art replaces it. **Deferred 2026-08-22** by
+      the owner; it blocks nothing before M9.
 - [ ] **`expo-system-ui` is missing**, so `app.json`'s `"userInterfaceStyle": "dark"` is inert on
       Android. The app paints its own surfaces so nothing looks wrong; the setting is a lie until
       the package is installed.
+
+### S1 — the device pass — 2026-08-22
+
+The owner ran the release APK on a real phone. **Three things it was waiting to learn came back
+clean, and two bugs came back that no test could have found**, because both live in configuration
+the suite never reads.
+
+**Clean:**
+
+- **[D2](#where-things-stand--2026-08-16) — 60 fps and airplane mode both hold.** The scroll target
+  from the original plan is met on hardware and the app is fully usable with the radio off. D2 was
+  written on 2026-08-14, postponed the same day because Metro is the connection airplane mode cuts,
+  and is closed here on the first build that could answer it.
+- **The first push after onboarding does not flash.** The deck list does not appear for a frame
+  before import slides over it. This was a suspicion recorded because it could not be checked from
+  a machine with no renderer; the answer is no, and it needed a person with a phone to say so.
+
+**Bug 1 — uninstalling the app did not remove its data, and reinstalling brought it back.**
+
+Not a bug in the app's code: `app.json` set no `android.allowBackup`, and Expo's plugin defaults it
+to `true` (`config.android?.allowBackup ?? true`, measured in
+[T1 batch 2](#t1-batch-2--done-2026-08-19)). Android Auto Backup therefore copied the app's data
+directory — `riftbound.db` included — to the user's Google Drive, and Android restored it on the
+next install. **Fixed:** `app.json` now sets `"allowBackup": false`.
+
+**This reverses a T1 batch 2 decision, deliberately, and the reason it was declined then was not
+wrong — it was outweighed.** Batch 2 kept backup on because it is the only continuity the app has
+until sync ships, and losing a phone would mean losing the whole match history. That trade is real
+and it still costs something: **there is now no safety net at all on Android.** What changed is that
+the behaviour was observed rather than reasoned about, and a deliberate uninstall silently not
+uninstalling is the kind of surprise that costs more trust than the continuity was buying.
+Continuity is [B1](#b1--backend)'s job, and B1 is two milestones away.
+
+**Three things follow from it, and all three are recorded rather than assumed:**
+
+- **The welcome copy changed back.** `onboarding.wip.body` was corrected in batch 2 *away* from
+  *"live only on this device"* precisely because backup made it false. It is now true again, and it
+  says the new consequence out loud rather than quietly dropping the clause: *"nothing is sent
+  anywhere and nothing is copied to a cloud backup, so uninstalling the app deletes them."* Three
+  strings, one per language. [`STORE.md`](STORE.md)'s privacy policy draft says the same.
+- **iOS is not covered by this and must not be assumed to be.** `allowBackup` is an Android manifest
+  attribute. The database still sits in `Documents/`, which iCloud backs up by default, and nothing
+  sets `NSURLIsExcludedFromBackupKey`. Tracked below.
+- **`allowBackup="false"` does not close device-to-device transfer on Android 12+, and the docs say
+  so explicitly.** Checked rather than recalled — Android's Auto Backup guide: *"On devices from
+  some device manufacturers, specifying `android:allowBackup="false"` disables cloud-based backup
+  and restore … but doesn't disable device-to-device transfers for the app."* Closing that needs an
+  `android:dataExtractionRules` XML with an empty `<device-transfer>`, and `@expo/config-plugins`
+  has no option for it — grepped, there is none — so it would take a small custom config plugin.
+  **It is not what the owner hit** (uninstall-and-reinstall is the cloud-backup path, which is now
+  shut), so it is tracked below rather than built here.
+
+**Bug 2 — the app installs as "Riftbound Tracker". The name is Rifthall.**
+
+`expo.name` is what Android puts under the launcher icon, and it still held the working title.
+**Fixed:** `app.json` now reads `"name": "Rifthall"`, and the name was renamed everywhere it is
+shown to a user — 22 occurrences across the three translation catalogues, the Settings version line,
+the i18n scanner's proper-noun allowlist, `README.md`, `PROJECT.md` and `STORE.md`, including the
+Riot attribution and the privacy-policy draft. The occurrence in this document was left alone: it is
+the old OneDrive folder path in [the move record](#moved-out-of-onedrive-2026-08-07), which is
+history and not a name.
+
+**Rifthall is not a new idea — it is the design's own name, adopted at last.** M7A recorded it as
+*"a naming exploration the app never adopted"* and used the working title instead. That note is
+[corrected in place](#m7a--what-shipped-2026-08-16). The game is still Riftbound; only the product
+renamed.
+
+**~~What did not change, and is now the last free moment to change it:~~ changed 2026-08-23.**
+`android.package` and `ios.bundleIdentifier` were both `com.riftboundtracker.app`, the working
+title's id. Neither is visible to a user, and both are **permanent once a listing exists** — a
+package id cannot be changed on Google Play, only abandoned — so the window was open exactly until
+the first release, and it was still open. Both now read **`com.rifthall.app`**.
+
+**The consequence is worth naming, because it is the same trap in a different coat.** An id change
+makes a *new app* as far as Android is concerned: the 2026-08-22 build cannot be upgraded over, it
+has to be uninstalled, and its data does not carry across — which is now genuinely gone rather than
+quietly restored, since backup is off. That is the correct behaviour and it is still a surprise if
+nobody says it out loud.
+
+**`scheme` was deliberately not changed.** It stays `riftbound`, so deep links remain
+`riftbound://deck/…`. Unlike a package id a scheme can be changed at any time, nothing publishes
+one yet, and the game genuinely is Riftbound — it is the product that renamed. Revisit it at
+[M9](#m9--ship) if the deep links ever go in a store listing.
+
+### The release signing pipeline — 2026-08-23
+
+**An Android release build no longer *can* be signed with the debug key.** That is the whole
+property, and it is worth stating as a prohibition rather than a feature, because the failure mode
+this replaces was silent: Expo's generated `android/app/build.gradle` ships
+
+```gradle
+release {
+    // Caution! In production, you need to generate your own keystore file.
+    signingConfig signingConfigs.debug
+```
+
+so a release APK builds, installs, runs, and is worthless for a store listing, with nothing anywhere
+saying so. **Adding a `release` signing config without deleting that line changes nothing.**
+
+**Where it lives, and why not in `android/`.** `android/` is generated and gitignored; a signing
+config written there is deleted by the next `expo prebuild`. So it is a local config plugin,
+[`plugins/withReleaseSigning.js`](../plugins/withReleaseSigning.js), registered in `app.json`,
+which re-injects it on every regeneration. The Groovy itself is a separate file,
+[`plugins/release-signing.gradle`](../plugins/release-signing.gradle) — **the first attempt kept it
+in a JS template literal and shipped a build file that would not parse**, because `\n` and `$`
+were consumed by JavaScript before Groovy ever saw them. A `.gradle` file has no escaping layer.
+
+**Three refusals to fail quietly, each verified rather than asserted:**
+
+| | Verified |
+| --- | --- |
+| A release build with no keystore **fails** with a message naming what is missing and where | `assembleRelease` stopped with exactly that, listing all four missing keys and the absolute path it wanted them in |
+| The debug-key line is **gone**, not merely supplemented | `signingConfig signingConfigs.release` in `buildTypes.release`; the only remaining `signingConfigs.debug` is the debug build type's own |
+| Debug builds are **unaffected** — the check reads the task graph, not the config | `assembleDebug` BUILD SUCCESSFUL in 5m 13s |
+
+Two more properties are structural. The plugin **asserts every anchor it edits**, so a future Expo
+template that renames the release block fails `prebuild` loudly instead of leaving debug signing in
+place — the one outcome the whole plugin exists to prevent. And it is **idempotent**: a plain
+prebuild finds its marker and does nothing, so the block cannot double-inject. Both were exercised —
+`prebuild --clean` twice and a plain `prebuild` once, with the marker count still showing a single
+block.
+
+**What the documentation actually says, checked rather than recalled.** Three claims mattered and
+one of them was nearly wrong:
+
+- **Play App Signing is required for new apps**, so this key is an *upload* key only — Google holds
+  the app signing key. Android's own docs: *"configuring Play App Signing is required to sign your
+  app for distribution through Google Play (except for apps created before August 2021)."* A first
+  fetch summarised this as "not mandatory" by reading the auto-enrolment sentence; the direct quote
+  settles it.
+- **The algorithm is not a free choice.** Play Console help: *"Must be an RSA key of 2048 bits or
+  more."* EC P-256 is **not** accepted for upload keys, so the script generates RSA 2048.
+- **An upload key is recoverable and the app signing key is not.** *"If you lose your upload key or
+  suspect that it was compromised, you are not locked out of your app"* — it is reset through the
+  Play Console by submitting the certificate. The script exports that certificate
+  (`rifthall-upload-certificate.pem`) at generation time, so the recovery path exists before it is
+  ever needed. **This materially lowers the stakes of the warning this item has carried since it was
+  written**: losing the upload key is recoverable; it is the Play-held signing key that is not.
+
+**One deviation from Google's wording, deliberate.** Play's help page describes the keystore as
+*"stored in a Java keystore (`.jks` or `.keystore`)"*, and this uses PKCS12 (`.p12`). Nothing
+breaks: **Play never receives the keystore.** It receives a signed artifact, and — only for a reset
+— a PEM certificate. The format is a local concern, JKS is a proprietary format keytool itself warns
+about migrating away from, and `developer.android.com` mandates no format at all.
+
+**The password is the owner's and was never handled here.** `keytool` takes `-storepass` only as a
+plain argument, which puts the secret in the process list and the shell history, and it has no
+`:env` or `:file` form. So [`scripts/make-upload-key.sh`](../scripts/make-upload-key.sh) reads it
+with terminal echo off and pipes it to `keytool` over stdin. It never appears in a transcript, an
+argument vector, or a tracked file. The script also refuses to overwrite an existing keystore, since
+that is the one mistake with no undo.
+
+**Ignored, and checked by rule rather than by outcome.** `/credentials/`, `keystore.properties`
+and `*.keystore` were added; `git check-ignore -v` reports all three artifacts matching
+`.gitignore:40:/credentials/`. That distinction matters — the pre-existing `*.p12` rule would
+have matched the keystore anyway and made the check pass without the new rules landing, and
+`credentials.json` on line 46 is EAS's unrelated file.
+
+**Not done, and it needs the owner:** the key does not exist yet, so nothing is signed with it and
+[S1's item](#s1--stability-on-real-devices) stays unticked. The verification step —
+`apksigner verify -v --print-certs` against the built APK, reading the certificate out of the
+binary rather than trusting the config — runs after the key does.
+
+**Two S1 items were deferred by the owner, not dropped:** the app icon and splash come later, and
+iOS moves behind the Android *and* web releases — so the order is now
+**S1 → T2 → B1 → W1 → R1 → M9 → iOS.**
 
 
 ---
@@ -2437,7 +2663,9 @@ brute-forcing logins is not privacy-preserving, it is blind.
       input validation → §D · M5 communication → §B · M6 privacy → [`STORE.md`](STORE.md) ·
       M9 data storage → §C · M10 cryptography → §C. **Mobile M3 auth is B1's.**
 - [ ] **Mobile M8 misconfiguration on the generated manifest.** `allowBackup` is measured and
-      decided; exported components and any debug flags in a release build are not. The native
+      decided — and **re-decided 2026-08-22 to `false`**, with
+      [device-to-device transfer still open](#s1--the-device-pass--2026-08-22); exported components
+      and any debug flags in a release build are not. The native
       project is regenerated by `prebuild`, so this is a check against the *output*, not the config.
 - [ ] **Mobile M7 — Insufficient Binary Protections. The recommendation is a deliberate *no*.**
 
@@ -4084,6 +4312,22 @@ kind, so it is written down rather than left to be assumed closed.
 **What it does not block.** Android is the whole device pass for now, and the reordering already
 moved the store release to the end. The membership becomes necessary at [M9](#m9--ship) regardless —
 an App Store listing requires it — so the open question is *when* it gets paid for, not whether.
+
+### Deferred behind Android and web — 2026-08-22
+
+The owner moved iOS **after the Android and web releases**, so the order ends
+**… → [R1](#r1--riot-api-and-compliance) → [M9](#m9--ship) → iOS** rather than folding iOS into
+[S1](#s1--stability-on-real-devices). That answers the *when*: the Apple membership is not needed
+until iOS is, which is now the last thing on the list.
+
+**One of the four unobserved decisions above stopped being merely unobserved.** The
+[device pass](#s1--the-device-pass--2026-08-22) turned Android's Auto Backup off, because
+uninstalling the app did not remove its data. **iOS did not get that fix and cannot get it the same
+way** — `allowBackup` is an Android manifest attribute; the iOS equivalent is setting
+`NSURLIsExcludedFromBackupKey` on the database file at startup, and nothing does. So the database
+in `Documents/` still goes to iCloud, and the welcome copy and
+[`STORE.md`](STORE.md) privacy draft are now written for Android's behaviour. **Both must be
+revisited before any iOS submission**, and that is a code change, not a config one.
 
 ---
 

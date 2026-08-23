@@ -1,11 +1,11 @@
-# Riftbound Tracker
+# Rifthall
 
 A mobile app for tracking and analysing **Riftbound** deck performance across deck revisions.
 
 Existing tools are card databases and deckbuilders. None of them answer the question every serious
 player actually has: **"did my change actually make the deck better?"**
 
-Riftbound Tracker treats a deck as a living object with a version history. Every game is bound to
+Rifthall treats a deck as a living object with a version history. Every game is bound to
 the exact decklist that played it, so you can see your deck's total record *and* the record of each
 individual version, alongside the concrete card diff that separates them.
 
@@ -100,7 +100,7 @@ installed SDK — a mismatched one targets a different Hermes and stops transpil
 
 ## Disclaimer
 
-Riftbound Tracker is an **unofficial fan project**. It is not affiliated with, endorsed by, or
+Rifthall is an **unofficial fan project**. It is not affiliated with, endorsed by, or
 sponsored by Riot Games.
 
 Card data is provided by [Riftcodex](https://riftcodex.com), itself an unofficial fan project.

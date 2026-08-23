@@ -683,12 +683,12 @@ export const de: Translation = {
   'ui.logGame': 'Partie erfassen',
 
   'onboarding.step': 'Schritt {step} von {total}',
-  'onboarding.welcome': 'Willkommen bei Riftbound Tracker',
+  'onboarding.welcome': 'Willkommen bei Rifthall',
   'onboarding.welcome.body':
     'Verfolge deine Decks, erfasse deine Partien und sieh, welche Änderungen wirklich geholfen haben — alles auf deinem Gerät.',
   'onboarding.wip': 'In Entwicklung',
   'onboarding.wip.body':
-    'Ein unfertiges Projekt, offen entwickelt — zwischen Updates kann sich einiges ändern oder kaputtgehen. Deine Decks und Partien bleiben auf diesem Gerät — nichts wird versendet, dein eigenes Geräte-Backup kann sie aber enthalten.',
+    'Ein unfertiges Projekt, offen entwickelt — zwischen Updates kann sich einiges ändern oder kaputtgehen. Deine Decks und Partien bleiben auf diesem Gerät — nichts wird versendet und nichts in ein Cloud-Backup kopiert. Deinstallierst du die App, sind sie weg.',
   'onboarding.library.downloading': 'Kartenbibliothek wird geladen — bisher {count} Karten.',
   'onboarding.library.starting': 'Kartenbibliothek wird geladen.',
   'onboarding.library.updating':
@@ -733,7 +733,7 @@ export const de: Translation = {
   'profile.library.refreshing': 'Wird aktualisiert…',
   'profile.about': 'Über',
   'profile.about.unofficial':
-    'Riftbound Tracker ist ein inoffizielles Fan-Projekt. Es steht in keiner Verbindung zu Riot Games und wird weder unterstützt noch gesponsert.',
+    'Rifthall ist ein inoffizielles Fan-Projekt. Es steht in keiner Verbindung zu Riot Games und wird weder unterstützt noch gesponsert.',
   'profile.about.attribution':
     'Die Kartendaten stammen von Riftcodex. Kartenbilder, Namen und Spieltexte sind Eigentum von Riot Games und werden gemäß Riots „Legal Jibber Jabber“-Richtlinie für nicht-kommerzielle Fan-Inhalte verwendet.',
   /*
@@ -742,9 +742,9 @@ export const de: Translation = {
    * catalogues. Do not translate these two, however wrong they look here.
    */
   'profile.about.riotFan':
-    'Riftbound Tracker was created under Riot Games\' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project.',
+    'Rifthall was created under Riot Games\' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project.',
   'profile.about.riotDev':
-    "Riftbound Tracker isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.",
+    "Rifthall isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.",
 
   'card.notFound': 'Karte nicht gefunden',
   'card.notFound.body':

@@ -83,7 +83,7 @@ const SET_CODES = new Set(['OGN', 'UNL', 'VEN', 'OPP', 'PR', 'JDG']);
  */
 const NEVER_TRANSLATED = new Set([
   'English', 'Deutsch', 'Français', 'Pseudo',
-  'Riftbound Tracker', 'Riftbound', 'Riftcodex', 'Riot Games',
+  'Rifthall', 'Riftbound', 'Riftcodex', 'Riot Games',
 ]);
 
 /**

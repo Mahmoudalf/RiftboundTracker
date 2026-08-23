@@ -18,10 +18,8 @@ import { text } from '@/theme/typography';
  * Onboarding — welcome, then one progressive setup screen.
  *
  * Built from `1_Onboarding_Welcome` and `1_Onboarding_Setup` in the Hi-Fi
- * design doc. Two things differ from the mockup, both deliberately:
+ * design doc. One thing still differs from the mockup, deliberately:
  *
- * - The design's product name is "Rifthall", a naming exploration that the app
- *   never adopted. The real name is used.
  * - The design's name-field helper reads "Shown on match history and shared
  *   decks", which would be a promise the app cannot keep: nothing reads a
  *   display name yet, and nothing leaves the device at all. It says what is

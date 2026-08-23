@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Riftbound Tracker",
+    "name": "Rifthall",
     "slug": "riftbound-tracker",
     "version": "0.1.0",
     "orientation": "portrait",
@@ -9,7 +9,7 @@
     "backgroundColor": "#0A0B0F",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.riftboundtracker.app",
+      "bundleIdentifier": "com.rifthall.app",
       "privacyManifests": {
         "NSPrivacyTracking": false,
         "NSPrivacyTrackingDomains": [],
@@ -23,7 +23,8 @@
       }
     },
     "android": {
-      "package": "com.riftboundtracker.app",
+      "package": "com.rifthall.app",
+      "allowBackup": false,
       "adaptiveIcon": {
         "backgroundColor": "#0A0B0F"
       }
@@ -42,7 +43,8 @@
       ],
       "expo-image",
       "expo-status-bar",
-      "expo-localization"
+      "expo-localization",
+      "./plugins/withReleaseSigning"
     ],
     "experiments": {
       "typedRoutes": true

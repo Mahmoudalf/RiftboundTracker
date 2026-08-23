@@ -46,14 +46,24 @@ and `src/lib/cdn.ts` is the single indirection so a proxy could remove it later.
 the privacy policy below, because "we collect nothing" and "no third party learns anything" are
 different sentences and only the first one is true.
 
-### One fact the app currently gets wrong, and it belongs here
+### OS backup — reversed on Android, still open on iOS (2026-08-22)
 
-The database is copied to **Google Drive on Android and iCloud on iOS** by OS backup — found in
+~~The database is copied to **Google Drive on Android and iCloud on iOS** by OS backup — found in
 [T1 batch 2](ROADMAP.md#t1-batch-2--done-2026-08-19), where the decision was that the backup stays
-and the welcome copy changes. This is not collection by the developer: it is the user's own account,
-with keys the developer never holds. **It is still disclosed below**, because a user reading
-"everything stays on your device" and then finding their decks on a new phone deserves the real
-answer.
+and the welcome copy changes.~~ **Reversed 2026-08-22 for Android**, on the owner's device report:
+uninstalling did not clear the data and reinstalling restored it. `app.json` now sets
+`android.allowBackup: false`, so Android Auto Backup no longer copies the database to Google
+Drive, and an uninstall is a real uninstall. See
+[S1's device pass](ROADMAP.md#s1--the-device-pass--2026-08-22).
+
+**iOS is unchanged and still copies the database to iCloud.** `allowBackup` is an Android
+attribute; the iOS side needs `NSURLIsExcludedFromBackupKey` set on the database file, and iOS has
+never been built. It is tracked with the rest of the iOS gap, and this section must be revisited
+before any iOS submission — the privacy copy below is written for the Android behaviour.
+
+Neither state was ever collection by the developer: an OS backup goes to the user's own account,
+with keys the developer never holds. The reason it is disclosed at all is that a user reading
+"everything stays on your device" deserves to know which way it actually is.
 
 ---
 
@@ -81,8 +91,9 @@ The app is CNG, so `ios/` is generated. The manifest is declared in `app.json` u
 
 **`NSPrivacyCollectedDataTypes` is genuinely empty.** Apple's definition of *collect* is transmitting
 data off the device. The display name, the notes and the match history never leave, so none of it is
-collected. OS backup is not developer collection — the data goes to the user's own iCloud under keys
-Apple holds, not to us.
+collected. OS backup is not developer collection either — the data goes to the user's own iCloud
+under keys Apple holds, not to us — though as of 2026-08-22 Android no longer backs the database up
+at all, and iOS still does.
 
 **`NSPrivacyTracking` is `false` and `NSPrivacyTrackingDomains` is empty.** There is no advertising
 identifier, no cross-app linkage, and no third party to link with.
@@ -157,11 +168,11 @@ Publishable text. It needs a stable public URL before either store listing can b
 M8 web platform is the natural home, which is one more reason
 [to build the web app early](ROADMAP.md#auth-constraints-set-by-t1-2026-08-16).
 
-> ### Privacy Policy — Riftbound Tracker
+> ### Privacy Policy — Rifthall
 >
 > *Last updated: 19 August 2026*
 >
-> **The short version.** Riftbound Tracker does not collect anything about you. There is no account,
+> **The short version.** Rifthall does not collect anything about you. There is no account,
 > no analytics, no crash reporting, no advertising, and no tracking. Nothing you type into the app
 > is sent anywhere.
 >
@@ -176,11 +187,15 @@ M8 web platform is the natural home, which is one more reason
 >
 > #### Your device's own backup
 >
-> If you have device backup enabled, your operating system may include the app's database — and
-> therefore your decks and match history — in your personal backup: **Google Drive on Android, or
-> iCloud on iOS**. Those backups belong to your Google or Apple account, are encrypted by the
-> platform, and are not accessible to the developer of this app. You can control them in your
-> device's settings.
+> **On Android, the app is excluded from your device's cloud backup.** Nothing it stores is copied
+> to Google Drive. That also means there is no safety net: if you uninstall the app, or lose the
+> phone, your decks and match history are gone. You can copy a single deck out as a share code
+> from that deck’s screen; there is no export of your match history yet.
+>
+> On iOS, your operating system may include the app's database — and therefore your decks and match
+> history — in your iCloud backup. That backup belongs to your Apple account, is encrypted by the
+> platform, and is not accessible to the developer of this app. You can control it in your device's
+> settings.
 >
 > #### What the app sends over the network
 >
@@ -245,7 +260,7 @@ the notice as wording rather than as a topic:
 
 The About screen currently carries two strings that cover the same ground **in the app's own words**:
 
-- *"Riftbound Tracker is an unofficial fan project. It is not affiliated with, endorsed by, or
+- *"Rifthall is an unofficial fan project. It is not affiliated with, endorsed by, or
   sponsored by Riot Games."*
 - *"Card data comes from Riftcodex. Card images, names, and game text are the property of Riot
   Games, used under Riot's Legal Jibber Jabber policy for non-commercial fan content."*

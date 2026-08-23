@@ -1,4 +1,4 @@
-# Riftbound Tracker — Project Specification
+# Rifthall — Project Specification
 
 **Status:** M0 (Foundation) · **Last updated:** 2026-08-05
 
@@ -171,7 +171,7 @@ Details and measurements: [`API.md`](API.md).
 
 ## 9. Legal
 
-Riftbound Tracker is an unofficial fan project, not affiliated with Riot Games. Card data comes from
+Rifthall is an unofficial fan project, not affiliated with Riot Games. Card data comes from
 Riftcodex (also unofficial); card images are served from Riot's CDN. The app ships an
 attribution/disclaimer screen and stays non-commercial under Riot's Legal Jibber Jabber policy.
 
