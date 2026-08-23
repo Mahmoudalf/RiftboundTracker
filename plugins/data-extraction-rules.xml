@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Excludes every domain from every backup mode, explicitly.
+
+  An EMPTY <device-transfer/> does the opposite of what it looks like. Android's
+  own documentation: "If there are no rules for a particular backup mode, such
+  as if the <device-transfer> section is missing, that mode is fully enabled for
+  all content except for no-backup and cache directories." So a bare element
+  enables transfer rather than disabling it.
+
+  There is no documented switch for "exclude everything", and the docs do not
+  say whether excluding `root` also covers `file`, `database` and `sharedpref`.
+  Every domain is therefore listed by hand rather than relying on that.
+
+  <cross-platform-transfer> is deliberately absent: it is Android 16 QPR2
+  (API 36.1), and the docs do not say whether older parsers ignore it. minSdk
+  here is 24, so an unparseable rules file would be the worse failure.
+-->
+<data-extraction-rules>
+  <cloud-backup>
+    <exclude domain="root" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="external" path="." />
+    <exclude domain="device_root" path="." />
+    <exclude domain="device_file" path="." />
+    <exclude domain="device_database" path="." />
+    <exclude domain="device_sharedpref" path="." />
+  </cloud-backup>
+  <device-transfer>
+    <exclude domain="root" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="external" path="." />
+    <exclude domain="device_root" path="." />
+    <exclude domain="device_file" path="." />
+    <exclude domain="device_database" path="." />
+    <exclude domain="device_sharedpref" path="." />
+  </device-transfer>
+</data-extraction-rules>

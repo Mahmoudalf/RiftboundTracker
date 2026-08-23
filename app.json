@@ -6,7 +6,8 @@
     "orientation": "portrait",
     "scheme": "riftbound",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0A0B0F",
+    "backgroundColor": "#141416",
+    "icon": "./assets/images/icon.png",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rifthall.app",
@@ -26,7 +27,8 @@
       "package": "com.rifthall.app",
       "allowBackup": false,
       "adaptiveIcon": {
-        "backgroundColor": "#0A0B0F"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#1C1F24"
       }
     },
     "plugins": [
@@ -36,21 +38,24 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/placeholder/splash.png",
-          "backgroundColor": "#0A0B0F",
+          "image": "./assets/images/splash-icon.png",
+          "backgroundColor": "#141416",
+          "imageWidth": 180,
           "resizeMode": "contain"
         }
       ],
       "expo-image",
       "expo-status-bar",
       "expo-localization",
-      "./plugins/withReleaseSigning"
+      "./plugins/withReleaseSigning",
+      "./plugins/withDataExtractionRules"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/images/favicon.png"
     }
   }
 }

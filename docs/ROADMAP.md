@@ -193,9 +193,10 @@ sentence changed again — this time to say that uninstalling deletes everything
 database up to iCloud and does not have the fix. [Detail](#s1--the-device-pass--2026-08-22).
 
 **M9 — Ship has not started, and several of its items need lead time rather than effort.**
-`app.json` still carries the pre-retheme `#0A0B0F` for the splash and the Android adaptive icon
-against a `#141416` shell; `assets/` holds ~~only `domains/` and `seed/`~~ **`domains/`, `seed/`
-and one placeholder splash**, so there is still no app icon or store screenshot; and there is no
+~~`app.json` still carries the pre-retheme `#0A0B0F` for the splash and the Android adaptive icon
+against a `#141416` shell~~ **fixed 2026-08-23**; `assets/` holds ~~only `domains/` and `seed/`~~
+~~**`domains/`, `seed/` and one placeholder splash**~~ **`domains/`, `images/` and `seed/`**, so
+there is still ~~no app icon or~~ no store screenshot; and there is no
 `eas.json`, ~~which is also what blocks D2~~. (The missing error boundary was the fourth item
 here — ~~added in T1 §F on 2026-08-16~~.) None of it is hard. All of it is required before a build
 reaches a store.
@@ -2380,16 +2381,21 @@ control and no stuck screen.
 - [x] **The app installed as "Riftbound Tracker".** `expo.name` held the working title. The
       product is **Rifthall** — the design's own name, adopted 2026-08-22 — and it was renamed in
       all 22 user-visible places. **Fixed 2026-08-22.**
-- [ ] **A device pass over every flow**, written down as a checklist so the next build can be
-      re-run against it rather than re-remembered. **The first pass ran 2026-08-22** and found the
-      two bugs above; the checklist itself is still unwritten, which is the part that makes the
-      next pass repeatable rather than remembered.
-- [ ] **A real signing keystore.** ~~The current APK is signed with the Android debug key, which
-      installs fine and can never be updated on a store listing.~~ **The pipeline is built and
-      proven; the key itself is not generated** — it needs a password, and a password typed into a
-      transcript is a leaked password. One command from the owner finishes it:
-      `bash scripts/make-upload-key.sh`. See
-      [the release signing pipeline](#the-release-signing-pipeline--2026-08-23).
+- [x] **A device pass over every flow — written down 2026-08-23.** ~~The checklist itself is still
+      unwritten.~~ It is [`docs/DEVICE-PASS.md`](DEVICE-PASS.md), 30 checks in six sections, each
+      stating its expected result so a failure is unambiguous. Every line is marked with how it was
+      established: passed on hardware, failed-and-fixed-but-not-re-run, verified only by rendering
+      on a build machine, or never checked at all. ~~**Only four of the thirty have actually passed
+      on a phone** — writing it down is what made that visible.~~ **All thirty passed on 2026-08-23**,
+      the run the checklist was written to make possible.
+      [Detail](#the-second-device-pass--30-of-30--2026-08-23).
+- [x] **A real signing keystore — done 2026-08-23.** ~~The current APK is signed with the Android
+      debug key, which installs fine and can never be updated on a store listing.~~ ~~The pipeline
+      is built and proven; the key itself is not generated.~~ The owner ran
+      `scripts/make-upload-key.sh`, and `apksigner` reads **`CN=Rifthall, O=Rifthall`, RSA 2048**
+      out of the built APK. See [the release signing
+      pipeline](#the-release-signing-pipeline--2026-08-23) and [the certificate, read from the
+      binary](#the-certificate-read-from-the-binary--2026-08-23).
 - [x] **`android.package` and `ios.bundleIdentifier` are `com.rifthall.app` — decided
       2026-08-23.** ~~Both still read `com.riftboundtracker.app` after the rename.~~ Neither is
       user-visible, and **neither could be changed once a listing exists** — Google Play package ids
@@ -2404,18 +2410,22 @@ control and no stuck screen.
       than merely unobserved — the database is still in `Documents/` with no
       `NSURLIsExcludedFromBackupKey`, so iOS does not have the fix Android just got. The device
       pass above is Android's, and only Android's.
-- [ ] **Android device-to-device transfer is still open.** `allowBackup="false"` shuts cloud
-      backup but, per Android's own docs, not necessarily D2D transfer on Android 12+. Closing it
-      needs an `android:dataExtractionRules` file with an empty `<device-transfer>`, which
-      `@expo/config-plugins` cannot express — it would take a custom config plugin. Not the bug
-      that was reported; recorded so it is not mistaken for covered.
-- [ ] **App icon and splash.** The current splash is `assets/placeholder/splash.png`, a solid
-      `#0A0B0F` square generated to unblock the build — the missing asset did not make the app
-      plain, it made it fail at resource linking. Real art replaces it. **Deferred 2026-08-22** by
-      the owner; it blocks nothing before M9.
-- [ ] **`expo-system-ui` is missing**, so `app.json`'s `"userInterfaceStyle": "dark"` is inert on
-      Android. The app paints its own surfaces so nothing looks wrong; the setting is a lie until
-      the package is installed.
+- [x] **Android device-to-device transfer — closed 2026-08-23.** `allowBackup="false"` shuts cloud
+      backup but, per Android's own docs, not necessarily D2D transfer on Android 12+. ~~Closing it
+      needs an `android:dataExtractionRules` file with an empty `<device-transfer>`~~ — **that was
+      wrong, and checking the docs first is the only reason it did not ship.** An empty section
+      *enables* transfer. `plugins/withDataExtractionRules.js` excludes all nine domains by hand.
+      [Detail](#device-to-device-transfer--2026-08-23).
+- [x] **App icon and splash.** ~~The current splash is `assets/placeholder/splash.png`, a solid
+      `#0A0B0F` square generated to unblock the build.~~ ~~**Deferred 2026-08-22** by the
+      owner.~~ **Undeferred 2026-08-23:** the owner supplied the mark, so it stopped being a thing
+      to schedule and became a thing to wire. Launcher icon, adaptive icon, splash, favicon and the
+      onboarding hero all render from it. [Detail](#the-logo--2026-08-23).
+- [x] **`expo-system-ui` — installed 2026-08-23.** ~~`app.json`'s `"userInterfaceStyle": "dark"`
+      is inert on Android; the setting is a lie until the package is installed.~~ Installed at
+      `~57.0.2`, and the prebuild warning is gone. It brought a second fix nobody asked for: the
+      root `backgroundColor` was **also** unapplied on Android until now.
+      [Detail](#expo-system-ui-and-what-it-actually-changed--2026-08-23).
 
 ### S1 — the device pass — 2026-08-22
 
@@ -2574,15 +2584,298 @@ and `*.keystore` were added; `git check-ignore -v` reports all three artifacts m
 have matched the keystore anyway and made the check pass without the new rules landing, and
 `credentials.json` on line 46 is EAS's unrelated file.
 
-**Not done, and it needs the owner:** the key does not exist yet, so nothing is signed with it and
-[S1's item](#s1--stability-on-real-devices) stays unticked. The verification step —
-`apksigner verify -v --print-certs` against the built APK, reading the certificate out of the
-binary rather than trusting the config — runs after the key does.
+~~**Not done, and it needs the owner:** the key does not exist yet, so nothing is signed with it
+and [S1's item](#s1--stability-on-real-devices) stays unticked.~~ **Closed 2026-08-23** — the
+owner generated the key and stored it; the verification is below.
 
-**Two S1 items were deferred by the owner, not dropped:** the app icon and splash come later, and
+### The certificate, read from the binary — 2026-08-23
+
+`assembleRelease` **BUILD SUCCESSFUL in 2m 26s**, and `apksigner verify -v --print-certs` against
+`app-release.apk` reports one signer:
+
+| | |
+|---|---|
+| Certificate DN | `CN=Rifthall, O=Rifthall` |
+| Key algorithm | RSA, **2048 bits** |
+| SHA-256 | `df:ef:66:2b:21:89:59:2c:ba:63:7b:24:43:dd:e2:87:61:1a:ca:62:1e:85:4b:3b:1a:e8:72:98:1c:17:05:f9` |
+| SHA-1 | `39:a9:52:ae:d0:93:a8:6c:ec:7d:91:cb:18:a5:dd:2f:09:96:91:8c` |
+| Valid until | 2054-01-08 (the 10000 days asked for) |
+
+**That is the whole point of reading it from the binary rather than from `build.gradle`.** The
+failure this guards against is a release that silently falls back to
+`CN=Android Debug, O=Android, C=US` — a config that *looks* right while producing an artifact that
+can never be updated on a listing. The DN above is not that, and the two digests match the exported
+`rifthall-upload-certificate.pem` exactly, so the key in the APK is the key the owner has backed up.
+RSA 2048 also satisfies Play's stated rule, *"Must be an RSA key of 2048 bits or more"* — the reason
+EC P-256 was rejected when the pipeline was designed.
+
+**Two results in that output are correct rather than missing, and both are worth not re-debugging:**
+
+- `Verified using v1 scheme (JAR signing): false` — v1 exists for API < 24 and the app's
+  `minSdkVersion` is **24**, so AGP skips it. Read off the merged manifest, not assumed.
+- `v3: false` — v3 carries key-rotation metadata and is opt-in in AGP. v2 alone is what Play
+  requires of an upload artifact.
+
+**The APK is 122 MB, and that number does not transfer to a download.** 90 MB of it is native
+libraries for **four ABIs**, two of which (`x86`, `x86_64`) are emulator-only; a universal APK
+carries all of them at once. Play is served an AAB and splits per-ABI, so a real device fetches
+`arm64-v8a` at 23.6 MB rather than the set. The JS bundle is 5.5 MB and the dex files 15 MB. No
+action here — recorded so the figure does not read as a regression when M9 first looks at size.
+
+**Two S1 items were deferred by the owner, not dropped:** ~~the app icon and splash come later~~
+(**delivered 2026-08-23** — the owner produced the mark the next day), and
 iOS moves behind the Android *and* web releases — so the order is now
 **S1 → T2 → B1 → W1 → R1 → M9 → iOS.**
 
+
+### The logo — 2026-08-23
+
+The owner delivered the mark, then delivered it again an hour later with the background already
+cut. Both halves are recorded here, because the first half is the part worth not repeating.
+
+**Round one: `Rifthall Logo.jpg`, 2816×1536, the mark on its own charcoal at `#1C1F24`.** The
+obvious move is to key that background out and ship a transparent mark. ~~It does not work here,
+and the reason is worth writing down so nobody tries it again:~~ the hexagon's shadow-side plate is
+*the same luminance as the background it sits on* — around 8/255 apart, which is JPEG noise. A
+luminance threshold that removes the background removes the plate with it. Flood-filling from the
+border instead leaked through the silhouette's notches and took the whole lower-left face; **on a
+dark screen the result looked passable, which is the dangerous part** — it only showed up when
+composited over white. So the background was *retinted* rather than removed: a quadratic surface
+fitted to the artwork's vignette, every pixel shifted by `target - fitted` weighted by its distance
+from that surface, background moving the whole way and the mark barely at all. It worked — 0.81/255
+fit residual, ≤6/255 of deviation across the delivered borders — and it bought a rectangle that
+composites invisibly onto *one known flat colour*, at the cost of a constraint: the asset was only
+safe over `color.bg`.
+
+**Round two: `Rifhthall Logo No BG.png`, same canvas, a real alpha channel.** 78% of it fully
+transparent, 21.7% fully opaque, 20k antialiased pixels between — and the lower-left plate that
+every key attempt had eaten is intact. **The whole retinting pipeline was deleted.** It solved a
+problem that no longer exists, and keeping it would have meant maintaining a background model for
+artwork that has no background.
+
+The constraint went with it: **`logo.png` now sits on any surface**, and the adaptive icon is a
+transparent foreground over `adaptiveIcon.backgroundColor`, which is how that API is meant to be
+used rather than the full-bleed square the JPEG forced.
+
+**What survived the rewrite, because it is about the master and not about the background:**
+
+- **The mark's extent is measured from the alpha, not hardcoded.** The master has now been
+  swapped once; that should cost nothing next time. Measured: 1039×1190 at 1408,768.
+- **The resize is premultiplied.** Transparent pixels are `0,0,0,0`, so scaling
+  non-premultiplied RGBA averages that black into every edge pixel and leaves a dark fringe. On a
+  dark mark it hides until someone puts it on a light background — the same class of mistake as
+  round one's flood fill. Alpha is folded in before the resample and divided back out after, and
+  the edge was checked magnified over white.
+
+| Asset | Canvas | Mark | Alpha | Consumer |
+|---|---|---|---|---|
+| `icon.png` | 1024 | 73% | flattened onto `#1C1F24` | iOS, legacy Android launcher |
+| `adaptive-icon.png` | 1024 | 60% | transparent | Android adaptive foreground |
+| `splash-icon.png` | 1024 | 98% | transparent | expo-splash-screen, at `imageWidth: 180` |
+| `favicon.png` | 256 | 73% | transparent | web |
+| `logo.png` | 512 | 92% | transparent | the onboarding hero |
+
+**`icon.png` is the one output that is flattened, and iOS is why:** the App Store rejects an app
+icon carrying an alpha channel. It is flattened onto `#1C1F24` — the ground the artwork originally
+came on — deliberately rather than onto `color.bg`, because an icon sits on the user's wallpaper
+and at `#141416` a charcoal hexagon disappears into a dark home screen. `adaptiveIcon.backgroundColor`
+matches it. The file still declares an RGBA colour type with alpha uniformly 255 (verified: zero
+non-opaque pixels); jimp's RGB encoder more than doubles the file for no pixel difference, and
+Expo's iOS icon generation strips transparency on its own.
+
+An adaptive icon is masked — to a circle, in the worst case — so the mark stays inside the middle
+~2/3 or the hexagon loses its corners. iOS masks to a rounded square and can run closer to the
+edge. Both were checked by rendering the masks over the generated files, not by trusting the ratio.
+
+**The splash is the exception in that table, and the reason is a padding that multiplies.** The
+splash config insets the asset itself: `imageWidth` scales the whole square to that many dp inside
+a 288dp canvas. Padding baked into the asset therefore compounds with padding applied by the
+config — at 60% the mark landed at **42% of the splash canvas**, visibly adrift inside its own
+circle, which is what rendering it caught. The asset is tight now, so `imageWidth` states the
+mark's size directly. Then a second number mattered: Android 12 masks a splash icon with no icon
+background to a **192dp circle** inside that 288dp canvas, and `imageWidth: 200` put the mark at
+**196dp** — four over, clipping the hexagon's points. At 180 it measures **154×177dp, a 16dp
+margin**. Both numbers were read off the generated drawable, not off the config.
+
+**Two things were fixed in passing, both pre-existing.** `app.json`'s root `backgroundColor` and
+the splash background were still the pre-retheme `#0A0B0F` while the app paints `#141416` — a
+visible step at launch, flagged in the M9 notes since the retheme and now closed. And the onboarding
+hero was a 64pt tinted tile reading **"RT"**: the initials of a name the project [no longer
+has](#s1--the-device-pass--2026-08-22). It is the mark now, at 96pt and without the tile — a
+shape that already has one does not need a second, and the accent hairline was competing with the
+notice below it.
+
+**Verified by regenerating the native project, not by reading the config.** `prebuild --clean`
+produces `ic_launcher_foreground.webp` at 432², `splashscreen_logo.png` at 1152²,
+`iconBackground` `#1C1F24` and `splashscreen_background` `#141416`; the release-signing plugin's
+marker survived the regeneration at its expected count of 2.
+
+### expo-system-ui, and what it actually changed — 2026-08-23
+
+`app.json` had claimed `"userInterfaceStyle": "dark"` since M0 and nothing on Android read it. The
+warning on every prebuild — *"Install expo-system-ui in your project to enable this feature"* — came
+from `@expo/prebuild-config`'s **unversioned fallback**, a plugin whose entire body is that warning.
+Installing the package at `~57.0.2` hands the job to the package's own plugin, and the warning is
+gone from the prebuild output.
+
+**What it does, traced rather than assumed.** The plugin writes one string resource:
+
+```xml
+<string name="expo_system_ui_user_interface_style" translatable="false">dark</string>
+```
+
+`SystemUIReactActivityLifecycleListener.onCreate` reads that key and calls
+`AppCompatDelegate.setDefaultNightMode(MODE_NIGHT_YES)`. That is the whole mechanism.
+
+**For this app, that changes almost nothing — and the reason is worth stating rather than
+discovering later.** Forcing night mode only matters to code that asks what mode it is in, and
+nothing here asks: there is no `useColorScheme`, no `Appearance` call, and no NativeWind `dark:`
+variant anywhere in `app/` or `src/` (grepped, one comment hit). `StatusBar` is hardcoded to
+`style="light"`. The app paints every surface unconditionally, which is exactly why the missing
+package never *looked* broken.
+
+What it does buy is the native chrome that inherits the AppCompat theme — selection menus, dialogs,
+pickers — which now cannot be handed a light theme on a light-mode phone, and a guarantee that any
+future component which *does* read the scheme gets `dark` instead of the system's answer.
+
+**The larger effect was the one nobody asked for.** Installing the package also activates
+`withAndroidRootViewBackgroundColor`, which writes `activityBackground` into `colors.xml` and points
+`android:windowBackground` at it. Before this, `app.json`'s root `backgroundColor` **was not applied
+on Android at all** — the value was as inert as `userInterfaceStyle`. Two dead settings, one
+install.
+
+**No conflict with `#141416`, checked rather than hoped.** `values-night/colors.xml` is generated
+empty, so `activityBackground` resolves to `#141416` in both day and night — forcing night mode
+cannot swap it for something else. And `android:configChanges` already lists `uiMode`, so
+`setDefaultNightMode` does not recreate the Activity on launch and there is no flash to design
+around.
+
+**One trap, hit and worth not repeating.** The standing advice after a prebuild is
+`git checkout -- package.json`, because prebuild rewrites the `android` / `ios` scripts to
+`expo run:*`. That reverts the *whole file* — including the dependency `expo install` had just
+added in the same working tree, which is what silently uninstalled `expo-system-ui` the first time.
+`package-lock.json` and `node_modules` still had it, so nothing failed; only `package.json`
+disagreed. Revert the two script keys, not the file.
+
+### Device-to-device transfer — 2026-08-23
+
+The last open item from the uninstall bug, and **the plan recorded for it was wrong.** S1 said to
+write a `dataExtractionRules` file with an empty `<device-transfer>` element. Reading Android's
+documentation first is the only reason that did not ship as a no-op.
+
+> "If there are no rules for a particular backup mode, such as if the `<device-transfer>` section is
+> missing, that mode is fully enabled for all content except for `no-backup` and `cache`
+> directories."
+
+An empty section is *no rules*, so it **enables** transfer. The element that reads like "transfer
+nothing" means the opposite of what it says.
+
+**Three more things the docs settle, and one they do not.** They confirm the gap is real for apps
+targeting 31+:
+
+> "On devices from some device manufacturers, specifying `android:allowBackup="false"` disables
+> cloud-based backup and restore (such as Google Drive backups) but doesn't disable device-to-device
+> transfers for the app."
+
+They give nine valid `domain` values — `root`, `file`, `database`, `sharedpref`, `external`, and the
+four `device_*` equivalents. They do **not** document any "exclude everything" switch, and they do
+**not** say whether excluding `root` also covers `file`, `database` and `sharedpref`. Since that
+last point is exactly what a compact rules file would have to assume, every domain is excluded by
+hand instead — nine per section, eighteen in total.
+
+**On sources.** Both URLs consulted (`guide/topics/data/autobackup` and `identity/data/autobackup`)
+return the same page, so this is one source read twice, not two agreeing. No second independent
+source was found stating the empty-element behaviour, and no source contradicting it. That is
+weaker corroboration than the Play App Signing question got, and it is recorded rather than
+smoothed over — though the sentence quoted above is unambiguous enough that the risk is low.
+
+**`<cross-platform-transfer>` is deliberately absent.** It is Android 16 QPR2 (API 36.1), and the
+docs do not say whether older parsers ignore an unknown element. With `minSdkVersion` at 24, an
+unparseable rules file would be a worse failure than a gap that only exists on Android 16 QPR2 and
+later. Added to the backlog rather than guessed at.
+
+**What covers which API levels, stated rather than implied:**
+
+| API | Cloud backup | Device-to-device |
+|---|---|---|
+| 24–30 | `allowBackup="false"` — Auto Backup is the only such mechanism there, and this shuts it | same attribute, same effect |
+| 31+ | `allowBackup="false"` **and** the `<cloud-backup>` exclusions | the `<device-transfer>` exclusions — the attribute is ignored below 31 |
+
+So `dataExtractionRules` adds nothing on 24–30 and is not needed there; `allowBackup` alone is
+sufficient below 31, and insufficient above it.
+
+**The plugin.** `plugins/withDataExtractionRules.js`, structurally like `withReleaseSigning`: the
+XML lives in its own file so JS escaping cannot mangle it, `withDangerousMod` copies it into
+`res/xml/`, and `withAndroidManifest` sets `android:dataExtractionRules` on `<application>`. It
+asserts two things and fails prebuild on either — that it is looking at a generated Android project
+rather than silently creating a resource tree, and that **`android:allowBackup` is still
+`"false"`**.
+That second one is the interesting guard: these rules do not cover 24–30, so if a future edit to
+`app.json` dropped `allowBackup`, the plugin would otherwise keep succeeding while cloud backup
+quietly came back on for older devices. Verified by flipping it to `true` and watching prebuild
+stop.
+
+**Verified in the shipped binary, not in the source tree.** AGP's resource optimizer renames
+`res/xml/data_extraction_rules.xml` to `res/4j.xml`, so a filename search finds nothing and proves
+nothing. `aapt2` follows the whole chain instead:
+
+- the manifest carries `android:dataExtractionRules=@0x7f130001` alongside `allowBackup=false`
+- the resource table maps `0x7f130001` to `xml/data_extraction_rules` at `res/4j.xml`
+- dumping that file back shows `<cloud-backup>`, `<device-transfer>`, and all **18** exclusions
+  surviving compilation
+- the merged manifest confirms `minSdkVersion=24`, `targetSdkVersion=36` — so the attribute applies
+
+Also: idempotent across a plain `prebuild` (one attribute, not two), survives `prebuild --clean`,
+and `assembleRelease` still signs with `CN=Rifthall, O=Rifthall`.
+
+~~**What is not verified: whether a real transfer honours it.** Observing the actual behaviour needs
+two phones and a factory-reset target, and it is [E4 in the device pass](DEVICE-PASS.md), marked
+unchecked.~~ **Verified 2026-08-23:** the owner ran a real transfer onto a second phone and Rifthall
+arrived with no decks and no matches. Everything above establishes that the rules are present and
+well-formed inside the APK; **only that test is evidence they are obeyed**, and it stays the only
+such evidence until someone runs it again.
+[Detail](#the-second-device-pass--30-of-30--2026-08-23).
+
+### The second device pass — 30 of 30 — 2026-08-23
+
+The owner installed `rifthall-0.1.0-2026-08-23.apk` and ran the whole of
+[`DEVICE-PASS.md`](DEVICE-PASS.md). **Everything passed.** The first pass, a day earlier, had
+covered four items and found two bugs; this one covered all thirty and found none.
+
+**The two things that actually needed proving, proved.**
+
+- **A1 — the launcher name.** Read "Riftbound Tracker" on 2026-08-22 because `expo.name` still held
+  the working title. Now reads **Rifthall**.
+- **E2 — uninstall retention.** The bug that started all of this: uninstalling left the data behind
+  and reinstalling restored it. Now an uninstall is a real uninstall and onboarding runs again.
+
+Both had been fixed in config and **neither fix had been observed.** They were carried as ⚠️ rather
+than ✅ precisely so this run would happen; that distinction is the reason the checklist was written
+down at all.
+
+**E4 is the result worth naming separately.** The owner ran a real device-to-device transfer, with a
+second phone, and Rifthall arrived carrying no decks and no matches. Everything else about
+[the D2D rules](#device-to-device-transfer--2026-08-23) was established by reading them back out of
+the compiled APK — that they are present, well-formed, and reach all nine domains in both sections.
+**None of that is evidence that a transfer honours them.** This is, and it is the only such
+evidence there will be until someone runs it again. It also retires the last doubt about the
+empty-`<device-transfer>` correction: had the original plan shipped, this test is what would have
+failed.
+
+**Nine items were carried as 🖥 — correct files nobody had seen on a screen.** All nine were the
+icon, splash and onboarding work from earlier the same day, and all nine passed: the mark survives
+both launcher masks on a real launcher, the splash hands over with no visible step, and the
+onboarding hero shows no seam against `color.bg`. The retint-versus-alpha work is settled on
+hardware rather than in a proof sheet.
+
+**What this does and does not license.** Thirty passes attest to **one build on one phone**. The
+statuses in the checklist are dated for that reason, and they should be reset whenever a build
+changes what they cover — E4 in particular, since nothing else in the suite or the checklist can
+catch a regression in the extraction rules. The pass says the release is sound; it does not say the
+app is finished.
+
+**S1 closes here**, bar iOS, which the owner deferred behind the Android and web releases. The
+order stands: **S1 → T2 → B1 → W1 → R1 → M9 → iOS.**
 
 ---
 
@@ -2663,8 +2956,8 @@ brute-forcing logins is not privacy-preserving, it is blind.
       input validation → §D · M5 communication → §B · M6 privacy → [`STORE.md`](STORE.md) ·
       M9 data storage → §C · M10 cryptography → §C. **Mobile M3 auth is B1's.**
 - [ ] **Mobile M8 misconfiguration on the generated manifest.** `allowBackup` is measured and
-      decided — and **re-decided 2026-08-22 to `false`**, with
-      [device-to-device transfer still open](#s1--the-device-pass--2026-08-22); exported components
+      decided — and **re-decided 2026-08-22 to `false`**, with device-to-device transfer
+      ~~still open~~ [closed 2026-08-23](#device-to-device-transfer--2026-08-23); exported components
       and any debug flags in a release build are not. The native
       project is regenerated by `prebuild`, so this is a check against the *output*, not the config.
 - [ ] **Mobile M7 — Insufficient Binary Protections. The recommendation is a deliberate *no*.**
@@ -3034,8 +3327,20 @@ attribution on the About card matches the footing the app is actually on.
 - [x] ~~Error boundaries and crash reporting~~ — **moved to [T1 §F](#f--failure-behaviour)**. It
       is not only a polish item: it decides what a crash is allowed to *say*, and the app has just
       finished removing exception text from a user-facing screen
+- [ ] **Verify `bundleRelease` (AAB) signing before the first upload.** Only the **APK** path has
+      been proven. The Gradle guard matches `(package|assemble|bundle).*Release`, so an AAB *should*
+      take the same `signingConfigs.release` — but "should" is exactly the word the whole
+      [certificate check](#the-certificate-read-from-the-binary--2026-08-23) exists to remove, and
+      **the AAB is the artifact Play actually receives.** Run `./gradlew bundleRelease` and read
+      the signer back out of it the same way. Cheap, and the failure mode is a rejected upload
+- [ ] **Check `icon.png` for an alpha channel at submission time.** The App Store rejects an app
+      icon carrying one. The file is fully opaque (verified: zero non-opaque pixels) but still
+      declares an RGBA colour type, and Expo's iOS icon generation strips transparency on its own —
+      so this is expected to be a no-op. Confirm it on the built `.ipa` rather than assuming, since
+      it costs a review cycle if wrong
 - [ ] EAS Build + EAS Update pipeline
-- [ ] App icon, splash, store screenshots and copy
+- [ ] ~~App icon, splash,~~ **done [2026-08-23](#the-logo--2026-08-23)** — store screenshots
+      and copy
 - [x] ~~Privacy policy~~ — **moved to [T1 §A](#a--store-and-platform-requirements)**, where it
       sits beside the Apple privacy manifest and the Play Data Safety form. All three describe the
       same facts and have to agree; writing them apart is how they end up disagreeing
@@ -4443,6 +4748,26 @@ Deliberately deferred — revisit after launch with real usage data.
   (~14 KB and ~0.5 ms per version) and the ceiling is the render, not the database. The fix is a
   `FlashList` and a restructured screen, the same change C1 made to the editor. Do it if a real deck
   ever passes a few hundred versions
+- **A themed (monochrome) Android icon.** Android 13+ tints a monochrome layer to match the user's
+  wallpaper, and `adaptiveIcon.monochromeImage` is supported by the Expo config (checked against
+  `@expo/prebuild-config`, not assumed). Without it the launcher keeps drawing the full-colour icon
+  while every themed icon around it recolours, which reads as the odd one out. It is **not** a
+  crop of the existing art: a themed icon is a single-colour silhouette on transparent, so the
+  hexagon plate and the red rift have to collapse into one shape that still reads at 48dp. That is
+  a design decision, not a generator flag — the same question iOS 18's dark and tinted icon
+  variants ask, so answer it once for both
+- **Give the master logo a tracked home.** It lives in `app logo/Rifhthall Logo No BG.png` — an
+  untracked folder, outside `assets/`, with a typo in the filename. `scripts/make-logo-assets.js`
+  reads it by that exact path, so **nothing regenerates on a second machine** until it is committed.
+  Rename and move together with the script's constant, or leave it and commit as-is; either is
+  fine, but not doing one of them is a silent dependency on this laptop
+- **`<cross-platform-transfer>` in the data-extraction rules.** Android 16 QPR2 (API 36.1) added a
+  third backup mode, for transfers to and from non-Android devices, and
+  [the rules file omits it](#device-to-device-transfer--2026-08-23) — an absent section means that
+  mode is *fully enabled*, the same trap the `<device-transfer>` research turned up. It was left
+  out because the docs do not say whether an API 31 parser ignores an unknown element, and an
+  unparseable rules file would break the two modes that already work. Revisit when minSdk clears 36,
+  or when someone can confirm the element is ignored rather than fatal on older releases
 - Web export of the Expo codebase
 - Deck sharing between users
 - Sideboard / tech-card tracking as a first-class concept

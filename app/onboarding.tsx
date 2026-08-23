@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useRef } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -209,9 +210,20 @@ export default function OnboardingScreen() {
             this screen has to say, so it belongs inside the thing being said.
           */}
           <View style={styles.intro}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeMark}>RT</Text>
-            </View>
+            {/*
+              The mark itself, not a monogram of it.
+
+              This was a 64pt tile reading "RT" — the initials of a name the
+              project no longer has. `logo.png` carries a real alpha channel
+              (`scripts/make-logo-assets.js`), so it sits on whatever is behind
+              it and does not care that this screen happens to be `color.bg`.
+            */}
+            <Image
+              source={require('../assets/images/logo.png')}
+              style={styles.mark}
+              contentFit="contain"
+              accessible={false}
+            />
             <Text style={styles.title}>{t('onboarding.welcome')}</Text>
             <Text style={styles.body}>{t('onboarding.welcome.body')}</Text>
 
@@ -417,22 +429,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[5],
   },
   /*
-   * The monogram tile: 64 square at radius 18, a 135° accent-to-raised wash
-   * behind a hairline of accent. Rendered as a flat tint rather than a real
-   * gradient — one tile does not justify pulling in a gradient dependency, and
-   * at 12 % over `raised` the difference is not visible on a phone.
+   * 96, where the design draws a 64pt tinted tile around a monogram.
+   *
+   * The tile existed to give two letters a shape; a mark that already has one
+   * does not need it, and its accent hairline would now be a second border
+   * competing with the notice below. Larger because this is artwork rather
+   * than a label — the hexagon's internal detail is what makes it
+   * recognisable, and the point of showing it here is that the player meets
+   * the same thing they will tap on their home screen.
    */
-  badge: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,75,75,0.13)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,75,75,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeMark: { ...text.display, fontSize: 24, lineHeight: 28, letterSpacing: 0, color: color.text },
+  mark: { width: 96, height: 96 },
   // The design's 24px/1.3 at -.02em, spelled out rather than inherited: `display`
   // is tuned for a 30px screen title and its tracking does not scale down.
   title: {

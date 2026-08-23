@@ -56,6 +56,18 @@ uninstalling did not clear the data and reinstalling restored it. `app.json` now
 Drive, and an uninstall is a real uninstall. See
 [S1's device pass](ROADMAP.md#s1--the-device-pass--2026-08-22).
 
+**Completed 2026-08-23: device-to-device transfer was a second, separate hole, and `allowBackup`
+did not close it.** Per Android's docs, for apps targeting API 31+ that attribute disables cloud
+backup but *"doesn't disable device-to-device transfers"* — so a user setting up a new phone would
+still have carried the database across. `plugins/withDataExtractionRules.js` now excludes all nine
+data domains from both backup modes.
+[Detail](ROADMAP.md#device-to-device-transfer--2026-08-23).
+
+**Both are verified on hardware**, not inferred from config: an uninstall/reinstall cycle and a real
+transfer onto a second phone, [2026-08-23](ROADMAP.md#the-second-device-pass--30-of-30--2026-08-23).
+That matters here more than elsewhere, because everything below is a promise made to a user and to
+Google rather than a note to ourselves.
+
 **iOS is unchanged and still copies the database to iCloud.** `allowBackup` is an Android
 attribute; the iOS side needs `NSURLIsExcludedFromBackupKey` set on the database file, and iOS has
 never been built. It is tracked with the rest of the iOS gap, and this section must be revisited
@@ -187,10 +199,11 @@ M8 web platform is the natural home, which is one more reason
 >
 > #### Your device's own backup
 >
-> **On Android, the app is excluded from your device's cloud backup.** Nothing it stores is copied
-> to Google Drive. That also means there is no safety net: if you uninstall the app, or lose the
-> phone, your decks and match history are gone. You can copy a single deck out as a share code
-> from that deck’s screen; there is no export of your match history yet.
+> **On Android, the app is excluded from your device's backups and transfers.** Nothing it stores is
+> copied to Google Drive, and nothing is carried across when you set up a new phone from this one.
+> That also means there is no safety net: if you uninstall the app, or lose the phone, your decks
+> and match history are gone. You can copy a single deck out as a share code from that deck’s
+> screen; there is no export of your match history yet.
 >
 > On iOS, your operating system may include the app's database — and therefore your decks and match
 > history — in your iCloud backup. That backup belongs to your Apple account, is encrypted by the
